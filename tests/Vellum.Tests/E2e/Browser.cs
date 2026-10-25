@@ -23,6 +23,8 @@ public sealed class Browser : IDisposable
     public Browser(VellumFixture fx)
     {
         _http = fx.Factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = true });
+        // Ask for HTML like a browser does, so error responses come back as pages (and get checked) rather than plain text.
+        _http.DefaultRequestHeaders.Accept.ParseAdd("text/html,application/xhtml+xml,*/*;q=0.8");
     }
 
     /// <summary>The page currently shown.</summary>
@@ -67,6 +69,8 @@ public sealed class Browser : IDisposable
         }
         var html = await res.Content.ReadAsStringAsync();
         var isHtml = res.Content.Headers.ContentType?.MediaType == "text/html";
+        if ((int)res.StatusCode >= 500 && !isHtml)
+            throw new Xunit.Sdk.XunitException($"Server error {(int)res.StatusCode} on {res.RequestMessage!.RequestUri!.PathAndQuery}:\n{html[..Math.Min(1500, html.Length)]}");
         Page = new Page(this, res.RequestMessage!.RequestUri!, res.StatusCode, html, isHtml ? Parser.ParseDocument(html) : null);
         if (isHtml) Page.AssertRendersCleanly();
         return Page;

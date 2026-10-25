@@ -25,9 +25,15 @@ public class NewModel(ConfigCache cfg, AccessService access, RecordService recor
         {
             if (!await access.CanReadAsync(pid)) return (null, null, NotFound());
             parent = await db.Records.AsNoTracking().FirstAsync(r => r.Id == pid);
+            // Only the parent's activity forms for its current phase (PLT-640); any other form would borrow the parent's rights.
+            var parentForm = cfg.Current.FormsById[parent.FormId];
+            if (parent.IsArchived || !cfg.Current.ActivityFormsFor(parentForm, cfg.Current.Phase(parent.PhaseId)).Any(f => f.Id == form.Id))
+                return (null, null, BadRequest($"{form.Name} records can't be created from this record."));
         }
-        // PLT-642: assignees (and managers) of the parent may create its activities even without author rights on the activity form.
-        var viaParent = parent != null && (await access.ActingAssignmentAsync(parent.Id) != null || access.RoleFor(parent.AppId) >= AppRole.Manager);
+        // PLT-642: assignees (and managers) of the parent may create its activities even without author rights on the activity form,
+        // as long as they can read that form (the same rule as the record page's Create menu).
+        var viaParent = parent != null && access.RoleFor(form.AppId, form.Key) >= AppRole.Reader &&
+            (await access.ActingAssignmentAsync(parent.Id) != null || access.RoleFor(parent.AppId) >= AppRole.Manager);
         if (!access.CanCreate(form) && !viaParent) return (null, null, Forbid());
         if (form.IsActivity && parent == null) return (null, null, BadRequest("Activities are created from their parent record."));
         return (form, parent, null);

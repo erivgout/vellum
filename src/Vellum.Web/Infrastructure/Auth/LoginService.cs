@@ -34,7 +34,8 @@ public sealed class LoginService(VellumDbContext db, IHttpContextAccessor http, 
         }
 
         var ok = PasswordHasher.Verify(password, user.PasswordHash);
-        if (user.Status == UserStatus.Inactive || (user.Status == UserStatus.Disabled && ok))
+        // The account's state is only revealed to someone who knows the password (INV-150).
+        if (ok && user.Status != UserStatus.Active)
         {
             Log("Login blocked", false, user.Id, username, $"Account {user.Status.ToString().ToLowerInvariant()}", ip);
             await db.SaveChangesAsync();
@@ -74,10 +75,13 @@ public sealed class LoginService(VellumDbContext db, IHttpContextAccessor http, 
         await db.SaveChangesAsync();
         if (user.MfaEnrolled && user.TotpSecret != null) return new LoginResult(LoginOutcome.MfaRequired, user);
         if (settings.MfaRequired && !user.MfaEnrolled) return new LoginResult(LoginOutcome.MfaEnrollRequired, user);
-        if (settings.PasswordExpiryDays > 0 && user.PasswordChangedAt is { } changed && changed.AddDays(settings.PasswordExpiryDays) < DateTime.UtcNow)
-            return new LoginResult(LoginOutcome.PasswordExpired, user);
+        if (PasswordExpired(user, settings)) return new LoginResult(LoginOutcome.PasswordExpired, user);
         return new LoginResult(LoginOutcome.Success, user);
     }
+
+    /// <summary>SEC-201: the password is older than the expiration period. Checked on every sign-in path, with or without MFA.</summary>
+    public static bool PasswordExpired(User user, SystemSettings settings) =>
+        settings.PasswordExpiryDays > 0 && user.PasswordChangedAt is { } changed && changed.AddDays(settings.PasswordExpiryDays) < DateTime.UtcNow;
 
     public static bool VerifyTotp(string secret, string code) =>
         new Totp(Base32Encoding.ToBytes(secret)).VerifyTotp(code.Replace(" ", ""), out _, new VerificationWindow(1, 1));

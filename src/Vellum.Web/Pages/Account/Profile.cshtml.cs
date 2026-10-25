@@ -89,10 +89,14 @@ public class ProfileModel(VellumDbContext db, CurrentUser me, UserDirectory dir,
         return Redirect("/account/profile");
     }
 
+    /// <summary>End another of my sessions, picked by its handle (SEC-402: pages never carry session IDs).</summary>
     public async Task<IActionResult> OnPostEndSessionAsync(string id)
     {
-        await db.Sessions.Where(s => s.Id == id && s.UserId == me.Id && s.Id != me.SessionId)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTime.UtcNow).SetProperty(x => x.RevokedReason, "Ended by user"));
+        var mine = await db.Sessions.Where(s => s.UserId == me.Id && s.RevokedAt == null && s.Id != me.SessionId).Select(s => s.Id).ToListAsync();
+        var target = mine.FirstOrDefault(s => SessionService.Handle(s) == id);
+        if (target != null)
+            await db.Sessions.Where(s => s.Id == target)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTime.UtcNow).SetProperty(x => x.RevokedReason, "Ended by user"));
         TempData["Toast"] = "Session ended.";
         return Redirect("/account/profile");
     }

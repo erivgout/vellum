@@ -51,6 +51,10 @@ public sealed class ConfigModel
         FormsById.Values.Where(f => f.IsActivity && !f.Disabled && f.Key != parent.Key &&
             (f.ParentForms.Count == 0 ? f.AppId == parent.AppId : f.ParentForms.Contains(parent.Key) || f.ParentForms.Contains("*")))
             .OrderBy(f => f.App.Order).ThenBy(f => f.Order);
+
+    /// <summary>Activity forms that may be created under a record of <paramref name="parent"/> in <paramref name="phase"/> (PLT-640).</summary>
+    public IEnumerable<FormDefinition> ActivityFormsFor(FormDefinition parent, PhaseDefinition? phase) =>
+        phase is not { Type: PhaseType.Normal } ? [] : ActivityFormsFor(parent).Where(f => phase.ActivityForms.Count == 0 || phase.ActivityForms.Contains(f.Key));
 }
 
 public sealed class ConfigCache(IServiceScopeFactory scopes)

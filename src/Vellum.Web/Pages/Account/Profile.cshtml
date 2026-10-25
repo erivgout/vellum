@@ -130,7 +130,7 @@
                         </span>
                         @if (!current)
                         {
-                            <form method="post" asp-page-handler="EndSession" class="m-0"><input type="hidden" name="id" value="@s.Id" /><button class="btn btn-sm btn-light">Sign out</button></form>
+                            <form method="post" asp-page-handler="EndSession" class="m-0"><input type="hidden" name="id" value="@Vellum.Infrastructure.Auth.SessionService.Handle(s.Id)" /><button class="btn btn-sm btn-light">Sign out</button></form>
                         }
                         else { <span class="vl-kw vl-kw-success">Current</span> }
                     </div>

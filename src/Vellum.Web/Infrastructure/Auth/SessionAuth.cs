@@ -65,6 +65,12 @@ public sealed class SessionService(VellumDbContext db, IHttpContextAccessor http
         db.Sessions.Where(s => s.RevokedAt == null && (userId == null || s.UserId == userId))
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTime.UtcNow).SetProperty(x => x.RevokedReason, reason));
 
+    /// <summary>
+    /// How pages and forms refer to a session. The ID itself is the bearer secret in the cookie, so it never leaves the server
+    /// (SEC-402); the handle can't be turned back into it.
+    /// </summary>
+    public static string Handle(string sessionId) => Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(sessionId)))[..32].ToLowerInvariant();
+
     private static string Base64Url(byte[] b) => Convert.ToBase64String(b).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }
 
