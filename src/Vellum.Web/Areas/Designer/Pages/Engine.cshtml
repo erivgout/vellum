@@ -1,0 +1,143 @@
+@page "/designer/engine"
+@model EngineModel
+@{
+    ViewData["Title"] = "Platform Engine · Designer";
+    var orphans = Model.Tab == "orphans";
+    var dictionary = Model.Tab == "dictionary";
+}
+@section Crumbs {
+    <a href="/designer">Designer</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Platform Engine</span>
+}
+
+<div class="vl-page-head">
+    <span class="dz-ico lg tone-neutral"><i class="bi bi-cpu"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Platform Engine</h1>
+        <p class="vl-page-sub">Every configuration object by type: applications, forms, sections, fields, workflows, phases, routes, views and keyword lists (DSN-1205).</p>
+    </div>
+</div>
+
+<ul class="nav vl-tabs" role="tablist">
+    <li class="nav-item"><a class="nav-link @(!orphans && !dictionary ? "active" : "")" href="/designer/engine"><i class="bi bi-list-ul"></i>Catalog</a></li>
+    <li class="nav-item"><a class="nav-link @(dictionary ? "active" : "")" href="/designer/engine?tab=dictionary"><i class="bi bi-journal-text"></i>Data dictionary</a></li>
+    <li class="nav-item"><a class="nav-link @(orphans ? "active" : "")" href="/designer/engine?tab=orphans"><i class="bi bi-bandaid"></i>Orphans &amp; broken references</a></li>
+</ul>
+
+@if (orphans)
+{
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <section class="card">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-tags"></i>Keyword lists no field uses <span class="vl-pill-count">@Model.UnusedLists.Count</span></h2></div>
+                @if (Model.UnusedLists.Count == 0) { <div class="card-body small text-body-secondary"><i class="bi bi-check-circle-fill text-success"></i> Every keyword list is used.</div> }
+                <ul class="vl-list">
+                    @foreach (var l in Model.UnusedLists)
+                    {
+                        <li><a class="vl-list-item" href="/designer/engine/usage?kind=list&key=@l.Key"><span class="dz-ico tone-warn"><i class="bi bi-tags"></i></span>
+                            <span class="main"><span class="line1"><span class="ttl">@l.Name</span><span class="mono x-small text-body-tertiary">@l.Key</span></span><span class="line2 d-block">@Ui.Plural(l.Keywords.Count, "keyword"): @string.Join(", ", l.Keywords.Take(5).Select(k => k.Label))</span></span></a></li>
+                    }
+                </ul>
+            </section>
+        </div>
+        <div class="col-lg-7">
+            <section class="card">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-bandaid"></i>Broken references and unreachable objects <span class="vl-pill-count @(Model.Broken.Count > 0 ? "hot" : "")">@Model.Broken.Count</span></h2></div>
+                @if (Model.Broken.Count == 0) { <div class="card-body small text-body-secondary"><i class="bi bi-check-circle-fill text-success"></i> No view points at a missing form, no field at a missing list, and every phase can be reached and left.</div> }
+                <ul class="vl-list">
+                    @foreach (var b in Model.Broken)
+                    {
+                        <li><a class="vl-list-item" href="@b.Href"><span class="dz-ico tone-bad"><i class="bi bi-exclamation-triangle"></i></span>
+                            <span class="main"><span class="d-block fw-semibold">@b.Where</span><span class="d-block small text-body-secondary">@b.What</span></span></a></li>
+                    }
+                </ul>
+            </section>
+        </div>
+    </div>
+}
+else if (dictionary)
+{
+    <div class="row g-3">
+        @foreach (var g in Model.Forms.GroupBy(f => f.Form.App))
+        {
+            <div class="col-md-6 col-xl-4">
+                <section class="card h-100">
+                    <div class="card-header"><span class="vl-app-tile xs" style="--app:@g.Key.Color"><i class="bi @g.Key.Icon"></i></span><h2 class="card-title-sm">@g.Key.Name</h2></div>
+                    <ul class="vl-list">
+                        @foreach (var (f, n) in g)
+                        {
+                            <li><a class="vl-list-item" href="/designer/engine/forms/@f.Key"><i class="bi bi-journal-text text-body-tertiary"></i><span class="main"><span class="line1"><span class="ttl">@f.Name</span><span class="mono x-small text-body-tertiary">@f.Key</span></span></span><span class="aside small text-body-tertiary">@Ui.Plural(n, "field")</span></a></li>
+                        }
+                    </ul>
+                </section>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <form class="vl-toolbar" method="get" action="/designer/engine" role="search">
+        <div class="vl-search-input flex-grow-1" style="max-width:380px">
+            <i class="bi bi-search"></i>
+            <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Search names, design names, parents…" aria-label="Search configuration objects" />
+        </div>
+        <select class="form-select form-select-sm w-auto" name="app" aria-label="Application" data-autosubmit>
+            <option value="">All applications</option>
+            @foreach (var a in Model.Apps) { <option value="@a.Key" selected="@(a.Key == Model.App)">@a.Name</option> }
+        </select>
+        <select class="form-select form-select-sm w-auto" name="type" aria-label="Type" data-autosubmit>
+            <option value="">All types</option>
+            @foreach (var ty in EngineCatalog.Types) { <option selected="@(ty == Model.Type)">@ty</option> }
+        </select>
+        <select class="form-select form-select-sm w-auto" name="days" aria-label="Modified" data-autosubmit>
+            <option value="">Any time</option>
+            @foreach (var (d, l) in new[] { (1, "Changed today"), (7, "Changed in 7 days"), (30, "Changed in 30 days"), (365, "Changed this year") }) { <option value="@d" selected="@(Model.Days == d)">@l</option> }
+        </select>
+        <button class="btn btn-sm btn-light">Search</button>
+        @if (!string.IsNullOrEmpty(Model.Q) || !string.IsNullOrEmpty(Model.App) || !string.IsNullOrEmpty(Model.Type) || Model.Days > 0)
+        {
+            <a class="btn btn-sm btn-ghost" href="/designer/engine"><i class="bi bi-x"></i>Clear</a>
+        }
+    </form>
+    <div class="vl-filter-pills dz-pills mb-3">
+        <a class="dz-pill @(string.IsNullOrEmpty(Model.Type) ? "active" : "")" href="@Model.Link(clearType: true)">All <span class="vl-pill-count">@Model.TypeCounts.Values.Sum()</span></a>
+        @foreach (var ty in EngineCatalog.Types.Where(Model.TypeCounts.ContainsKey))
+        {
+            <a class="dz-pill @(Model.Type == ty ? "active" : "")" href="@Model.Link(type: ty)"><i class="bi @EngineCatalog.IconFor(ty)"></i>@ty <span class="vl-pill-count">@Model.TypeCounts[ty]</span></a>
+        }
+    </div>
+    <div class="vl-table-wrap">
+        @if (Model.Items.Count == 0)
+        {
+            <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-search"></i></div><h3>No configuration objects match</h3><p>Try a different search or filter.</p></div>
+        }
+        else
+        {
+            <div class="vl-table-scroll">
+                <table class="table vl-table vl-table-compact">
+                    <thead><tr><th scope="col">Type</th><th scope="col">Name</th><th scope="col">Design name</th><th scope="col">Application</th><th scope="col">Parent</th><th scope="col">Details</th><th scope="col">Last changed</th><th scope="col"><span class="visually-hidden">Where used</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var i in Model.Items)
+                        {
+                            <tr data-href="@i.Href">
+                                <td class="text-nowrap"><i class="bi @i.Icon text-body-tertiary me-1"></i>@i.Type</td>
+                                <td class="fw-medium">@if (i.Href != null) { <a href="@i.Href">@i.Name</a> } else { @i.Name }</td>
+                                <td class="mono">@i.Key</td>
+                                <td class="text-nowrap">@(i.AppName ?? "Shared")</td>
+                                <td class="text-body-secondary">@i.Parent</td>
+                                <td class="small text-body-secondary">@i.Detail</td>
+                                <td class="text-nowrap small">@(Model.LastChanged.TryGetValue(i.AuditKey, out var at) ? Ui.Time(at, Shell.TimeZone) : new Microsoft.AspNetCore.Html.HtmlString("<span class=\"text-body-tertiary\">–</span>"))</td>
+                                <td class="text-end text-nowrap">
+                                    @if (i.Type == "Field" && i.Href != null) { <a class="btn btn-sm btn-ghost" href="/designer/engine/usage?kind=field&key=@(i.Href.Split('/').Last()).@i.Key" title="Where used"><i class="bi bi-diagram-2"></i></a> }
+                                    else if (i.Type == "Form") { <a class="btn btn-sm btn-ghost" href="/designer/engine/usage?kind=form&key=@i.Key" title="Where used"><i class="bi bi-diagram-2"></i></a> }
+                                    else if (i.Type == "Keyword list") { <a class="btn btn-sm btn-ghost" href="/designer/engine/usage?kind=list&key=@i.Key" title="Where used"><i class="bi bi-diagram-2"></i></a> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="vl-table-foot"><span>@(Model.Total > EngineModel.Limit ? $"Showing {EngineModel.Limit} of {Model.Total}. Narrow the search to see the rest." : Ui.Plural(Model.Total, "object"))</span></div>
+        }
+    </div>
+}

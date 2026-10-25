@@ -1,0 +1,53 @@
+@page "/designer/engine/usage"
+@model UsageModel
+@{
+    ViewData["Title"] = $"Where used · {Model.Title}";
+    var list = Model.Kind == "list" ? Shell.Config.KeywordListsByKey.GetValueOrDefault(Model.Key) : null;
+}
+@section Crumbs {
+    <a href="/designer">Designer</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/designer/engine">Platform Engine</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Where used</span>
+}
+
+<div class="vl-page-head">
+    <span class="dz-ico lg tone-info"><i class="bi bi-diagram-2"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Where is @Model.Title used?</h1>
+        <p class="vl-page-sub">References from fields, rules, workflows and views in the live configuration. Check these before changing or removing it.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <section class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-link-45deg"></i>References <span class="vl-pill-count">@Model.Refs.Count</span></h2></div>
+            @if (Model.Refs.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-diagram-2"></i></div><h3>Not used anywhere</h3><p>Nothing in the configuration refers to it@(Model.Kind == "list" ? ", so it's an orphaned keyword list" : "").</p></div>
+            }
+            <ul class="vl-list">
+                @foreach (var r in Model.Refs)
+                {
+                    <li><a class="vl-list-item" href="@r.Href"><span class="dz-ico tone-neutral"><i class="bi bi-arrow-return-right"></i></span>
+                        <span class="main"><span class="d-block fw-semibold">@r.Where</span><span class="d-block small text-body-secondary">@r.What</span></span></a></li>
+                }
+            </ul>
+        </section>
+    </div>
+    @if (list != null)
+    {
+        <div class="col-lg-4">
+            <section class="card">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-tags"></i>@list.Name</h2><span class="mono x-small text-body-tertiary ms-auto">@list.Key</span></div>
+                <ul class="vl-list">
+                    @foreach (var k in list.Keywords)
+                    {
+                        <li class="vl-list-item">@Ui.Keyword(k)<span class="mono x-small text-body-tertiary ms-auto">@k.Key</span>@if (k.Disabled) { <span class="vl-kw">Disabled</span> }</li>
+                    }
+                </ul>
+                <div class="card-footer small text-body-tertiary">Keywords are stored by ID, so labels can change without touching data (INV-061).</div>
+            </section>
+        </div>
+    }
+</div>

@@ -1,0 +1,78 @@
+@page "/designer/engine/forms/{form}"
+@model DictionaryModel
+@{
+    var f = Model.F;
+    ViewData["Title"] = $"Data dictionary · {f.Name}";
+    ViewData["ContentClass"] = "vl-content-wide";
+    var cfg = Shell.Config;
+    string Flags(FieldDefinition x)
+    {
+        var l = new List<string>();
+        if (x.Required) l.Add("required");
+        if (x.RequiredInPhases.Count > 0) l.Add("required in " + string.Join(", ", x.RequiredInPhases));
+        if (x.PreventNull) l.Add("prevent null");
+        if (x.Unique) l.Add("unique");
+        if (x.Sensitive) l.Add("sensitive");
+        if (x.ReadOnly) l.Add("read-only");
+        if (x.ProtectFromAdminUpdate) l.Add("protected");
+        if (x.ShowInHeader) l.Add("header");
+        return string.Join(" · ", l);
+    }
+}
+@section Crumbs {
+    <a href="/designer">Designer</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/designer/engine?tab=dictionary">Data dictionary</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">@f.Name</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="vl-app-tile lg" style="--app:@f.App.Color"><i class="bi @f.Icon"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">@f.Name <span class="mono text-body-tertiary fs-6">@f.Key</span></h1>
+        <p class="vl-page-sub">@f.App.Name · @Ui.Plural(f.Sections.Count, "section") · @Ui.Plural(f.Fields.Count, "field") · numbering @f.NumberPrefix@(new string('0', f.NumberPadding))@f.NumberSuffix · title <span class="mono">@f.TitleTemplate</span></p>
+    </div>
+    @if (!f.App.IsSystem)
+    {
+        <a class="btn btn-primary" href="/designer/apps/@f.App.Key/forms/@f.Key"><i class="bi bi-vector-pen"></i>Open in form designer</a>
+    }
+</div>
+
+@foreach (var s in f.Sections)
+{
+    var fields = f.Fields.Where(x => x.SectionKey == s.Key).ToList();
+    <section class="vl-table-wrap mb-3">
+        <div class="dz-dict-head"><span class="vl-section-icon"><i class="bi @(s.Icon ?? (s.IsSubform ? "bi-table" : "bi-card-text"))"></i></span>
+            <b>@s.Name</b><span class="mono x-small text-body-tertiary">@s.Key</span><span class="vl-kw">@s.Tab</span>@if (s.IsSubform) { <span class="vl-kw vl-kw-info">Subform</span> }</div>
+        <div class="vl-table-scroll">
+            <table class="table vl-table vl-table-compact">
+                <thead><tr><th>Field</th><th>Design name</th><th>Type</th><th>Width</th><th>Rules</th><th>Keyword list / targets</th><th>Default</th><th>Visible when</th><th class="numeric">Records</th><th class="numeric">Used by</th></tr></thead>
+                <tbody>
+                    @foreach (var x in fields)
+                    {
+                        <tr>
+                            <td class="fw-medium">@(x.Type == FieldType.Prompt ? "(text prompt)" : x.Label)</td>
+                            <td class="mono">@x.Key</td>
+                            <td class="text-nowrap"><i class="bi @DesignDocs.TypeIcon(x.Type) text-body-tertiary me-1"></i>@DesignDocs.TypeLabel(x.Type)</td>
+                            <td>@x.Width</td>
+                            <td class="small">@Flags(x)</td>
+                            <td class="small">
+                                @if (x.KeywordList != null)
+                                {
+                                    <a href="/designer/engine/usage?kind=list&key=@x.KeywordList" class="mono">@x.KeywordList</a>
+                                    <div class="d-flex flex-wrap gap-1 mt-1">@foreach (var k in cfg.Options(x.KeywordList).Take(12)) { @Ui.Keyword(k) }</div>
+                                }
+                                else if (x.LinkForms.Count > 0) { @string.Join(", ", x.LinkForms) }
+                                else if (x.Min != null || x.Max != null) { <span>@x.Min – @x.Max</span> }
+                                else if (x.MaxLength != null) { <span>max @x.MaxLength chars</span> }
+                            </td>
+                            <td class="mono small">@x.DefaultValue</td>
+                            <td class="mono small">@x.VisibleWhen</td>
+                            <td class="numeric">@(Model.Data.GetValueOrDefault(x.Key))</td>
+                            <td class="numeric">@if (Model.Uses.GetValueOrDefault(x.Key) is > 0 and var u) { <a href="/designer/engine/usage?kind=field&key=@f.Key.@x.Key">@u</a> } else { <span class="text-body-tertiary">0</span> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}

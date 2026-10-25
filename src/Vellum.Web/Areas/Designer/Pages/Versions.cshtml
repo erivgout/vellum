@@ -1,0 +1,88 @@
+@page "/designer/versions"
+@model VersionsModel
+@{
+    ViewData["Title"] = "Configuration history · Designer";
+    var app = Model.App;
+    var latest = Model.Rows.FirstOrDefault()?.Version.Number ?? 0;
+}
+@section Crumbs {
+    <a href="/designer">Designer</a><i class="bi bi-chevron-right sep"></i>
+    @if (!string.IsNullOrEmpty(app)) { <a href="/designer/apps/@app">@Model.AppName</a><i class="bi bi-chevron-right sep"></i> }
+    <span class="current">History</span>
+}
+
+<div class="vl-page-head">
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Configuration history</h1>
+        <p class="vl-page-sub">Every publish is an immutable, numbered version (DSN-1203). Compare any two from the append-only configuration audit trail (DSN-1202), or restore an earlier one into the draft.</p>
+    </div>
+    <form method="get" action="/designer/versions" class="d-flex gap-2 align-items-center">
+        <label class="small text-body-secondary text-nowrap" for="dz-v-app">Application</label>
+        <select class="form-select form-select-sm" id="dz-v-app" name="app" data-autosubmit>
+            <option value="">All applications</option>
+            @foreach (var (k, n) in Model.AppChoices) { <option value="@k" selected="@(k == app)">@n</option> }
+        </select>
+    </form>
+</div>
+
+@if (Model.Compare != null)
+{
+    <section class="card mb-4" id="compare">
+        <div class="card-header">
+            <h2 class="card-title-sm"><i class="bi bi-file-diff"></i>@Model.CompareTitle</h2>
+            <span class="small text-body-tertiary">@Ui.Plural(Model.Compare.Count, "object") changed · @Ui.Plural(Model.CompareEntries.Count, "audit entry")</span>
+            <a class="btn btn-sm btn-ghost ms-auto" href="/designer/versions@(string.IsNullOrEmpty(app) ? "" : "?app=" + app)"><i class="bi bi-x-lg"></i>Close</a>
+        </div>
+        <div class="card-body">
+            @if (Model.Accepted.Count > 0)
+            {
+                <div class="vl-banner vl-banner-warn"><i class="bi bi-exclamation-triangle"></i><div><div class="ttl">Warnings accepted when publishing</div><ul>@foreach (var w in Model.Accepted) { <li>@w</li> }</ul></div></div>
+            }
+            <partial name="_Changes" model="Model.Compare" />
+        </div>
+    </section>
+}
+
+<form method="get" action="/designer/versions" class="vl-table-wrap" data-dz-compare>
+    @if (!string.IsNullOrEmpty(app)) { <input type="hidden" name="app" value="@app" /> }
+    <div class="vl-toolbar p-2 m-0 border-bottom">
+        <span class="small text-body-secondary ms-1">Pick two versions in the <b>From</b> and <b>To</b> columns, then compare.</span>
+        <button class="btn btn-sm btn-primary ms-auto"><i class="bi bi-file-diff"></i>Compare</button>
+    </div>
+    <div class="vl-table-scroll">
+        <table class="table vl-table">
+            <thead>
+                <tr>
+                    <th scope="col" class="text-center">From</th><th scope="col" class="text-center">To</th>
+                    <th scope="col">Version</th><th scope="col">Published</th><th scope="col">By</th><th scope="col">Application</th><th scope="col">Note</th><th scope="col" class="numeric">Changes</th><th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model.Rows)
+                {
+                    var v = r.Version;
+                    var pub = r.Publications.FirstOrDefault(p => string.IsNullOrEmpty(app) || p.AppKey == app);
+                    <tr>
+                        <td class="text-center"><input class="form-check-input" type="radio" name="a" value="@v.Number" checked="@(Model.A == v.Number || (Model.A == null && v.Number == latest - 1))" aria-label="Compare from version @v.Number" /></td>
+                        <td class="text-center"><input class="form-check-input" type="radio" name="b" value="@v.Number" checked="@(Model.B == v.Number || (Model.B == null && v.Number == latest))" aria-label="Compare to version @v.Number" /></td>
+                        <td class="col-number"><span class="dz-ver">v@(v.Number)</span>@if (v.Number == latest) { <span class="vl-kw vl-kw-success ms-2">Live</span> }</td>
+                        <td class="text-nowrap">@Ui.Time(v.PublishedAt, Shell.TimeZone)</td>
+                        <td>@(v.PublishedById is { } uid ? Ui.Avatar(Shell.Directory.Get(uid), "sm", showName: true) : new Microsoft.AspNetCore.Html.HtmlString("<span class=\"text-body-tertiary\">System</span>"))</td>
+                        <td>@(r.Publications.Count > 0 ? string.Join(", ", r.Publications.Select(p => p.AppName)) : "Packaged install")</td>
+                        <td class="col-title"><span class="t">@(pub?.Note ?? v.Note)</span>@if (pub?.AcceptedWarnings != null) { <span class="vl-kw vl-kw-warning ms-1" title="Warnings were accepted"><i class="bi bi-exclamation-triangle"></i>warnings accepted</span> }</td>
+                        <td class="numeric">@(pub?.Changes ?? r.AuditEntries)</td>
+                        <td class="text-nowrap text-end">
+                            <a class="btn btn-sm btn-ghost" href="/designer/versions?v=@v.Number@(string.IsNullOrEmpty(app) ? "" : "&app=" + app)#compare"><i class="bi bi-list-columns-reverse"></i>Changes</a>
+                            @if (pub != null && Model.Designable.Contains(pub.AppKey) && v.Number != latest)
+                            {
+                                <button type="submit" class="btn btn-sm btn-light" form="dz-restore" formaction="/designer/versions?handler=Restore&app=@pub.AppKey" name="Version" value="@v.Number"
+                                        data-confirm="Load @pub.AppName as published in version @v.Number into the draft? You review it, then publish it as a new version."><i class="bi bi-arrow-counterclockwise"></i>Restore</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</form>
+<form id="dz-restore" method="post" action="/designer/versions?handler=Restore" hidden>@Html.AntiForgeryToken()</form>

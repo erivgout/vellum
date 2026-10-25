@@ -1,0 +1,131 @@
+@page "/designer/apps/{app}/publish"
+@model PublishModel
+@{
+    var t = Model.T;
+    var plan = Model.Plan;
+    ViewData["Title"] = $"Publish · {t.Doc.Name} · Designer";
+    var href = $"/designer/apps/{t.AppKey}";
+    var errors = plan.Errors.ToList();
+    var warnings = plan.Warnings.ToList();
+}
+@section Crumbs {
+    <a href="/designer">Designer</a><i class="bi bi-chevron-right sep"></i>
+    <a href="@href">@t.Doc.Name</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Publish</span>
+}
+
+<partial name="_AppHeader" model='Model.Header("publish")' />
+
+@if (Model.Errors.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert"><i class="bi bi-exclamation-octagon"></i><div><div class="ttl">Nothing was published</div><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div></div>
+}
+
+@if (!t.HasDraft)
+{
+    <div class="card"><div class="vl-empty">
+        <div class="vl-empty-icon tone-ok"><i class="bi bi-broadcast"></i></div>
+        <h3>Nothing to publish</h3>
+        <p>The draft is empty: users see exactly what's configured. Change a form, workflow, view or setting to start a draft.</p>
+        <a class="btn btn-light mt-3" href="@href"><i class="bi bi-arrow-left"></i>Back to the application</a>
+    </div></div>
+}
+else
+{
+    <div class="dz-steps" aria-label="Publishing steps">
+        <span class="dz-step done"><i class="bi bi-pencil-square"></i>1. Draft</span>
+        <span class="dz-step @(errors.Count == 0 ? "done" : "bad")"><i class="bi @(errors.Count == 0 ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>2. Validate</span>
+        <span class="dz-step @(errors.Count == 0 ? "current" : "")"><i class="bi bi-activity"></i>3. Impact</span>
+        <span class="dz-step"><i class="bi bi-rocket-takeoff"></i>4. Publish</span>
+    </div>
+    <div class="row g-4">
+        <div class="col-xl-8">
+            <section class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title-sm"><i class="bi bi-ui-checks"></i>Validation (DSN-1201)</h2>
+                    <span class="ms-auto d-flex gap-2">
+                        <span class="dz-count @(errors.Count > 0 ? "tone-bad" : "tone-ok")"><b>@errors.Count</b> error@(errors.Count == 1 ? "" : "s")</span>
+                        <span class="dz-count @(warnings.Count > 0 ? "tone-warn" : "tone-neutral")"><b>@warnings.Count</b> warning@(warnings.Count == 1 ? "" : "s")</span>
+                    </span>
+                </div>
+                <div class="card-body">
+                    @if (errors.Count == 0 && warnings.Count == 0)
+                    {
+                        <div class="vl-banner vl-banner-ok mb-0"><i class="bi bi-check-circle-fill"></i><div><div class="ttl">Every check passed</div>References resolve, section lists are disjoint, every phase can be reached and left, assignments and due dates resolve, and signed routes have meanings.</div></div>
+                    }
+                    @if (errors.Count > 0)
+                    {
+                        <div class="vl-banner vl-banner-bad"><i class="bi bi-x-octagon"></i><div><div class="ttl">Fix these errors to publish</div>Errors block publishing so an incomplete configuration can't reach production records (SAF-070).</div></div>
+                        <ul class="dz-issues dz-issues-lg">
+                            @foreach (var i in errors)
+                            {
+                                <li class="is-error"><i class="bi bi-x-circle-fill" aria-hidden="true"></i><span class="visually-hidden">Error:</span>
+                                    <a href="@(i.Href ?? href)"><b>@i.Object</b> @i.Message</a> @if (i.Rule != null) { <span class="dz-rule">@i.Rule</span> }</li>
+                            }
+                        </ul>
+                    }
+                    @if (warnings.Count > 0)
+                    {
+                        <div class="dz-group-label mt-3"><i class="bi bi-exclamation-triangle"></i>Warnings</div>
+                        <ul class="dz-issues dz-issues-lg">
+                            @foreach (var i in warnings)
+                            {
+                                <li class="is-warn"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span class="visually-hidden">Warning:</span>
+                                    <a href="@(i.Href ?? href)"><b>@i.Object</b> @i.Message</a> @if (i.Rule != null) { <span class="dz-rule">@i.Rule</span> }</li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </section>
+
+            <section class="card mb-4">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-activity"></i>Impact analysis (SAF-071)</h2></div>
+                <ul class="vl-list">
+                    @foreach (var i in plan.Impact)
+                    {
+                        <li class="vl-list-item align-items-start">
+                            <span class="dz-ico tone-@(i.Tone == "bad" ? "bad" : i.Tone == "warn" ? "warn" : i.Tone == "ok" ? "ok" : "info")"><i class="bi @i.Icon"></i></span>
+                            <span class="main"><span class="d-block fw-semibold">@i.Title</span><span class="d-block small text-body-secondary">@i.Detail</span></span>
+                            @if (i.Count > 0) { <span class="vl-pill-count">@i.Count</span> }
+                        </li>
+                    }
+                </ul>
+            </section>
+
+            <section class="card">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-file-diff"></i>Changes in this draft <span class="vl-pill-count">@plan.Changes.Count</span></h2>
+                    <span class="small text-body-tertiary ms-auto">One configuration audit entry each (INV-145)</span></div>
+                <div class="card-body"><partial name="_Changes" model="plan.Changes" /></div>
+            </section>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="dz-sticky">
+                <form class="card" method="post" action="@href/publish">
+                    @Html.AntiForgeryToken()
+                    <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-rocket-takeoff"></i>Publish</h2></div>
+                    <div class="card-body">
+                        <p class="small text-body-secondary">Publishing applies the draft in one transaction, creates configuration version <b>@(Shell.Config.Version + 1)</b> and records who changed what. Records in flight keep their phase, assignees and due dates (INV-071).</p>
+                        <label class="form-label" for="dz-p-note">Reason for the change <span class="req" aria-hidden="true">*</span><span class="visually-hidden">(required)</span></label>
+                        <textarea class="form-control" id="dz-p-note" name="Note" rows="3" required maxlength="2000" placeholder="What changed and why. Include the change request number when there is one (DSN-1202).">@Model.Note</textarea>
+                        @if (warnings.Count > 0)
+                        {
+                            <div class="form-check mt-3 dz-accept">
+                                <input class="form-check-input" type="checkbox" id="dz-p-accept" name="AcceptWarnings" value="true" required="@(errors.Count == 0)" />
+                                <label class="form-check-label" for="dz-p-accept">I reviewed the @Ui.Plural(warnings.Count, "warning") and accept them. My acceptance is recorded.</label>
+                            </div>
+                        }
+                    </div>
+                    <div class="card-footer d-grid gap-2">
+                        <button class="btn btn-primary" disabled="@(!plan.CanPublish)"><i class="bi bi-rocket-takeoff"></i>Publish version @(Shell.Config.Version + 1)</button>
+                        @if (errors.Count > 0) { <div class="small text-danger text-center"><i class="bi bi-lock"></i> Blocked by @Ui.Plural(errors.Count, "error")</div> }
+                        else if (plan.Changes.Count == 0 && !t.IsNew) { <div class="small text-body-tertiary text-center">The draft doesn't change anything.</div> }
+                    </div>
+                </form>
+                <div class="small text-body-tertiary mt-3 px-1">
+                    <i class="bi bi-arrow-counterclockwise"></i> Changed your mind? Every published version can be restored from <a href="/designer/versions?app=@t.AppKey">History</a>; a restore is itself a new version (DSN-1203).
+                </div>
+            </div>
+        </div>
+    </div>
+}

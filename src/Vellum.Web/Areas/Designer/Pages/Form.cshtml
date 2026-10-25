@@ -1,0 +1,68 @@
+@page "/designer/apps/{app}/forms/{form}"
+@model FormModel
+@{
+    var t = Model.T;
+    var f = Model.F;
+    ViewData["Title"] = $"{f.Name} · Form designer";
+    ViewData["ContentClass"] = "vl-content-wide dz-content";
+    var href = $"/designer/apps/{t.AppKey}";
+}
+@section Crumbs {
+    <a href="/designer">Designer</a><i class="bi bi-chevron-right sep"></i>
+    <a href="@href">@t.Doc.Name</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">@f.Name</span>
+}
+
+@if (Model.ReadOnly)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-lock-fill"></i><div><div class="ttl">@Model.Lock.HolderName is editing this form</div>You're viewing it read-only. The lock frees up when they're done or after a period of inactivity; administrators can break it (DSN-004).</div></div>
+}
+
+<div class="dz-designer dz-form-designer" data-dz-form-designer data-dz-heartbeat="@(Model.ReadOnly ? null : Model.Base + "?handler=Heartbeat")">
+    <div class="dz-topbar">
+        <span class="vl-app-tile sm" style="--app:@t.Doc.Color"><i class="bi @f.Icon" data-dz-form-icon></i></span>
+        <div class="min-w-0">
+            <div class="dz-topbar-title"><span data-dz-form-name>@f.Name</span> <span class="vl-kw vl-kw-violet">Form designer</span></div>
+            <div class="dz-topbar-sub"><span class="mono">@f.Key</span> · @t.Doc.Name</div>
+        </div>
+        <div class="vl-seg ms-3" role="radiogroup" aria-label="Mode">
+            <input type="radio" class="btn-check" name="dz-mode" id="dz-mode-design" value="design" checked data-dz-mode /><label for="dz-mode-design"><i class="bi bi-grid-1x2"></i> Design</label>
+            <input type="radio" class="btn-check" name="dz-mode" id="dz-mode-preview" value="preview" data-dz-mode /><label for="dz-mode-preview"><i class="bi bi-eye"></i> Preview</label>
+        </div>
+        <label class="visually-hidden" for="dz-preview-phase">Preview as phase</label>
+        <select class="form-select form-select-sm w-auto" id="dz-preview-phase" data-dz-preview-phase hidden></select>
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <span class="dz-status" data-dz-status role="status" aria-live="polite"><i class="bi bi-check2-circle"></i>Saved</span>
+            <button type="button" class="btn btn-sm btn-ghost btn-icon" data-dz-undo title="Undo (Ctrl+Z)" aria-label="Undo"><i class="bi bi-arrow-counterclockwise"></i></button>
+            <button type="button" class="btn btn-sm btn-ghost btn-icon" data-dz-redo title="Redo (Ctrl+Y)" aria-label="Redo"><i class="bi bi-arrow-clockwise"></i></button>
+            <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-light" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" data-dz-problems-btn><i class="bi bi-exclamation-triangle"></i>Problems <span class="vl-pill-count" data-dz-problems-count>0</span></button>
+                <div class="dropdown-menu dropdown-menu-end dz-problems" data-dz-problems></div>
+            </div>
+            <a class="btn btn-sm btn-light" href="@href/publish"><i class="bi bi-rocket-takeoff"></i>Publish…</a>
+            <button type="button" class="btn btn-sm btn-primary" data-dz-save title="Save to draft (Ctrl+S)" disabled="@Model.ReadOnly"><i class="bi bi-cloud-arrow-up"></i>Save draft</button>
+        </div>
+    </div>
+
+    <div class="dz-layout">
+        <aside class="dz-left" aria-label="Toolbox and outline">
+            <div class="dz-panel-tabs" role="tablist">
+                <button type="button" class="active" data-dz-left-tab="add" role="tab" aria-selected="true"><i class="bi bi-plus-square"></i>Add</button>
+                <button type="button" data-dz-left-tab="outline" role="tab" aria-selected="false"><i class="bi bi-list-nested"></i>Outline</button>
+            </div>
+            <div class="dz-left-body" data-dz-left></div>
+        </aside>
+        <main class="dz-canvas" aria-label="Form layout" data-dz-canvas></main>
+        <aside class="dz-right" aria-label="Properties" data-dz-props></aside>
+    </div>
+    <noscript><div class="vl-banner vl-banner-warn mt-3"><i class="bi bi-exclamation-triangle"></i><div>The form designer needs JavaScript.</div></div></noscript>
+</div>
+
+<form id="dz-new-workflow" method="post" action="@href?handler=NewWorkflow" hidden>
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="Form" value="@f.Key" />
+    <input type="hidden" name="Name" value="@f.Name" />
+</form>
+
+<script type="application/json" id="dz-form-data">@Html.Raw(Model.IslandJson)</script>
+<partial name="_IconPicker" />

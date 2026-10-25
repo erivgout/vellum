@@ -1,0 +1,150 @@
+@page "/designer/apps/{app}/settings"
+@model SettingsModel
+@{
+    var t = Model.T;
+    ViewData["Title"] = $"Settings · {t.Doc.Name} · Designer";
+    var href = $"/designer/apps/{t.AppKey}";
+    var ro = Model.ReadOnly;
+    var swatches = new[] { "#e11d48", "#7c3aed", "#2563eb", "#0891b2", "#0f766e", "#16a34a", "#ca8a04", "#ea580c", "#b45309", "#475569", "#1c1917", "#db2777" };
+    var access = new (AppRole Role, string Label, string Desc)[]
+    {
+        (AppRole.None, "No access", "Only users and groups granted a role can open the application."),
+        (AppRole.Reader, "Reader", "Everyone can read records they're allowed to see."),
+        (AppRole.Author, "Author", "Everyone can create records and work on their assignments."),
+        (AppRole.Manager, "Manager", "Everyone can manage every record. Rarely appropriate."),
+    };
+}
+@section Crumbs {
+    <a href="/designer">Designer</a><i class="bi bi-chevron-right sep"></i>
+    <a href="@href">@t.Doc.Name</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Settings</span>
+}
+
+<partial name="_AppHeader" model='Model.Header("settings")' />
+
+@if (ro)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-lock-fill"></i><div><div class="ttl">@Model.Lock.HolderName is editing these settings</div>They've had the lock since @Ui.Time(Model.Lock.Since ?? DateTime.UtcNow, Shell.TimeZone). You can look, but not save (DSN-004).</div></div>
+}
+@if (Model.Errors.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert"><i class="bi bi-exclamation-circle"></i><div><div class="ttl">The settings weren't saved</div><ul>@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div></div>
+}
+
+<div class="row g-4" data-dz-heartbeat="@(ro ? null : href + "/settings?handler=Heartbeat")">
+    <div class="col-xl-7">
+      <form method="post" action="@href/settings" data-dz-settings data-dz-dirty-guard>
+        @Html.AntiForgeryToken()
+        <section class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-card-heading"></i>Identity</h2></div>
+            <div class="card-body">
+                <fieldset disabled="@ro">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label" for="dz-s-name">Display name</label>
+                            <input class="form-control" id="dz-s-name" name="Name" value="@Model.Name" maxlength="120" required data-dz-preview-name />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="dz-s-key">Design name</label>
+                            <div class="input-group"><span class="input-group-text"><i class="bi bi-lock" title="Fixed once published"></i></span><input class="form-control mono" id="dz-s-key" value="@t.AppKey" readonly aria-describedby="dz-s-key-help" /></div>
+                            <div class="form-text" id="dz-s-key-help">Fixed: links, favorites and scripts use it (INV-130).</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="dz-s-desc">Description</label>
+                            <textarea class="form-control vl-autogrow" id="dz-s-desc" name="Description" rows="2" maxlength="2000" data-dz-preview-desc>@Model.Description</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="dz-s-icon">Icon</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi @Model.Icon" data-dz-icon-preview="#dz-s-icon"></i></span>
+                                <input class="form-control mono" id="dz-s-icon" name="Icon" value="@Model.Icon" data-dz-icon-input />
+                                <button type="button" class="btn btn-light" data-dz-icon-browse="#dz-s-icon"><i class="bi bi-grid-3x3-gap"></i>Browse</button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="dz-s-color">Color</label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="color" class="form-control form-control-color" id="dz-s-color" name="Color" value="@Model.Color" data-dz-color-input />
+                                <div class="dz-swatches" role="group" aria-label="Suggested colors">
+                                    @foreach (var s in swatches)
+                                    {
+                                        <button type="button" class="dz-swatch" style="--sw:@s" data-dz-swatch="@s" data-dz-swatch-for="#dz-s-color" aria-label="Use @s"></button>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="dz-s-suite">Navigation suite</label>
+                            <select class="form-select" id="dz-s-suite" name="Suite" data-dz-preview-suite>
+                                @foreach (var s in Model.Suites) { <option selected="@(s == Model.Suite)">@s</option> }
+                            </select>
+                            <div class="form-text">The sidebar group the application appears in.</div>
+                        </div>
+                    </div>
+                </fieldset>
+            </div>
+        </section>
+
+        <section class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-shield-lock"></i>Access and behavior</h2></div>
+            <div class="card-body">
+                <fieldset disabled="@ro">
+                    <legend class="form-label">Default access for everyone else (SEC-505)</legend>
+                    <div class="dz-choice dz-choice-4 mb-3">
+                        @foreach (var a in access)
+                        {
+                            <input type="radio" class="btn-check" name="DefaultAccess" id="dz-acc-@a.Role" value="@a.Role" checked="@(Model.DefaultAccess == a.Role)" />
+                            <label for="dz-acc-@a.Role"><b>@a.Label</b><span>@a.Desc</span></label>
+                        }
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="dz-s-hide" name="HideMyAssignments" value="true" checked="@Model.HideMyAssignments" />
+                        <label class="form-check-label" for="dz-s-hide">Hide the system <b>My Assignments</b> view (PLT-1101)</label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="dz-s-protect" name="ProtectFromUpgrade" value="true" checked="@Model.ProtectFromUpgrade" />
+                        <label class="form-check-label" for="dz-s-protect">Protect from packaged-template upgrades (DSN-903)</label>
+                    </div>
+                </fieldset>
+            </div>
+            <div class="card-footer d-flex gap-2 align-items-center">
+                <span class="small text-body-tertiary me-auto"><i class="bi bi-info-circle"></i> Saved to the draft. Users see the change after you publish.</span>
+                <a class="btn btn-light" href="@href">Cancel</a>
+                <button class="btn btn-primary" disabled="@ro"><i class="bi bi-check2"></i>Save to draft</button>
+            </div>
+        </section>
+      </form>
+    </div>
+
+    <div class="col-xl-5">
+        <div class="dz-sticky">
+            <section class="card mb-3">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-eye"></i>Preview</h2></div>
+                <div class="card-body">
+                    <div class="dz-preview-label">Sidebar</div>
+                    <div class="dz-side-preview">
+                        <div class="vl-side-label" data-dz-out-suite>@Model.Suite</div>
+                        <span class="vl-side-link active"><span class="vl-app-dot" data-dz-out-tile style="--app:@Model.Color"><i class="bi @Model.Icon"></i></span><span class="vl-side-text" data-dz-out-name>@Model.Name</span><span class="vl-side-badge">3</span></span>
+                    </div>
+                    <div class="dz-preview-label mt-3">All applications</div>
+                    <div class="vl-app-card">
+                        <div class="d-flex align-items-start gap-3">
+                            <span class="vl-app-tile" data-dz-out-tile style="--app:@Model.Color"><i class="bi @Model.Icon"></i></span>
+                            <div class="min-w-0 flex-grow-1"><div class="nm" data-dz-out-name>@Model.Name</div><div class="ds mt-1" data-dz-out-desc>@Model.Description</div></div>
+                        </div>
+                        <div class="ft"><span><i class="bi bi-ui-checks-grid"></i> @Ui.Plural(t.Doc.Forms.Count(f => !f.IsActivity), "form")</span><span><i class="bi bi-table"></i> @Ui.Plural(t.Doc.Views.Count(v => !v.Hidden), "view")</span></div>
+                    </div>
+                </div>
+            </section>
+            @if (!ro)
+            {
+                <form method="post" action="@href/settings?handler=Release" class="text-end">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-sm btn-ghost"><i class="bi bi-unlock"></i>Done: release my lock</button>
+                </form>
+            }
+        </div>
+    </div>
+</div>
+
+<partial name="_IconPicker" />

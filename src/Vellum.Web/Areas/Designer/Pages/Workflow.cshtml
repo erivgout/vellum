@@ -1,0 +1,71 @@
+@page "/designer/apps/{app}/forms/{form}/workflows/{wf}"
+@model WorkflowModel
+@{
+    var t = Model.T;
+    var f = Model.F;
+    var w = Model.W;
+    ViewData["Title"] = $"{w.Name} · Workflow designer";
+    ViewData["ContentClass"] = "vl-content-wide dz-content";
+    var href = $"/designer/apps/{t.AppKey}";
+}
+@section Crumbs {
+    <a href="/designer">Designer</a><i class="bi bi-chevron-right sep"></i>
+    <a href="@href">@t.Doc.Name</a><i class="bi bi-chevron-right sep"></i>
+    <a href="@href/forms/@f.Key">@f.Name</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">@w.Name workflow</span>
+}
+
+@if (Model.ReadOnly)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-lock-fill"></i><div><div class="ttl">@Model.Lock.HolderName is editing @f.Name</div>The form and its workflows are locked to them, so you're viewing this workflow read-only (DSN-004).</div></div>
+}
+
+<div class="dz-designer dz-wf-designer" data-dz-wf-designer data-dz-heartbeat="@(Model.ReadOnly ? null : Model.Base + "?handler=Heartbeat")">
+    <div class="dz-topbar">
+        <span class="dz-ico tone-info"><i class="bi bi-diagram-3"></i></span>
+        <div class="min-w-0">
+            <div class="dz-topbar-title"><span data-dz-wf-name>@w.Name</span> <span class="vl-kw vl-kw-info">Workflow designer</span></div>
+            <div class="dz-topbar-sub"><a href="@href/forms/@f.Key">@f.Name</a> · <span class="mono">@w.Key</span></div>
+        </div>
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <span class="dz-status" data-dz-status role="status" aria-live="polite"><i class="bi bi-check2-circle"></i>Saved</span>
+            <button type="button" class="btn btn-sm btn-ghost btn-icon" data-dz-undo title="Undo (Ctrl+Z)" aria-label="Undo"><i class="bi bi-arrow-counterclockwise"></i></button>
+            <button type="button" class="btn btn-sm btn-ghost btn-icon" data-dz-redo title="Redo (Ctrl+Y)" aria-label="Redo"><i class="bi bi-arrow-clockwise"></i></button>
+            <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-light" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"><i class="bi bi-exclamation-triangle"></i>Problems <span class="vl-pill-count" data-dz-problems-count>0</span></button>
+                <div class="dropdown-menu dropdown-menu-end dz-problems" data-dz-problems></div>
+            </div>
+            <a class="btn btn-sm btn-light" href="@href/publish"><i class="bi bi-rocket-takeoff"></i>Publish…</a>
+            <button type="button" class="btn btn-sm btn-primary" data-dz-save title="Save to draft (Ctrl+S)" disabled="@Model.ReadOnly"><i class="bi bi-cloud-arrow-up"></i>Save draft</button>
+        </div>
+    </div>
+
+    <div class="dz-layout">
+        <aside class="dz-left" aria-label="Phases" data-dz-left></aside>
+        <main class="dz-canvas dz-wf-canvas" aria-label="Workflow">
+            <section class="card mb-3">
+                <div class="card-header">
+                    <h2 class="card-title-sm"><i class="bi bi-bezier2"></i>Diagram</h2>
+                    <div class="dz-legend ms-auto" aria-label="Legend">
+                        <span><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" class="dz-lg-fwd" /></svg>Forward</span>
+                        <span><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" class="dz-lg-back" /></svg>Back</span>
+                        <span><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" class="dz-lg-void" /></svg>Void</span>
+                        <span><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" class="dz-lg-special" /></svg>Special</span>
+                        <span><i class="bi bi-pen-fill dz-lg-sig"></i>E-signature</span>
+                    </div>
+                </div>
+                <div class="dz-diagram" data-dz-diagram tabindex="-1">@Html.Raw(Model.Svg)</div>
+                <div class="dz-diagram-hint">Click a phase or an arrow to edit it. Numbers on phases are records in them now.</div>
+            </section>
+            <ul class="nav vl-tabs" role="tablist">
+                <li class="nav-item"><button type="button" class="nav-link active" data-dz-wf-tab="routes" role="tab"><i class="bi bi-arrow-left-right"></i>Routes <span class="vl-pill-count" data-dz-route-count></span></button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-dz-wf-tab="matrix" role="tab"><i class="bi bi-grid-3x3"></i>Visibility matrix</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-dz-wf-tab="table" role="tab"><i class="bi bi-table"></i>Routing table <span class="vl-pill-count" data-dz-flag-count></span></button></li>
+            </ul>
+            <div data-dz-wf-body></div>
+        </main>
+        <aside class="dz-right" aria-label="Properties" data-dz-props></aside>
+    </div>
+</div>
+
+<script type="application/json" id="dz-wf-data">@Html.Raw(Model.IslandJson)</script>

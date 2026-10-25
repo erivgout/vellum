@@ -1,0 +1,337 @@
+@page "/designer/apps/{app}"
+@model AppModel
+@{
+    var t = Model.T;
+    var doc = t.Doc;
+    ViewData["Title"] = $"{doc.Name} · Designer";
+    var href = $"/designer/apps/{t.AppKey}";
+    var main = doc.Forms.Where(f => !f.IsActivity && !f.IsNonWorkflow).ToList();
+    var activities = doc.Forms.Where(f => f.IsActivity).ToList();
+    var profiles = doc.Forms.Where(f => f.IsNonWorkflow && !f.IsActivity).ToList();
+    var workflows = doc.Forms.SelectMany(f => f.Workflows.Select(w => (Form: f, Wf: w))).ToList();
+    var errors = Model.Issues.Count(i => i.IsError);
+    var warnings = Model.Issues.Count - errors;
+    var changed = Model.DraftChanges.Select(c => c.Key).ToHashSet();
+    bool Changed(string key) => Model.DraftChanges.Any(c => c.Key == key || c.Key.StartsWith(key + ".") || c.Key.StartsWith(key + "#") || c.Key.StartsWith(key + "/"));
+}
+@section Crumbs {
+    <a href="/designer">Designer</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">@doc.Name</span>
+}
+
+<partial name="_AppHeader" model='Model.Header("overview")' />
+
+@if (t.HasDraft && !t.IsNew && Model.DraftChanges.Count > 0)
+{
+    <div class="vl-banner vl-banner-violet">
+        <i class="bi bi-pencil-square"></i>
+        <div class="flex-grow-1"><div class="ttl">Unpublished changes</div>Users still see version @Model.Header("").Version. Last edited by @t.Draft!.UpdatedByName @Ui.Ago(t.Draft.UpdatedAt).</div>
+        <a class="btn btn-sm btn-primary align-self-center" href="@href/publish">Review @Ui.Plural(Model.DraftChanges.Count, "change")</a>
+    </div>
+}
+@if (t.IsNew)
+{
+    <div class="vl-banner vl-banner-info">
+        <i class="bi bi-stars"></i>
+        <div><div class="ttl">This application isn't published yet</div>Only you (and administrators) can see it. Design its forms, workflow and views, then publish it to make it available to users.</div>
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-xl-8">
+        @{
+            var sections = new[] { ("Main forms", "bi-ui-checks-grid", main, "main", "Records users create from New."), ("Activity forms", "bi-check2-square", activities, "activity", "Created from a parent record (PLT-205)."), ("Profile forms", "bi-person-vcard", profiles, "profile", "Master data without a workflow (PLT-203).") };
+        }
+        @foreach (var (title, icon, forms, kind, desc) in sections)
+        {
+            if (forms.Count == 0 && kind != "main") { continue; }
+            <section class="card mb-4">
+                <div class="card-header">
+                    <h2 class="card-title-sm"><i class="bi @icon"></i>@title <span class="vl-pill-count">@forms.Count</span></h2>
+                    <span class="small text-body-tertiary d-none d-md-inline">@desc</span>
+                    <button type="button" class="btn btn-sm btn-light ms-auto" data-bs-toggle="modal" data-bs-target="#dz-new-form" data-dz-kind="@kind"><i class="bi bi-plus-lg"></i>New form</button>
+                </div>
+                @if (forms.Count == 0)
+                {
+                    <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-ui-checks-grid"></i></div><h3>No forms yet</h3><p>Add a form to start designing.</p></div>
+                }
+                <ul class="vl-list">
+                    @foreach (var f in forms)
+                    {
+                        var fields = f.AllFields.Count();
+                        Model.RecordsByForm.TryGetValue(f.Key, out var recs);
+                        var lockMsg = Model.LockLabel($"form:{f.Key}");
+                        <li class="vl-list-item dz-comp">
+                            <span class="vl-app-tile sm" style="--app:@doc.Color"><i class="bi @f.Icon"></i></span>
+                            <div class="main">
+                                <div class="line1">
+                                    <a class="ttl" href="@href/forms/@f.Key">@f.Name</a>
+                                    <span class="mono x-small text-body-tertiary">@f.Key</span>
+                                    @if (f.Id == null) { <span class="vl-kw vl-kw-violet">New</span> }
+                                    else if (Changed($"{t.AppKey}/{f.Key}")) { <span class="vl-kw vl-kw-violet">Changed</span> }
+                                    @if (f.Disabled) { <span class="vl-kw">Disabled</span> }
+                                    @if (lockMsg != "") { <span class="vl-kw vl-kw-warning"><i class="bi bi-lock"></i>@lockMsg</span> }
+                                </div>
+                                <div class="line2">@Ui.Plural(f.Sections.Count, "section") · @Ui.Plural(fields, "field") · @Ui.Plural(f.Workflows.Count, "workflow")@(recs > 0 ? $" · {recs:N0} records" : "")</div>
+                            </div>
+                            <div class="aside">
+                                @foreach (var w in f.Workflows)
+                                {
+                                    <a class="btn btn-sm btn-ghost" href="@href/forms/@f.Key/workflows/@w.Key" title="Workflow designer"><i class="bi bi-diagram-3"></i>@w.Name</a>
+                                }
+                                <a class="btn btn-sm btn-light" href="@href/forms/@f.Key"><i class="bi bi-vector-pen"></i>Design</a>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-ghost btn-icon" data-bs-toggle="dropdown" aria-label="More actions for @f.Name"><i class="bi bi-three-dots"></i></button>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        @if (!f.IsNonWorkflow)
+                                        {
+                                            <form method="post" action="@href?handler=NewWorkflow" class="m-0">@Html.AntiForgeryToken()<input type="hidden" name="Form" value="@f.Key" /><input type="hidden" name="Name" value="@f.Name (alternative)" />
+                                                <button class="dropdown-item"><i class="bi bi-diagram-3"></i>Add a workflow</button></form>
+                                        }
+                                        <a class="dropdown-item" href="/designer/engine/forms/@f.Key"><i class="bi bi-journal-text"></i>Data dictionary</a>
+                                        <div class="dropdown-divider"></div>
+                                        <form method="post" action="@href?handler=DeleteForm" class="m-0">@Html.AntiForgeryToken()<input type="hidden" name="Form" value="@f.Key" />
+                                            <button class="dropdown-item text-danger" data-confirm="Delete @f.Name from the draft? Publishing is blocked while records use it."><i class="bi bi-trash3"></i>Delete form</button></form>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+
+        <section class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-diagram-3"></i>Workflows <span class="vl-pill-count">@workflows.Count</span></h2></div>
+            @if (workflows.Count == 0)
+            {
+                <div class="card-body small text-body-secondary">No workflows. Workflow forms need at least one.</div>
+            }
+            <ul class="vl-list">
+                @foreach (var (f, w) in workflows)
+                {
+                    var a = WorkflowAnalysis.Analyze(w);
+                    var problems = a.Unreachable.Count(k => w.Phases.Any(p => p.Key == k && p.Type == PhaseType.Normal)) + a.DeadEnds.Count;
+                    <li>
+                        <a class="vl-list-item" href="@href/forms/@f.Key/workflows/@w.Key">
+                            <span class="dz-ico tone-info"><i class="bi bi-diagram-3"></i></span>
+                            <span class="main">
+                                <span class="line1"><span class="ttl">@w.Name</span><span class="mono x-small text-body-tertiary">@f.Key / @w.Key</span>
+                                    @if (problems > 0) { <span class="vl-kw vl-kw-danger"><i class="bi bi-exclamation-triangle"></i>@Ui.Plural(problems, "routing problem")</span> }</span>
+                                <span class="dz-phase-strip">
+                                    @foreach (var p in w.Phases)
+                                    {
+                                        <span class="dz-phase-pill dz-pt-@p.Type.ToString().ToLowerInvariant()">@if (p.IsStart) { <i class="bi bi-play-fill"></i> }@p.Name</span>
+                                    }
+                                </span>
+                            </span>
+                            <span class="aside small text-body-tertiary">@Ui.Plural(w.Phases.Count, "phase") · @Ui.Plural(w.Routes.Count, "route")</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        </section>
+
+        <section class="card mb-4">
+            <div class="card-header">
+                <h2 class="card-title-sm"><i class="bi bi-table"></i>Views <span class="vl-pill-count">@doc.Views.Count</span></h2>
+                <button type="button" class="btn btn-sm btn-light ms-auto" data-bs-toggle="modal" data-bs-target="#dz-new-view"><i class="bi bi-plus-lg"></i>New view</button>
+            </div>
+            @if (doc.Views.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-table"></i></div><h3>No views</h3><p>Views are how users find records in the application.</p></div>
+            }
+            @foreach (var g in doc.Views.GroupBy(v => v.Category).OrderBy(g => g.Key))
+            {
+                <div class="dz-group-label">@g.Key</div>
+                <ul class="vl-list">
+                    @foreach (var v in g)
+                    {
+                        var lockMsg = Model.LockLabel($"view:{v.Key}");
+                        <li class="vl-list-item dz-comp">
+                            <span class="dz-ico tone-neutral"><i class="bi @(v.AssignedToMe ? "bi-person-check" : v.OverdueOnly ? "bi-alarm" : v.Status is "completed" or "closed" ? "bi-check2-square" : v.Status == "voided" ? "bi-slash-circle" : "bi-list-ul")"></i></span>
+                            <div class="main">
+                                <div class="line1">
+                                    <a class="ttl" href="@href/views/@v.Key">@v.Name</a>
+                                    <span class="mono x-small text-body-tertiary">@v.Key</span>
+                                    @if (v.IsDefault) { <span class="vl-kw vl-kw-info">Default</span> }
+                                    @if (v.Hidden) { <span class="vl-kw">Hidden</span> }
+                                    @if (v.Id == null) { <span class="vl-kw vl-kw-violet">New</span> }
+                                    else if (changed.Contains($"{t.AppKey}/view:{v.Key}")) { <span class="vl-kw vl-kw-violet">Changed</span> }
+                                    @if (lockMsg != "") { <span class="vl-kw vl-kw-warning"><i class="bi bi-lock"></i>@lockMsg</span> }
+                                </div>
+                                <div class="line2">@v.Status · @Ui.Plural(v.Columns.Count, "column") · @(v.Forms.Count == 0 ? "all main forms" : string.Join(", ", v.Forms))</div>
+                            </div>
+                            <div class="aside">
+                                <a class="btn btn-sm btn-light" href="@href/views/@v.Key"><i class="bi bi-vector-pen"></i>Design</a>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-ghost btn-icon" data-bs-toggle="dropdown" aria-label="More actions for @v.Name"><i class="bi bi-three-dots"></i></button>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#dz-new-view" data-dz-copy="@v.Key" data-dz-copy-name="@v.Name (copy)"><i class="bi bi-copy"></i>Copy view</button>
+                                        <div class="dropdown-divider"></div>
+                                        <form method="post" action="@href?handler=DeleteView" class="m-0">@Html.AntiForgeryToken()<input type="hidden" name="View" value="@v.Key" />
+                                            <button class="dropdown-item text-danger" data-confirm="Delete the view @v.Name from the draft?"><i class="bi bi-trash3"></i>Delete view</button></form>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-ui-checks"></i>Validation</h2><a class="ms-auto small" href="@href/publish">Details</a></div>
+            <div class="card-body">
+                <div class="d-flex gap-2 mb-3">
+                    <div class="dz-count @(errors > 0 ? "tone-bad" : "tone-ok")"><b>@errors</b> error@(errors == 1 ? "" : "s")</div>
+                    <div class="dz-count @(warnings > 0 ? "tone-warn" : "tone-neutral")"><b>@warnings</b> warning@(warnings == 1 ? "" : "s")</div>
+                </div>
+                @if (Model.Issues.Count == 0)
+                {
+                    <div class="small text-body-secondary"><i class="bi bi-check-circle-fill text-success me-1"></i>The configuration passes every publish check (DSN-1201).</div>
+                }
+                <ul class="dz-issues">
+                    @foreach (var i in Model.Issues.Take(6))
+                    {
+                        <li class="@(i.IsError ? "is-error" : "is-warn")">
+                            <i class="bi @(i.IsError ? "bi-x-circle-fill" : "bi-exclamation-triangle-fill")" aria-hidden="true"></i>
+                            <span class="visually-hidden">@(i.IsError ? "Error" : "Warning"):</span>
+                            <a href="@(i.Href ?? href)"><b>@i.Object</b> @i.Message</a>
+                        </li>
+                    }
+                </ul>
+                @if (Model.Issues.Count > 6) { <a class="small" href="@href/publish">and @(Model.Issues.Count - 6) more…</a> }
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-boxes"></i>Components</h2></div>
+            <div class="card-body">
+                <dl class="vl-kv">
+                    <dt>Forms</dt><dd>@doc.Forms.Count</dd>
+                    <dt>Sections and subforms</dt><dd>@doc.Forms.Sum(f => f.Sections.Count)</dd>
+                    <dt>Fields</dt><dd>@doc.Forms.Sum(f => f.AllFields.Count())</dd>
+                    <dt>Workflows</dt><dd>@workflows.Count</dd>
+                    <dt>Phases</dt><dd>@workflows.Sum(w => w.Wf.Phases.Count)</dd>
+                    <dt>Routes</dt><dd>@workflows.Sum(w => w.Wf.Routes.Count)</dd>
+                    <dt>Views</dt><dd>@doc.Views.Count</dd>
+                </dl>
+                <div class="d-flex gap-2 mt-3">
+                    <a class="btn btn-sm btn-light" href="@href/settings"><i class="bi bi-sliders"></i>Application settings</a>
+                    <a class="btn btn-sm btn-light" href="/designer/engine?app=@t.AppKey"><i class="bi bi-cpu"></i>In Platform Engine</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-lock"></i>Being edited</h2></div>
+            @if (Model.Locks.Count == 0)
+            {
+                <div class="card-body small text-body-secondary">Nobody is editing this application right now.</div>
+            }
+            else
+            {
+                <ul class="vl-list">
+                    @foreach (var l in Model.Locks)
+                    {
+                        <li class="vl-list-item">
+                            @Ui.Avatar(Shell.Directory.Get(l.UserId), "md")
+                            <span class="main"><span class="line1"><span class="ttl">@l.Label</span></span><span class="line2 d-block">@(l.UserId == Model.MeId ? "You" : l.UserName) · since @Ui.Ago(l.AcquiredAt) · active @Ui.Ago(l.LastActivityAt)</span></span>
+                            @if (Model.IsAdmin && l.UserId != Model.MeId)
+                            {
+                                <form method="post" action="@href?handler=BreakLock" class="m-0">@Html.AntiForgeryToken()<input type="hidden" name="Component" value="@l.Component" />
+                                    <button class="btn btn-sm btn-light" data-confirm="Break @l.UserName's lock? Their unsaved changes won't be saved.">Break lock</button></form>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-clock-history"></i>Published versions</h2><a class="ms-auto small" href="/designer/versions?app=@t.AppKey">All</a></div>
+            @if (Model.Publications.Count == 0)
+            {
+                <div class="card-body small text-body-secondary">@(t.IsNew ? "Not published yet." : $"Installed from the packaged template{(doc.PackageVersion != null ? " v" + doc.PackageVersion : "")}. Nothing published from the designer yet.")</div>
+            }
+            <ul class="vl-list">
+                @foreach (var p in Model.Publications)
+                {
+                    <li><a class="vl-list-item" href="/designer/versions?app=@t.AppKey&v=@p.VersionNumber">
+                        <span class="dz-ver">v@(p.VersionNumber)</span>
+                        <span class="main"><span class="line1"><span class="ttl">@p.Note</span></span><span class="line2 d-block">@p.PublishedByName · @Ui.Ago(p.PublishedAt) · @Ui.Plural(p.Changes, "change")</span></span>
+                    </a></li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="dz-new-form" tabindex="-1" aria-labelledby="dz-new-form-title">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="post" action="@href?handler=NewForm">
+            @Html.AntiForgeryToken()
+            <div class="modal-header"><h2 class="modal-title" id="dz-new-form-title">New form</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label" for="dz-nf-name">Name</label>
+                    <input class="form-control" id="dz-nf-name" name="Name" required maxlength="120" data-dz-slug-source="#dz-nf-key" placeholder="e.g. Deviation" autocomplete="off" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="dz-nf-key">Design name</label>
+                    <input class="form-control mono" id="dz-nf-key" name="Key" maxlength="64" autocomplete="off" aria-describedby="dz-nf-key-help" />
+                    <div class="form-text" id="dz-nf-key-help">Unique across the system. Fixed once published.</div>
+                </div>
+                <fieldset class="mb-3">
+                    <legend class="form-label">Type</legend>
+                    <div class="dz-choice">
+                        <input type="radio" class="btn-check" name="Kind" id="dz-nf-main" value="main" checked /><label for="dz-nf-main"><i class="bi bi-ui-checks-grid"></i><b>Main form</b><span>Created from New, with a workflow.</span></label>
+                        <input type="radio" class="btn-check" name="Kind" id="dz-nf-activity" value="activity" /><label for="dz-nf-activity"><i class="bi bi-check2-square"></i><b>Activity</b><span>Created from a parent record.</span></label>
+                        <input type="radio" class="btn-check" name="Kind" id="dz-nf-profile" value="profile" /><label for="dz-nf-profile"><i class="bi bi-person-vcard"></i><b>Profile</b><span>Master data, no workflow.</span></label>
+                    </div>
+                </fieldset>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="dz-nf-starter" name="Starter" value="true" checked />
+                    <label class="form-check-label" for="dz-nf-starter">Add a starter workflow (Draft → Review → Completed)</label>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary"><i class="bi bi-plus-lg"></i>Add form</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="dz-new-view" tabindex="-1" aria-labelledby="dz-new-view-title">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" method="post" action="@href?handler=NewView">
+            @Html.AntiForgeryToken()
+            <div class="modal-header"><h2 class="modal-title" id="dz-new-view-title">New view</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label" for="dz-nv-name">Name</label>
+                    <input class="form-control" id="dz-nv-name" name="Name" required maxlength="120" data-dz-slug-source="#dz-nv-key" autocomplete="off" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="dz-nv-key">Design name</label>
+                    <input class="form-control mono" id="dz-nv-key" name="Key" maxlength="64" autocomplete="off" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="dz-nv-cat">Navigator category</label>
+                    <input class="form-control" id="dz-nv-cat" name="Category" list="dz-nv-cats" placeholder="e.g. 2. Records" />
+                    <datalist id="dz-nv-cats">@foreach (var c in doc.Views.Select(v => v.Category).Distinct()) { <option value="@c"></option> }</datalist>
+                    <div class="form-text">Categories sort alphabetically, so a number prefix sets the order (PLT-1101).</div>
+                </div>
+                <div>
+                    <label class="form-label" for="dz-nv-copy">Start from</label>
+                    <select class="form-select" id="dz-nv-copy" name="CopyFrom" data-dz-copy-select>
+                        <option value="">A blank view</option>
+                        @foreach (var v in doc.Views) { <option value="@v.Key">Copy of @v.Name</option> }
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary"><i class="bi bi-plus-lg"></i>Add view</button></div>
+        </form>
+    </div>
+</div>

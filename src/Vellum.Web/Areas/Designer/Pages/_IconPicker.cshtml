@@ -1,0 +1,30 @@
+@* Bootstrap Icons picker (DSN-101). designer.js loads the icon list lazily from the bundled bootstrap-icons.json. *@
+<div class="modal fade dz-icon-modal" id="dz-icon-modal" tabindex="-1" aria-labelledby="dz-icon-title">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="dz-icon-title">Choose an icon</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="px-3 pt-3">
+                <div class="vl-search-input">
+                    <i class="bi bi-search"></i>
+                    <input type="search" class="form-control" data-dz-icon-search placeholder="Search 2,000 icons: shield, flask, truck…" aria-label="Search icons" autocomplete="off" />
+                </div>
+                <div class="d-flex flex-wrap gap-1 mt-2" data-dz-icon-suggest>
+                    @foreach (var s in new[] { "shield", "clipboard", "file", "person", "people", "truck", "gear", "flask", "exclamation", "check", "calendar", "box", "tools", "graph", "heart", "flag" })
+                    {
+                        <button type="button" class="btn btn-sm btn-light" data-dz-icon-term="@s">@s</button>
+                    }
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="dz-icon-grid" data-dz-icon-grid role="listbox" aria-label="Icons"><div class="vl-picker-none py-4"><span class="spinner-border spinner-border-sm"></span></div></div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <span class="small text-body-tertiary" data-dz-icon-count></span>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,178 @@
+@page "/designer"
+@model IndexModel
+@{
+    ViewData["Title"] = "Designer";
+    var drafts = Model.Cards.Count(c => c.Target.HasDraft);
+    var records = Model.Cards.Sum(c => c.Records);
+}
+@section Crumbs { <span class="current">Designer</span> }
+
+<div class="vl-page-head">
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Designer</h1>
+        <p class="vl-page-sub">Configure applications without code: forms, workflows and views. Every change stays a draft until you publish it.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-light" href="/designer/engine"><i class="bi bi-cpu"></i>Platform Engine</a>
+        <a class="btn btn-light" href="/designer/versions"><i class="bi bi-clock-history"></i>Version history</a>
+        @if (Model.CanCreate)
+        {
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#dz-new-app"><i class="bi bi-plus-lg"></i>New application</button>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="vl-stat"><div class="vl-stat-icon tone-brand"><i class="bi bi-grid-1x2"></i></div><div class="vl-stat-value">@Model.Cards.Count</div><div class="vl-stat-label">Applications you design</div></div></div>
+    <div class="col-6 col-lg-3"><div class="vl-stat"><div class="vl-stat-icon tone-violet"><i class="bi bi-pencil-square"></i></div><div class="vl-stat-value">@drafts</div><div class="vl-stat-label">Drafts in progress</div></div></div>
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="/designer/versions"><div class="vl-stat-icon tone-ok"><i class="bi bi-broadcast"></i></div><div class="vl-stat-value">v@(Model.Version)</div><div class="vl-stat-label">Live configuration version</div></a></div>
+    <div class="col-6 col-lg-3"><div class="vl-stat"><div class="vl-stat-icon tone-info"><i class="bi bi-files"></i></div><div class="vl-stat-value">@records.ToString("N0", CultureInfo.InvariantCulture)</div><div class="vl-stat-label">Records in these applications</div></div></div>
+</div>
+
+@if (Model.Cards.Count == 0)
+{
+    <div class="card"><div class="vl-empty">
+        <div class="vl-empty-icon"><i class="bi bi-vector-pen"></i></div>
+        <h3>No applications to design yet</h3>
+        <p>@(Model.CanCreate ? "Create your first application, or ask an administrator for designer rights on an existing one." : "Ask an administrator for designer rights on an application (DSN-001).")</p>
+        @if (Model.CanCreate) { <button type="button" class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#dz-new-app"><i class="bi bi-plus-lg"></i>New application</button> }
+    </div></div>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-xl-9">
+            <div class="row g-3">
+                @foreach (var c in Model.Cards)
+                {
+                    var d = c.Target.Doc;
+                    <div class="col-md-6 col-xxl-4">
+                        <a class="vl-app-card dz-app-card" href="/designer/apps/@c.Target.AppKey">
+                            <div class="d-flex align-items-start gap-3">
+                                <span class="vl-app-tile" style="--app:@d.Color"><i class="bi @d.Icon"></i></span>
+                                <div class="min-w-0 flex-grow-1">
+                                    <div class="nm text-truncate">@d.Name</div>
+                                    <div class="x-small text-body-tertiary"><span class="mono">@c.Target.AppKey</span> · @d.Suite</div>
+                                </div>
+                                @if (c.Target.IsNew) { <span class="vl-chip vl-chip-draft"><i class="bi bi-stars"></i>New</span> }
+                                else if (c.Changes > 0) { <span class="vl-chip vl-chip-draft" title="Unpublished changes"><i class="bi bi-pencil-square"></i>@c.Changes</span> }
+                            </div>
+                            <div class="ds">@(d.Description ?? "No description.")</div>
+                            <div class="dz-app-counts">
+                                <span title="Forms"><i class="bi bi-ui-checks-grid"></i>@c.Forms</span>
+                                <span title="Workflows"><i class="bi bi-diagram-3"></i>@c.Workflows</span>
+                                <span title="Views"><i class="bi bi-table"></i>@c.Views</span>
+                                <span title="Records"><i class="bi bi-files"></i>@c.Records.ToString("N0", CultureInfo.InvariantCulture)</span>
+                            </div>
+                            <div class="ft">
+                                @if (c.Target.IsNew) { <span><i class="bi bi-hourglass"></i> Never published</span> }
+                                else if (c.LastPublished is { } lp) { <span><i class="bi bi-rocket-takeoff"></i> Published @Ui.Ago(lp)</span> }
+                                else { <span><i class="bi bi-box-seam"></i> Packaged @(d.PackageVersion != null ? "v" + d.PackageVersion : "")</span> }
+                                <span class="ms-auto dz-open">Open designer <i class="bi bi-arrow-right"></i></span>
+                            </div>
+                        </a>
+                    </div>
+                }
+            </div>
+            @if (Model.SystemApps.Count > 0)
+            {
+                <div class="vl-suite-head"><i class="bi bi-lock"></i>System applications</div>
+                <div class="row g-3">
+                    @foreach (var a in Model.SystemApps)
+                    {
+                        <div class="col-md-6 col-xxl-4">
+                            <div class="vl-app-card dz-app-card is-locked" aria-disabled="true">
+                                <div class="d-flex align-items-start gap-3">
+                                    <span class="vl-app-tile" style="--app:@a.Color"><i class="bi @a.Icon"></i></span>
+                                    <div class="min-w-0"><div class="nm">@a.Name</div><div class="ds mt-1">Core system applications can't be edited in design mode (DSN-005).</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        <div class="col-xl-3">
+            <div class="card">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-clock-history"></i>Recent publications</h2></div>
+                @if (Model.Recent.Count == 0)
+                {
+                    <div class="card-body small text-body-secondary">Nothing published from the designer yet.</div>
+                }
+                else
+                {
+                    <ul class="vl-list">
+                        @foreach (var p in Model.Recent)
+                        {
+                            <li><a class="vl-list-item" href="/designer/versions?app=@p.AppKey&v=@p.VersionNumber">
+                                <span class="dz-ver">v@(p.VersionNumber)</span>
+                                <span class="main"><span class="line1"><span class="ttl">@p.AppName</span></span><span class="line2 d-block">@p.Note · @p.PublishedByName · @Ui.Ago(p.PublishedAt)</span></span>
+                            </a></li>
+                        }
+                    </ul>
+                }
+            </div>
+            <div class="vl-banner vl-banner-info mt-3">
+                <i class="bi bi-shield-check"></i>
+                <div><div class="ttl">Safe by design</div>Drafts never touch live records. Publishing validates the configuration, shows the impact on records in flight and creates a numbered, auditable version (SAF-070, SAF-071).</div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (Model.CanCreate)
+{
+    <div class="modal fade" id="dz-new-app" tabindex="-1" aria-labelledby="dz-new-app-title" data-autoshow="@(Model.NewError != null ? "true" : "false")">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" method="post" action="/designer?handler=NewApp">
+                @Html.AntiForgeryToken()
+                <div class="modal-header"><h2 class="modal-title" id="dz-new-app-title">New application</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                <div class="modal-body">
+                    @if (Model.NewError != null) { <div class="vl-banner vl-banner-bad"><i class="bi bi-exclamation-circle"></i><div>@Model.NewError</div></div> }
+                    <div class="d-flex gap-3 align-items-center mb-3">
+                        <span class="vl-app-tile lg" data-dz-tile-preview style="--app:@(Model.NewColor ?? "#0f766e")"><i class="bi @(Model.NewIcon ?? "bi-grid-1x2")"></i></span>
+                        <div class="small text-body-secondary">You get a starter form with a Draft → Review → Completed workflow and three views. Change anything before you publish.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="dz-na-name">Name</label>
+                        <input class="form-control" id="dz-na-name" name="NewName" value="@Model.NewName" required maxlength="120" data-dz-slug-source="#dz-na-key" placeholder="e.g. Equipment Requests" autocomplete="off" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="dz-na-key">Design name</label>
+                        <input class="form-control mono" id="dz-na-key" name="NewKey" value="@Model.NewKey" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_\-]*" aria-describedby="dz-na-key-help" autocomplete="off" />
+                        <div class="form-text" id="dz-na-key-help">Unique, never only digits (INV-130). Fixed once published.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="dz-na-desc">Description</label>
+                        <textarea class="form-control" id="dz-na-desc" name="NewDescription" rows="2" maxlength="2000">@Model.NewDescription</textarea>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label class="form-label" for="dz-na-icon">Icon</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi @(Model.NewIcon ?? "bi-grid-1x2")" data-dz-icon-preview="#dz-na-icon"></i></span>
+                                <input class="form-control mono" id="dz-na-icon" name="NewIcon" value="@(Model.NewIcon ?? "bi-grid-1x2")" data-dz-icon-input />
+                                <button type="button" class="btn btn-light" data-dz-icon-browse="#dz-na-icon" aria-label="Browse icons"><i class="bi bi-search"></i></button>
+                            </div>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label" for="dz-na-color">Color</label>
+                            <input type="color" class="form-control form-control-color w-100" id="dz-na-color" name="NewColor" value="@(Model.NewColor ?? "#0f766e")" data-dz-color-input />
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label" for="dz-na-suite">Suite</label>
+                            <select class="form-select" id="dz-na-suite" name="NewSuite">
+                                @foreach (var s in Model.Suites) { <option selected="@(s == (Model.NewSuite ?? "Operations"))">@s</option> }
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary"><i class="bi bi-plus-lg"></i>Create draft</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <partial name="_IconPicker" />
+}
