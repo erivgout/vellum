@@ -276,8 +276,11 @@ public sealed class EmdrSubmissionService(VellumDbContext db, ConfigCache cfg, R
 
     public sealed record MonitorResult(int Acks, int Alerts, List<string> Log);
 
-    /// <summary>Poll gateways for acknowledgements and raise alerts for failures, overdue acknowledgements and passed deadlines.</summary>
-    public async Task<MonitorResult> MonitorAsync(DateTime nowUtc, CancellationToken ct = default)
+    /// <summary>
+    /// Poll gateways for acknowledgements and raise alerts for failures, overdue acknowledgements and passed deadlines. With
+    /// <paramref name="onlyMedWatchId"/>, only that report is checked (the "Check for acknowledgements" action).
+    /// </summary>
+    public async Task<MonitorResult> MonitorAsync(DateTime nowUtc, CancellationToken ct = default, Guid? onlyMedWatchId = null)
     {
         var log = new List<string>();
         var acks = 0;
@@ -287,7 +290,7 @@ public sealed class EmdrSubmissionService(VellumDbContext db, ConfigCache cfg, R
         var delay = TimeSpan.FromMinutes(profile?.ReceiptDelayMinutes ?? AerProfileInfo.DefaultReceiptDelayMinutes);
         var submittedPhase = form.Workflows.SelectMany(w => w.Phases).Where(p => p.Key == "submitted").Select(p => p.Id).ToList();
 
-        var subs = await db.Set<EmdrSubmission>().AsNoTracking().Where(x => !x.Superseded &&
+        var subs = await db.Set<EmdrSubmission>().AsNoTracking().Where(x => !x.Superseded && (onlyMedWatchId == null || x.MedWatchId == onlyMedWatchId) &&
             (x.Status == EmdrStatus.AwaitingUpload || x.Status == EmdrStatus.Sent || (x.FailureAlertedAt == null && (x.Status == EmdrStatus.Rejected || x.Status == EmdrStatus.Failed))))
             .Select(x => x.Id).ToListAsync(ct);
         foreach (var subId in subs)
@@ -320,7 +323,11 @@ public sealed class EmdrSubmissionService(VellumDbContext db, ConfigCache cfg, R
 
         // A report must never sit silently past its deadline (AER-010, CMP-009).
         var today = DateOnly.FromDateTime(nowUtc);
-        var openIds = await db.Records.AsNoTracking().Where(r => r.FormId == form.Id && r.PhaseType == PhaseType.Normal).Select(r => r.Id).ToListAsync(ct);
+        var todayStart = today.ToDateTime(TimeOnly.MinValue);
+        var openIds = await db.Records.AsNoTracking().Where(r => r.FormId == form.Id && r.PhaseType == PhaseType.Normal &&
+                (onlyMedWatchId == null || r.Id == onlyMedWatchId) &&
+                db.RecordValues.Any(v => v.RecordId == r.Id && v.RowId == null && v.FieldKey == "report_due" && v.Date < todayStart))
+            .Select(r => r.Id).ToListAsync(ct);
         foreach (var id in openIds)
         {
             db.ChangeTracker.Clear();

@@ -322,7 +322,7 @@ public sealed class MedWatchBehavior : RecordBehavior
             }
             case "aer-poll":
             {
-                var result = await subs.MonitorAsync(DateTime.UtcNow);
+                var result = await subs.MonitorAsync(DateTime.UtcNow, onlyMedWatchId: s.Record.Id);
                 var mine = result.Log.Count(l => l.StartsWith(s.Record.Number));
                 return ActionOutcome.Ok(mine > 0 ? string.Join(" · ", result.Log.Where(l => l.StartsWith(s.Record.Number)).Select(l => l[(s.Record.Number.Length + 2)..]))
                     : "No new acknowledgements yet.");
