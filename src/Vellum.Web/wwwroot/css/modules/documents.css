@@ -1,0 +1,49 @@
+/* Document Control and Training Management: record-page panels, widgets and the review schedule.
+   Built on the design-system tokens in site.css so light and dark themes both work. */
+
+/* Status banners above the tabs (SAF-043 draft / superseded context) */
+.vl-doc-banner { align-items: center; }
+.vl-doc-banner .btn { white-space: nowrap; }
+
+/* Revision history (DOC-016) */
+.vl-revhist .card-header { gap: 0.75rem; }
+.vl-revhist-search { position: relative; width: min(260px, 100%); }
+.vl-revhist-search .bi { position: absolute; left: 0.6rem; top: 50%; transform: translateY(-50%); color: var(--vl-text-3); font-size: 0.8rem; pointer-events: none; }
+.vl-revhist-search .form-control { padding-left: 1.8rem; }
+.vl-revhist-reason { min-width: 220px; max-width: 420px; white-space: normal; color: var(--vl-text-2); font-size: 0.82rem; }
+.vl-revhist tr.is-current td { background: var(--vl-info-bg); }
+.vl-revhist tr.is-current td:first-child { box-shadow: inset 3px 0 0 var(--vl-info); }
+
+/* Progress bars (training completion, TRN-071 release gate) */
+.vl-doc-progress { position: relative; height: 8px; border-radius: 999px; background: var(--vl-surface-3); border: 1px solid var(--vl-border); overflow: visible; }
+.vl-doc-progress .bar { display: block; height: 100%; border-radius: 999px; background: var(--vl-ok); min-width: 2px; transition: width .3s ease; }
+.vl-doc-progress .goal { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--vl-text-2); border-radius: 2px; }
+.vl-trn-big { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+
+/* Course links on the document's Training tab */
+.vl-trn-course { display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 0.9rem; border: 1px solid var(--vl-border); border-radius: var(--vl-radius); background: var(--vl-surface); color: var(--vl-text); transition: border-color .12s, background .12s; }
+.vl-trn-course:hover { text-decoration: none; color: var(--vl-text); border-color: var(--vl-border-strong); background: var(--vl-surface-2); }
+.vl-trn-course .num { font-weight: 620; font-size: 0.8rem; color: var(--vl-text-2); font-variant-numeric: tabular-nums; }
+
+/* Approval manifest (DOC-043) */
+.vl-manifest-list { list-style: none; margin: 0; padding: 0; counter-reset: sig; display: grid; gap: 0.6rem; }
+.vl-manifest-list li { position: relative; padding-left: 1.9rem; font-size: 0.82rem; counter-increment: sig; }
+.vl-manifest-list li::before { content: counter(sig); position: absolute; left: 0; top: 0.1rem; width: 1.35rem; height: 1.35rem; border-radius: 50%; display: grid; place-items: center;
+    font-size: 0.68rem; font-weight: 700; color: var(--vl-violet); background: var(--vl-violet-bg); border: 1px solid var(--vl-violet-border); }
+.vl-manifest-meaning { display: inline-block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--vl-violet); }
+
+/* Request target summary (DOC-091) */
+.vl-req-title { font-size: 1rem; color: var(--vl-text); }
+.vl-req-title:hover { color: var(--vl-brand); }
+
+/* Training assignment brief (TRN-040) */
+.vl-trn-brief-title { font-size: 1.05rem; letter-spacing: -0.01em; }
+.vl-trn-material { display: flex; align-items: center; gap: 0.65rem; height: 100%; padding: 0.6rem 0.8rem; border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm);
+    background: var(--vl-surface-2); color: var(--vl-text); font-size: 0.85rem; min-width: 0; }
+.vl-trn-material > .bi:first-child { font-size: 1.15rem; color: var(--vl-text-2); }
+a.vl-trn-material:hover { text-decoration: none; color: var(--vl-text); border-color: var(--vl-border-strong); background: var(--vl-surface-3); }
+
+@media print {
+    .vl-doc-banner .btn, .vl-revhist-search, [data-paginate-footer] { display: none !important; }
+    .vl-revhist [data-paginate-row] { display: table-row !important; }
+}

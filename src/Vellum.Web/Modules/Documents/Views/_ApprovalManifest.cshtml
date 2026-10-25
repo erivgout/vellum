@@ -1,0 +1,31 @@
+@model Vellum.Modules.Documents.ApprovalManifestModel
+@{
+    var r = Model.Record;
+    var tz = Model.Tz;
+}
+<div class="card vl-manifest">
+    <div class="card-header">
+        <h3 class="card-title-sm"><i class="bi bi-patch-check"></i>Approval manifest</h3>
+        <a class="btn btn-sm btn-ghost ms-auto" href="/records/@r.Id/print" target="_blank" rel="noopener" title="Print or save as PDF with the signature manifest (DOC-043, DOC-044)"><i class="bi bi-printer"></i>Print</a>
+    </div>
+    <div class="card-body pt-2">
+        <div class="small text-body-secondary mb-2">@r.Number rev @r.Revision · signatures in force (21 CFR 11.50)</div>
+        <ol class="vl-manifest-list">
+            @foreach (var s in Model.Signatures)
+            {
+                var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(s.SignedAt, DateTimeKind.Utc), tz);
+                <li>
+                    <span class="vl-manifest-meaning">@s.Meaning</span>
+                    <span class="d-block fw-medium">@s.SignerName <span class="text-body-tertiary fw-normal">(@s.SignerUsername)</span></span>
+                    <span class="d-block x-small text-body-tertiary">@s.PhaseName · @local.ToString("dd MMM yyyy HH:mm") @Ui.Abbrev(tz, local)</span>
+                    @if (s.OnBehalfOfName != null) { <span class="d-block x-small text-body-tertiary">On behalf of @s.OnBehalfOfName</span> }
+                </li>
+            }
+        </ol>
+        @if (r.IsEffective && r.EffectiveDate is { } eff)
+        {
+            <div class="vl-divider my-2"></div>
+            <div class="small"><i class="bi bi-patch-check-fill text-success" aria-hidden="true"></i> Effective @eff.ToString("dd MMM yyyy")</div>
+        }
+    </div>
+</div>

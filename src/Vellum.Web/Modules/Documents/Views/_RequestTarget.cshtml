@@ -1,0 +1,31 @@
+@model Vellum.Modules.Documents.RequestTargetModel
+@{
+    var d = Model.Document;
+}
+<div class="card vl-req-target mb-3">
+    <div class="card-body d-flex align-items-start gap-3 flex-wrap">
+        <span class="vl-app-tile" style="--app:#2563eb"><i class="bi bi-file-earmark-text"></i></span>
+        <div class="min-w-0 flex-grow-1">
+            @if (d == null)
+            {
+                <div class="fw-semibold">Target document not available</div>
+                <div class="small text-body-secondary">You don't have access to the document this request is about.</div>
+            }
+            else
+            {
+                <div class="d-flex align-items-center gap-2 flex-wrap small">
+                    <span class="fw-semibold text-body-secondary">@d.Number</span>
+                    <span class="vl-kw">Rev @d.Revision</span>
+                    @if (Model.TypeLabel != null) { @Ui.KeywordBadge(Model.TypeLabel, Model.TypeColor) }
+                    @Ui.Phase(Model.Phase?.Name, d.PhaseType, d.DueDate, d.IsArchived, d.IsEffective)
+                </div>
+                <a class="d-block fw-semibold mt-1 vl-req-title" href="/records/@d.Id">@d.Title</a>
+                <div class="small text-body-secondary mt-1">
+                    Owner @Model.Dir.Name(Model.OwnerId)@(d.EffectiveDate is { } e ? $" · effective {e:dd MMM yyyy}" : "")
+                </div>
+            }
+            <div class="small text-body-tertiary mt-2"><i class="bi bi-info-circle" aria-hidden="true"></i> @Model.Note</div>
+        </div>
+        @if (d != null) { <a class="btn btn-sm btn-light" href="/records/@d.Id"><i class="bi bi-box-arrow-up-right"></i>Open document</a> }
+    </div>
+</div>

@@ -1,0 +1,44 @@
+@model Vellum.Modules.Training.CourseAssignmentsModel
+@{
+    var m = Model;
+    string Tone(string status) => status switch { "Completed" => "success", "Overdue" => "danger", "Expired" => "warning", "Voided" => "secondary", _ => "info" };
+}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <div class="small text-body-secondary">
+        @Ui.Plural(m.Applicable, "employee") match the applicability rules@(m.NotAssigned > 0 ? $"; {m.NotAssigned} not assigned yet" : ""). Use Assignments › Assign employees to assign them (TRN-041).
+    </div>
+    @if (!m.Course.Enabled) { <span class="vl-kw vl-kw-secondary"><i class="bi bi-slash-circle"></i>Disabled: no new assignments</span> }
+</div>
+@if (m.Rows.Count == 0)
+{
+    <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-people"></i></div><h3>No assignments yet</h3><p>Assignments are created automatically when the source document reaches Awaiting Release, or by Assign employees.</p></div></div>
+}
+else if (!m.Detail)
+{
+    <div class="card"><div class="card-body small text-body-secondary">@m.Stats.Completed of @m.Stats.Active current assignments are complete. Individual records are visible to the course owner and training coordinators (TRN-002).</div></div>
+}
+else
+{
+    <div class="vl-table-wrap">
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead><tr><th scope="col">Employee</th><th scope="col">Department</th><th scope="col">Status</th><th scope="col">Due</th><th scope="col">Completed</th><th scope="col">Expires</th><th scope="col">Record</th></tr></thead>
+                <tbody>
+                    @foreach (var a in m.Rows)
+                    {
+                        var u = m.Dir.Get(a.EmployeeId);
+                        <tr data-href="/records/@a.Id">
+                            <td>@Ui.Avatar(u, "xs", showName: true)</td>
+                            <td class="text-body-secondary small">@(u?.Department ?? "–")</td>
+                            <td>@Ui.KeywordBadge(a.Status, Tone(a.Status))</td>
+                            <td>@Ui.Due(a.Due, a.PhaseType == PhaseType.Normal, compact: true)</td>
+                            <td class="text-nowrap">@(a.CompletedAt?.ToString("dd MMM yyyy") ?? "–")</td>
+                            <td class="text-nowrap">@(a.ExpiresOn?.ToString("dd MMM yyyy") ?? "–")</td>
+                            <td class="col-number"><a href="/records/@a.Id">@a.Number</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

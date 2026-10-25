@@ -1,0 +1,122 @@
+@model Vellum.Modules.Documents.DocumentTrainingModel
+@{
+    var m = Model;
+    var s = m.Stats;
+    string Tone(string status) => status switch { "Completed" => "success", "Overdue" => "danger", "Expired" => "warning", "Voided" => "secondary", _ => "info" };
+}
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="vl-meta-label">Training decision (DOC-060)</div>
+                @if (m.TrainingRequired == true)
+                {
+                    <div class="fw-semibold"><i class="bi bi-mortarboard-fill text-primary" aria-hidden="true"></i> Training is required for this revision</div>
+                    <p class="small text-body-secondary mb-0 mt-1">Assignments are created for everyone the course applies to when the revision reaches Awaiting Release, so training can finish before it takes effect (DOC-063).</p>
+                }
+                else if (m.TrainingRequired == false)
+                {
+                    <div class="fw-semibold"><i class="bi bi-dash-circle text-body-tertiary" aria-hidden="true"></i> No training required</div>
+                    <p class="small text-body-secondary mb-0 mt-1">@(m.Justification ?? "No justification recorded yet.")</p>
+                }
+                else
+                {
+                    <div class="fw-semibold text-warning-emphasis"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Not decided yet</div>
+                    <p class="small text-body-secondary mb-0 mt-1">Record the training decision before this revision leaves Draft (DOC-033).</p>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="vl-meta-label">Completion</div>
+                @if (s.Total == 0)
+                {
+                    <div class="fw-semibold">No assignments yet</div>
+                    <p class="small text-body-secondary mb-0 mt-1">@(m.Courses.Count == 0 ? "Set up training to create the course (Training › Set up training)." : "Assignments appear when the revision reaches Awaiting Release.")</p>
+                }
+                else
+                {
+                    <div class="d-flex align-items-baseline gap-2"><span class="vl-trn-big">@s.Percent%</span><span class="small text-body-secondary">@s.Completed of @s.Active complete</span></div>
+                    <div class="vl-doc-progress mt-2" role="progressbar" aria-label="Training completion" aria-valuenow="@s.Percent" aria-valuemin="0" aria-valuemax="100">
+                        <span class="bar" style="width:@(s.Percent)%"></span>
+                        @if (m.Gate.Gated) { <span class="goal" style="left:@(m.Gate.RequiredPercent)%" title="Required for release: @m.Gate.RequiredPercent%"></span> }
+                    </div>
+                    <div class="d-flex flex-wrap gap-3 mt-2 small text-body-secondary">
+                        <span><i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i> @s.Completed completed</span>
+                        <span><i class="bi bi-hourglass-split" aria-hidden="true"></i> @s.Pending pending</span>
+                        @if (s.Overdue > 0) { <span class="text-danger"><i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i> @s.Overdue overdue</span> }
+                        @if (s.Expired > 0) { <span><i class="bi bi-clock" aria-hidden="true"></i> @s.Expired expired</span> }
+                    </div>
+                }
+                @if (m.Gate.Gated)
+                {
+                    <div class="vl-divider my-2"></div>
+                    <div class="small">
+                        @if (m.Gate.Override != null) { <span class="vl-kw vl-kw-warning"><i class="bi bi-unlock"></i>Gate overridden</span> <span class="text-body-secondary">by @m.Gate.Override.SignerName: @m.Gate.Override.Comment</span> }
+                        else if (m.Gate.Satisfied) { <span class="vl-kw vl-kw-success"><i class="bi bi-check2"></i>Release gate met</span> <span class="text-body-secondary">@m.Gate.RequiredPercent% required (TRN-071)</span> }
+                        else { <span class="vl-kw vl-kw-danger"><i class="bi bi-lock"></i>Release on hold</span> <span class="text-body-secondary">@m.Gate.RequiredPercent% of trainees must complete first (TRN-071)</span> }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (m.Courses.Count == 0)
+{
+    if (m.TrainingRequired == true)
+    {
+        <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-mortarboard"></i></div><h3>No course yet</h3><p>Use Training › Set up training to create the course from this document. It copies the name, owner and controlled file, and starts its applicability from the document's department and sites.</p></div></div>
+    }
+}
+else
+{
+    <div class="d-grid gap-2 mb-3">
+        @foreach (var c in m.Courses)
+        {
+            <a class="vl-trn-course" href="/records/@c.Id">
+                <span class="vl-app-tile sm" style="--app:#0891b2"><i class="bi bi-mortarboard"></i></span>
+                <span class="min-w-0 flex-grow-1">
+                    <span class="d-flex align-items-center gap-2 flex-wrap"><span class="num">@c.Number</span><span class="fw-semibold text-truncate">@c.Name</span>
+                        @if (!c.Enabled) { <span class="vl-kw vl-kw-secondary">Disabled</span> }</span>
+                    <span class="d-block small text-body-tertiary">@(c.InstructorLed ? "Instructor-led" : "Online, read and understood") · due within @c.DueDays days@(c.ExpirationMonths is { } e ? $" · expires after {e} months" : "")@(c.AutomateNextRevision ? " · automated with next revision" : "")</span>
+                </span>
+                <i class="bi bi-chevron-right text-body-tertiary" aria-hidden="true"></i>
+            </a>
+        }
+    </div>
+}
+
+@if (m.Assignments.Count > 0)
+{
+    @if (m.ShowDetail)
+    {
+        <div class="card">
+            <div class="card-header"><h3 class="card-title-sm"><i class="bi bi-people"></i>Document training records</h3><span class="small text-body-tertiary ms-auto">DOC-067</span></div>
+            <div class="vl-table-scroll">
+                <table class="table vl-table vl-table-compact mb-0">
+                    <thead><tr><th scope="col">Employee</th><th scope="col">Status</th><th scope="col">Due</th><th scope="col">Completed</th><th scope="col">Expires</th><th scope="col">Record</th></tr></thead>
+                    <tbody>
+                        @foreach (var a in m.Assignments)
+                        {
+                            <tr data-href="/records/@a.Id">
+                                <td>@Ui.Avatar(m.Dir.Get(a.EmployeeId), "xs", showName: true)</td>
+                                <td>@Ui.KeywordBadge(a.Status, Tone(a.Status))</td>
+                                <td>@Ui.Due(a.Due, a.PhaseType == PhaseType.Normal, compact: true)</td>
+                                <td class="text-nowrap">@(a.CompletedAt?.ToString("dd MMM yyyy") ?? "–")</td>
+                                <td class="text-nowrap">@(a.ExpiresOn?.ToString("dd MMM yyyy") ?? "–")</td>
+                                <td><a href="/records/@a.Id" class="small">@a.Number</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
+        <p class="small text-body-secondary">Individual training records are visible to the document owner, Document Control and training coordinators (TRN-002).</p>
+    }
+}

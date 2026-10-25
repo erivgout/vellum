@@ -1,0 +1,39 @@
+@model Vellum.Modules.Training.MyTrainingWidgetModel
+@{
+    var overdue = Model.Pending.Count(p => p.Overdue);
+}
+<div class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-mortarboard"></i>My training</h2>
+        <a class="ms-auto small" href="/apps/training?view=my_records">Records</a>
+    </div>
+    <div class="card-body py-2 d-flex gap-3 small text-body-secondary border-bottom">
+        <span><strong class="text-body">@Model.Pending.Count</strong> to do</span>
+        @if (overdue > 0) { <span class="text-danger"><i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i> <strong>@overdue</strong> overdue</span> }
+        <span><strong class="text-body">@Model.CompletedThisYear</strong> done this year</span>
+        @if (Model.Expiring > 0) { <span><strong class="text-body">@Model.Expiring</strong> expiring soon</span> }
+    </div>
+    @if (Model.Pending.Count == 0)
+    {
+        <div class="card-body small text-body-secondary"><i class="bi bi-check2-all text-success" aria-hidden="true"></i> You're up to date with your training.</div>
+    }
+    else
+    {
+        <div class="vl-list">
+            @foreach (var p in Model.Pending.Take(5))
+            {
+                <a class="vl-list-item" href="/records/@p.Id">
+                    <span class="main">
+                        <span class="line1"><span class="ttl">@p.CourseName</span></span>
+                        <span class="line2 d-block">@p.Number · open to read and acknowledge</span>
+                    </span>
+                    <span class="aside">@Ui.Due(p.Due, compact: true)</span>
+                </a>
+            }
+        </div>
+        @if (Model.Pending.Count > 5)
+        {
+            <div class="card-footer text-center small"><a href="/apps/training?view=my_pending">All @Model.Pending.Count pending</a></div>
+        }
+    }
+</div>
