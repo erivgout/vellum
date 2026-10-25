@@ -1,0 +1,166 @@
+@page "/admin/integrations/sharepoint/mappings/{id}"
+@model Vellum.Areas.Admin.Pages.Integrations.SharePoint.MappingModel
+@using Vellum.Modules.Integrations.SharePoint
+@using Vellum.Areas.Admin.Pages.Integrations.SharePoint
+@{
+    var m = Model.Mapping;
+    var form = Model.Form;
+    ViewData["Title"] = m?.Name ?? "New mapping profile";
+}
+@section Crumbs {
+    <span>Integrations</span><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <a href="/admin/integrations/sharepoint">SharePoint</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">@(m?.Name ?? "New mapping profile")</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-violet"><i class="bi bi-arrow-left-right"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">@(m?.Name ?? "New mapping profile")</h1>
+        <p class="vl-page-sub">Map Vellum fields, system values or templates to SharePoint column internal names. Matching is case-sensitive, mapped columns must exist, and system columns can't be mapped (INT-302).</p>
+    </div>
+</div>
+
+<partial name="_Errors" model="Model.Errors" />
+
+@if (form == null)
+{
+    <form method="get" class="card sp-narrow">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-ui-checks"></i>Which form is this mapping for?</h2></div>
+        <div class="card-body">
+            <label class="form-label" for="mp-form">Form</label>
+            <select class="form-select" id="mp-form" name="form" required data-autosubmit>
+                <option value="">Choose a form…</option>
+                @foreach (var g in Model.Forms.GroupBy(f => f.App.Name))
+                {
+                    <optgroup label="@g.Key">@foreach (var f in g) { <option value="@f.Key">@f.Name</option> }</optgroup>
+                }
+            </select>
+            <div class="form-text">Only forms with attachment fields can publish to SharePoint.</div>
+        </div>
+        <div class="card-footer d-flex justify-content-end"><button class="btn btn-primary"><i class="bi bi-arrow-right"></i>Continue</button></div>
+    </form>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-xxl-8 min-w-0">
+            <form method="post" asp-page-handler="Save" asp-route-id="@(m?.Id.ToString() ?? "new")" class="card" autocomplete="off">
+                <input type="hidden" name="formKey" value="@form.Key" />
+                <div class="card-body">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-5">
+                            <label class="form-label" for="mp-name">Name <span class="req">*</span></label>
+                            <input class="form-control" id="mp-name" name="name" value="@Model.Name" required maxlength="120" />
+                        </div>
+                        <div class="col-md-3">
+                            <span class="form-label d-block">Form</span>
+                            <span class="d-flex align-items-center gap-2 py-2"><span class="vl-app-tile xs" style="--app:@form.App.Color"><i class="bi @form.Icon"></i></span>@form.Name</span>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="mp-desc">Description</label>
+                            <input class="form-control" id="mp-desc" name="description" value="@Model.Description" maxlength="500" />
+                        </div>
+                    </div>
+
+                    <div class="vl-table-wrap">
+                        <div class="vl-table-scroll">
+                            <table class="table vl-table sp-map-table mb-0" data-sp-map>
+                                <thead><tr><th scope="col" class="sp-map-num">#</th><th scope="col">Vellum value</th><th scope="col" class="sp-map-arrow"><span class="visually-hidden">maps to</span></th><th scope="col">SharePoint column (internal name)</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead>
+                                <tbody data-sp-map-body>
+                                    @{ var rows = Model.Rows.Count > 0 ? Model.Rows : new List<SpMapRow> { new(string.Empty, string.Empty, string.Empty) }; }
+                                    @for (var n = 0; n < rows.Count; n++)
+                                    {
+                                        <partial name="_MappingRow" model="new MappingRowVm(rows[n], n + 1, form, Model.Fields.ToList())" />
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="vl-table-foot">
+                            <button type="button" class="btn btn-sm btn-light" data-sp-map-add><i class="bi bi-plus-lg"></i>Add column</button>
+                            <span class="small text-body-tertiary">Each column takes one value. Spaces in internal names are encoded, e.g. <span class="sp-mono">Effective_x0020_Date</span>.</span>
+                        </div>
+                    </div>
+                    <template data-sp-map-template>
+                        <partial name="_MappingRow" model="new MappingRowVm(new SpMapRow(string.Empty, string.Empty, string.Empty), 0, form, Model.Fields.ToList())" />
+                    </template>
+                </div>
+                <div class="card-footer d-flex justify-content-end gap-2">
+                    <a class="btn btn-light" href="/admin/integrations/sharepoint">Cancel</a>
+                    <button class="btn btn-primary"><i class="bi bi-check2"></i>@(m == null ? "Create mapping" : "Save mapping")</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-xxl-4">
+            @if (m != null)
+            {
+                <form method="post" asp-page-handler="Check" asp-route-id="@m.Id" class="card mb-4" data-adm-busy>
+                    <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-check2-square"></i>Check against a library</h2></div>
+                    <div class="card-body">
+                        <label class="form-label" for="mp-lib">Library</label>
+                        <div class="input-group">
+                            <select class="form-select" id="mp-lib" name="libraryId" required>
+                                @foreach (var g in Model.Libraries.GroupBy(l => l.Profile.Name))
+                                {
+                                    <optgroup label="@g.Key">@foreach (var l in g) { <option value="@l.Id" selected="@(l.Id == Model.CheckedLibraryId)">@l.Name</option> }</optgroup>
+                                }
+                            </select>
+                            <button class="btn btn-light" disabled="@(Model.Libraries.Count == 0)"><i class="bi bi-plug"></i>Check</button>
+                        </div>
+                        @if (Model.Check is { } c)
+                        {
+                            <div class="vl-banner @(c.Ok ? "vl-banner-ok" : "vl-banner-bad") mt-3 mb-2" role="status"><i class="bi @(c.Ok ? "bi-check-circle-fill" : "bi-x-octagon-fill")" aria-hidden="true"></i><div class="small">@c.Summary</div></div>
+                            @if (c.Problems.Count > 0)
+                            {
+                                <ul class="sp-check">@foreach (var pr in c.Problems) { <li class="bad"><i class="bi bi-x-circle-fill" aria-hidden="true"></i><div class="small">@pr</div></li> }</ul>
+                            }
+                            @if (c.Columns is { Count: > 0 } cols)
+                            {
+                                <details class="mt-2"><summary class="small">@cols.Count columns in the library</summary>
+                                    <div class="sp-tokens">@foreach (var col in cols.OrderBy(x => x.Name)) { <span class="sp-token" title="@col.DisplayName · @col.Type@(col.ReadOnly ? " · read-only" : "")">@col.Name</span> }</div>
+                                </details>
+                            }
+                        }
+                        else
+                        {
+                            <p class="form-text mb-0">Reads the library's columns live and reports any mapped column that doesn't exist (names are case-sensitive) or can't be written.</p>
+                        }
+                    </div>
+                </form>
+            }
+
+            <div class="card mb-4">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-table"></i>Data types (INT-303)</h2></div>
+                <div class="card-body pt-2">
+                    <dl class="vl-kv">
+                        <dt>Number</dt><dd>Number</dd>
+                        <dt>Date, date-time</dt><dd>Date and Time</dd>
+                        <dt>Currency</dt><dd>Currency</dd>
+                        <dt>Text, keyword, names, attachment, link</dt><dd>Single line of text</dd>
+                        <dt>Text area</dt><dd>Multiple lines of text</dd>
+                    </dl>
+                    <p class="small text-body-secondary mb-0 mt-2">Multiple values are joined with "; ". Templates such as <span class="sp-mono">{number} rev {revision}</span> become single lines of text.</p>
+                </div>
+            </div>
+
+            @if (m != null)
+            {
+                <div class="card mb-4">
+                    <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-diagram-3"></i>Used by</h2><span class="vl-pill-count">@Model.UsedBy.Count</span></div>
+                    @if (Model.UsedBy.Count == 0) { <div class="card-body small text-body-secondary">No rule uses this mapping yet.</div> }
+                    else
+                    {
+                        <div class="vl-list">@foreach (var r in Model.UsedBy) { <a class="vl-list-item py-2" href="/admin/integrations/sharepoint/rules/@r.Id"><span class="main fw-medium">@r.Name</span></a> }</div>
+                    }
+                </div>
+                <form method="post" asp-page-handler="Delete" asp-route-id="@m.Id" class="card">
+                    <div class="card-body d-flex align-items-center gap-3">
+                        <div class="small text-body-secondary flex-grow-1">A mapping can be deleted once no rule uses it.</div>
+                        <button class="btn btn-light text-danger" disabled="@(Model.UsedBy.Count > 0)" data-confirm="Delete the mapping profile @m.Name?"><i class="bi bi-trash3"></i>Delete</button>
+                    </div>
+                </form>
+            }
+        </div>
+    </div>
+}

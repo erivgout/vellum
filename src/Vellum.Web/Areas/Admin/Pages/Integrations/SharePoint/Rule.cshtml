@@ -1,0 +1,277 @@
+@page "/admin/integrations/sharepoint/rules/{id}"
+@model Vellum.Areas.Admin.Pages.Integrations.SharePoint.RuleModel
+@using Vellum.Modules.Integrations.SharePoint
+@{
+    var rule = Model.Rule;
+    var form = Model.Form;
+    var i = Model.Input;
+    ViewData["Title"] = rule?.Name ?? "New publishing rule";
+    var fieldTokens = Model.Form?.Fields.Where(f => f.Type is FieldType.Text or FieldType.Keyword or FieldType.KeywordMulti or FieldType.User or FieldType.Date or FieldType.Number &&
+        Model.Form.Sections.FirstOrDefault(s => s.Key == f.SectionKey)?.IsSubform != true && SharePointNaming.SystemTokens.All(t => t.Token != f.Key)).ToList() ?? [];
+    var selectedLib = Model.Libraries.FirstOrDefault(l => l.Id == i.LibraryId);
+}
+@section Crumbs {
+    <span>Integrations</span><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <a href="/admin/integrations/sharepoint">SharePoint</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">@(rule?.Name ?? "New rule")</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-info"><i class="bi bi-diagram-3"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title d-flex align-items-center gap-2 flex-wrap">@(rule?.Name ?? "New publishing rule")
+            @if (rule != null) { if (rule.Enabled) { <span class="vl-kw vl-kw-success">Enabled</span> } else { <span class="vl-kw vl-kw-secondary">Disabled</span> } }
+        </h1>
+        <p class="vl-page-sub">When a record enters, or is saved in, the phase, its attachments (or their PDF renditions) are queued for upload to the library and folder with their metadata (DSN-602, INT-304). Publishing never blocks the record.</p>
+    </div>
+    @if (rule != null)
+    {
+        <form method="post" asp-page-handler="PublishExisting" asp-route-id="@rule.Id" class="m-0" data-adm-busy>
+            <button class="btn btn-light" disabled="@(!rule.Enabled)" data-confirm="Queue every record that is in this phase now?"><i class="bi bi-cloud-upload"></i>Publish existing records</button>
+        </form>
+    }
+</div>
+
+<partial name="_Errors" model="Model.Errors" />
+
+@if (form == null)
+{
+    <form method="get" class="card sp-narrow">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-ui-checks"></i>Which form publishes to SharePoint?</h2></div>
+        <div class="card-body">
+            <label class="form-label" for="r-formpick">Form</label>
+            <select class="form-select" id="r-formpick" name="form" required data-autosubmit>
+                <option value="">Choose a form…</option>
+                @foreach (var g in Model.Forms.GroupBy(f => f.App.Name))
+                {
+                    <optgroup label="@g.Key">@foreach (var f in g) { <option value="@f.Key">@f.Name</option> }</optgroup>
+                }
+            </select>
+            <div class="form-text">Only forms with attachment fields are listed.</div>
+        </div>
+        <div class="card-footer d-flex justify-content-end"><button class="btn btn-primary"><i class="bi bi-arrow-right"></i>Continue</button></div>
+    </form>
+}
+else
+{
+    <form method="post" asp-page-handler="Save" asp-route-id="@(rule?.Id.ToString() ?? "new")" class="row g-4 sp-rule-form" autocomplete="off">
+        <input type="hidden" name="formKey" value="@form.Key" />
+        <div class="col-xxl-8 min-w-0">
+            <div class="card">
+                <div class="card-body">
+                    <fieldset class="adm-fieldset">
+                        <legend class="adm-legend"><i class="bi bi-card-heading"></i>Rule</legend>
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-7">
+                                <label class="form-label" for="r-name">Name <span class="req">*</span></label>
+                                <input class="form-control" id="r-name" name="Input.Name" value="@i.Name" required maxlength="120" />
+                            </div>
+                            <div class="col-md-5">
+                                <span class="form-label d-block">Form</span>
+                                <span class="d-flex align-items-center gap-2 py-2">
+                                    <span class="vl-app-tile xs" style="--app:@form.App.Color"><i class="bi @form.Icon"></i></span>@form.Name
+                                    @if (rule == null) { <a class="small ms-1" href="/admin/integrations/sharepoint/rules/new">Change</a> }
+                                </span>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="adm-fieldset">
+                        <legend class="adm-legend"><i class="bi bi-signpost-split"></i>When to publish</legend>
+                        @if (form.IsNonWorkflow)
+                        {
+                            <input type="hidden" name="Input.PhaseKey" value="*" />
+                            <p class="small text-body-secondary mb-0">@form.Name has no workflow: records are published when they're created and every time they're saved.</p>
+                        }
+                        else
+                        {
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="r-phase">Phase <span class="req">*</span></label>
+                                    <select class="form-select" id="r-phase" name="Input.PhaseKey" required>
+                                        @foreach (var ph in Model.Phases)
+                                        {
+                                            <option value="@ph.Key" selected="@(ph.Key == i.PhaseKey)">@ph.Name@(ph.Type == PhaseType.Completed ? " (completed)" : ph.Type == PhaseType.Obsolete ? " (obsolete)" : "")</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <span class="form-label d-block">Trigger</span>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="r-enter" name="Input.OnEnter" value="true" checked="@i.OnEnter" />
+                                        <label class="form-check-label" for="r-enter">When a record is routed into the phase</label>
+                                        <input type="hidden" name="Input.OnEnter" value="false" />
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="r-save" name="Input.OnSave" value="true" checked="@i.OnSave" />
+                                        <label class="form-check-label" for="r-save">When it's saved in the phase</label>
+                                        <input type="hidden" name="Input.OnSave" value="false" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        @if (form.RevisionControlled)
+                        {
+                            <div class="form-check form-switch mt-3">
+                                <input class="form-check-input" type="checkbox" role="switch" id="r-effective" name="Input.EffectiveOnly" value="true" checked="@i.EffectiveOnly" aria-describedby="r-effective-help" />
+                                <label class="form-check-label" for="r-effective">Publish the effective revision only <span class="vl-kw vl-kw-success ms-1">Recommended</span></label>
+                                <input type="hidden" name="Input.EffectiveOnly" value="false" />
+                                <div class="form-text" id="r-effective-help">SharePoint is an operational distribution point, so it should only show effective content (SAF-043). If you also publish pending revisions, they can never overwrite a completed revision's file (DOC-084, INV-163).</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <input type="hidden" name="Input.EffectiveOnly" value="false" />
+                        }
+                    </fieldset>
+
+                    <fieldset class="adm-fieldset">
+                        <legend class="adm-legend"><i class="bi bi-paperclip"></i>What to publish</legend>
+                        <span class="form-label d-block" id="r-fields-label">Attachment fields <span class="req">*</span></span>
+                        <div class="sp-choice mb-3" role="group" aria-labelledby="r-fields-label">
+                            @foreach (var f in Model.AttachmentFields)
+                            {
+                                <label>
+                                    <input class="form-check-input" type="checkbox" name="Input.FieldKeys" value="@f.Key" checked="@i.FieldKeys.Contains(f.Key)" />
+                                    <span><span class="ttl">@f.Label</span><span class="sub">@(form.Sections.FirstOrDefault(s => s.Key == f.SectionKey)?.Name) · <span class="sp-mono">@f.Key</span></span></span>
+                                </label>
+                            }
+                        </div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="r-prefer" name="Input.PreferRendition" value="true" checked="@i.PreferRendition" />
+                            <label class="form-check-label" for="r-prefer">Publish the PDF rendition when there is one</label>
+                            <input type="hidden" name="Input.PreferRendition" value="false" />
+                        </div>
+                        <div class="form-check form-switch mt-1" data-sp-when="rendition">
+                            <input class="form-check-input" type="checkbox" role="switch" id="r-fallback" name="Input.FallbackToOriginal" value="true" checked="@i.FallbackToOriginal" aria-describedby="r-fallback-help" />
+                            <label class="form-check-label" for="r-fallback">Publish the original when no rendition exists</label>
+                            <input type="hidden" name="Input.FallbackToOriginal" value="false" />
+                            <div class="form-text" id="r-fallback-help">Off: non-PDF files wait (and retry) until their PDF rendition has been generated.</div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="adm-fieldset">
+                        <legend class="adm-legend"><i class="bi bi-folder2-open"></i>Where</legend>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label" for="r-lib">Library <span class="req">*</span></label>
+                                <select class="form-select" id="r-lib" name="Input.LibraryId" required data-sp-lib>
+                                    @if (Model.Libraries.Count == 0) { <option value="">Add a SharePoint profile with a library first</option> }
+                                    @foreach (var g in Model.Libraries.GroupBy(l => l.Profile.Name))
+                                    {
+                                        <optgroup label="@g.Key">@foreach (var l in g) { <option value="@l.Id" selected="@(l.Id == i.LibraryId)" data-name="@l.Name">@l.Name · @l.RelativeUrl</option> }</optgroup>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="r-folder">Folder</label>
+                                <input class="form-control sp-mono" id="r-folder" name="Input.FolderTemplate" value="@i.FolderTemplate" maxlength="400" spellcheck="false" placeholder="Library root" data-sp-template aria-describedby="r-folder-help" />
+                                <div class="form-text" id="r-folder-help">Fixed ("Procedures") or computed from tokens ("{doc_type}/{year}"). Missing folders are created on first publish (DOC-084).</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="r-file">File name</label>
+                                <input class="form-control sp-mono" id="r-file" name="Input.FileNameTemplate" value="@i.FileNameTemplate" maxlength="200" spellcheck="false" placeholder="Keep the attachment's name" data-sp-template aria-describedby="r-file-help" />
+                                <div class="form-text" id="r-file-help">Without the extension. Characters SharePoint doesn't allow become underscores (INT-304).</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="sp-token-panel">
+                                    <span class="small text-body-secondary" id="r-tokens-label">Insert a token into the <span data-sp-token-target-label>folder</span>:</span>
+                                    <div class="sp-tokens" role="group" aria-labelledby="r-tokens-label">
+                                        @foreach (var (t, meaning) in SharePointNaming.SystemTokens) { <button type="button" class="sp-token" data-sp-token="{@t}" title="@meaning">{@t}</button> }
+                                    </div>
+                                    @if (fieldTokens.Count > 0)
+                                    {
+                                        <details class="mt-1">
+                                            <summary class="small">@form.Name fields</summary>
+                                            <div class="sp-tokens">@foreach (var f in fieldTokens) { <button type="button" class="sp-token" data-sp-token="{@f.Key}" title="@f.Label">{@f.Key}</button> }</div>
+                                        </details>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="sp-preview" data-sp-preview aria-live="polite">
+                                    <i class="bi bi-eye" aria-hidden="true"></i>
+                                    <span>@(Model.SampleNumber != null ? $"With {Model.SampleNumber}:" : "Preview:")</span>
+                                    <span class="sp-mono text-body" data-sp-preview-path>@(selectedLib?.Name ?? "Library")</span>
+                                </div>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="adm-fieldset">
+                        <legend class="adm-legend"><i class="bi bi-arrow-left-right"></i>Metadata</legend>
+                        <label class="form-label" for="r-mapping">Mapping profile</label>
+                        <div class="input-group">
+                            <select class="form-select" id="r-mapping" name="Input.MappingId" aria-describedby="r-mapping-help">
+                                <option value="">Automatic: fill columns whose internal name matches a field key</option>
+                                @foreach (var m in Model.Mappings) { <option value="@m.Id" selected="@(m.Id == i.MappingId)">@m.Name</option> }
+                            </select>
+                            <a class="btn btn-light" href="/admin/integrations/sharepoint/mappings/new?form=@form.Key"><i class="bi bi-plus-lg"></i>New mapping</a>
+                        </div>
+                        <div class="form-text" id="r-mapping-help">Mapped columns must exist in the library; a missing column fails the publication with SP-COLUMN (INT-302).</div>
+                    </fieldset>
+
+                    <fieldset class="adm-fieldset mb-0">
+                        <legend class="adm-legend"><i class="bi bi-arrow-repeat"></i>New revisions and withdrawal</legend>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" role="switch" id="r-versions" name="Input.KeepVersionHistory" value="true" checked="@i.KeepVersionHistory" aria-describedby="r-versions-help" />
+                            <label class="form-check-label" for="r-versions">Keep version history when a file is replaced</label>
+                            <input type="hidden" name="Input.KeepVersionHistory" value="false" />
+                            <div class="form-text" id="r-versions-help">On: a new effective revision overwrites the same file, and the library keeps the older one as a version. Off: the old file is deleted first, so no older version remains (INT-305).</div>
+                        </div>
+                        <span class="form-label d-block" id="r-withdraw-label">When a revision is superseded or the document is made obsolete (INT-308)</span>
+                        <div class="sp-choice" role="radiogroup" aria-labelledby="r-withdraw-label">
+                            <label>
+                                <input class="form-check-input" type="radio" name="Input.WithdrawAction" value="MarkObsolete" checked="@(i.WithdrawAction == SpWithdrawAction.MarkObsolete)" />
+                                <span><span class="ttl">Mark obsolete</span><span class="sub">Move it to the obsolete folder, add the revision and status to its name, and update the status columns.</span></span>
+                            </label>
+                            <label>
+                                <input class="form-check-input" type="radio" name="Input.WithdrawAction" value="Delete" checked="@(i.WithdrawAction == SpWithdrawAction.Delete)" />
+                                <span><span class="ttl">Delete</span><span class="sub">Remove the file and its version history from the library.</span></span>
+                            </label>
+                        </div>
+                        <div class="mt-3" data-sp-when="obsolete">
+                            <label class="form-label" for="r-obsolete">Obsolete folder</label>
+                            <input class="form-control sp-mono" id="r-obsolete" name="Input.ObsoleteFolder" value="@i.ObsoleteFolder" maxlength="400" spellcheck="false" placeholder="Keep in the same folder" />
+                            <div class="form-text">From the library root. Restrict its permissions in SharePoint so obsolete copies aren't used (SAF-021).</div>
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xxl-4">
+            <div class="card adm-sticky">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-sliders"></i>Status</h2></div>
+                <div class="card-body d-grid gap-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="r-enabled" name="Input.Enabled" value="true" checked="@i.Enabled" />
+                        <label class="form-check-label" for="r-enabled">Enabled</label>
+                        <input type="hidden" name="Input.Enabled" value="false" />
+                    </div>
+                    <ul class="adm-effects">
+                        <li><i class="bi bi-shield-check" aria-hidden="true"></i><span>Publishing is queued and retried with backoff. Viewing, editing and routing records keep working when SharePoint is down (NFR-025).</span></li>
+                        <li><i class="bi bi-lock" aria-hidden="true"></i><span>A completed revision's file is never overwritten by a pending revision (INV-163).</span></li>
+                        <li><i class="bi bi-cloud-slash" aria-hidden="true"></i><span>Superseded and obsolete files are withdrawn automatically, even if the rule is disabled later (SAF-021).</span></li>
+                        @if (rule != null) { <li><i class="bi bi-files" aria-hidden="true"></i><span>@Ui.Plural(Model.CurrentFiles, "current file") published by this rule.</span></li> }
+                    </ul>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary flex-grow-1"><i class="bi bi-check2"></i>@(rule == null ? "Create rule" : "Save rule")</button>
+                        <a class="btn btn-light" href="/admin/integrations/sharepoint">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    @if (rule != null)
+    {
+        <form method="post" asp-page-handler="Delete" asp-route-id="@rule.Id" class="card mt-4 sp-narrow">
+            <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+                <div class="small text-body-secondary flex-grow-1">Delete the rule. Possible once none of its files are current; otherwise disable it.</div>
+                <button class="btn btn-light text-danger" disabled="@(Model.CurrentFiles > 0)" data-confirm="Delete the rule @rule.Name?"><i class="bi bi-trash3"></i>Delete rule</button>
+            </div>
+        </form>
+    }
+    <script type="application/json" id="sp-sample">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.Sample))</script>
+}

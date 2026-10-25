@@ -1,0 +1,122 @@
+@model Vellum.Modules.Integrations.SharePoint.SharePointPanelModel
+@using Vellum.Modules.Integrations.SharePoint
+@{
+    var m = Model;
+    var tz = m.Tz;
+    string Where(SpPanelFile f) => f.Library + (f.Pub.FolderPath.Length > 0 ? " / " + f.Pub.FolderPath.Replace("/", " / ") : "");
+    string HistoryLabel(SpPublicationStatus s) => s switch
+    {
+        SpPublicationStatus.Replaced => "Replaced",
+        SpPublicationStatus.Removed => "Removed",
+        SpPublicationStatus.MarkedObsolete => "Marked obsolete",
+        _ => "Published",
+    };
+    string Wait(DateTime at)
+    {
+        var s = at - DateTime.UtcNow;
+        return s.TotalSeconds < 60 ? "within a minute" : s.TotalMinutes < 60 ? $"in {(int)Math.Ceiling(s.TotalMinutes)} min" : $"in {(int)s.TotalHours} h {s.Minutes} min";
+    }
+}
+<div class="sp-panel" data-sp-state="@m.State">
+    <div class="sp-status" role="status">
+        @switch (m.State)
+        {
+            case "failed":
+                <span class="vl-chip vl-chip-overdue"><i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>Publication failed</span>
+                break;
+            case "pending":
+                <span class="vl-chip vl-chip-open"><i class="bi bi-hourglass-split" aria-hidden="true"></i>@(m.Pending!.Job.Kind == SpJobKind.Withdraw ? "Withdrawal pending" : "Publication pending")</span>
+                break;
+            case "published":
+                <span class="vl-chip vl-chip-effective"><i class="bi bi-cloud-check-fill" aria-hidden="true"></i>Published</span>
+                break;
+            case "withdrawn":
+                <span class="vl-chip vl-chip-archived"><i class="bi bi-cloud-slash" aria-hidden="true"></i>Withdrawn</span>
+                break;
+            default:
+                <span class="vl-chip vl-chip-archived"><i class="bi bi-cloud" aria-hidden="true"></i>Not published</span>
+                break;
+        }
+    </div>
+
+    @if (m.Failed is { } f)
+    {
+        <div class="sp-note sp-note-bad">
+            <div class="fw-semibold"><span class="mono">@f.Job.ErrorCode</span> · @SpErrors.Describe(f.Job.ErrorCode)</div>
+            <div class="small">@f.Job.Error</div>
+            <div class="x-small text-body-tertiary mt-1">@Ui.Plural(f.Job.Attempts, "attempt") · last @Ui.Time(f.Job.LastAttemptAt ?? f.Job.CreatedAt, tz). The profile's notify list has been told; the record itself is unaffected.</div>
+            @if (m.IsAdmin)
+            {
+                <a class="btn btn-sm btn-light mt-2" href="/admin/integrations/sharepoint/log?record=@m.RecordId"><i class="bi bi-arrow-repeat"></i>Open in publication log</a>
+            }
+        </div>
+    }
+    @if (m.Pending is { } p)
+    {
+        <div class="sp-note sp-note-info small">
+            @if (p.Job.Attempts == 0)
+            {
+                <span>Queued @Ui.Time(p.Job.CreatedAt, tz) (@p.Job.Trigger). It's sent @Wait(p.Job.NextAttemptAt).</span>
+            }
+            else
+            {
+                <span>Attempt @p.Job.Attempts of @p.Job.MaxAttempts didn't go through<span class="mono">@(p.Job.ErrorCode != null ? $" ({p.Job.ErrorCode})" : "")</span>. Retrying @Wait(p.Job.NextAttemptAt).</span>
+            }
+        </div>
+    }
+    @if (m.WaitingNote != null)
+    {
+        <p class="small text-body-secondary mb-0 mt-2">@m.WaitingNote</p>
+    }
+
+    @if (m.Current.Count > 0)
+    {
+        <ul class="sp-files" aria-label="Current SharePoint files">
+            @foreach (var c in m.Current)
+            {
+                <li class="sp-file">
+                    <i class="bi @Ui.FileIcon(c.Pub.FileName) sp-ficon" aria-hidden="true"></i>
+                    <div class="min-w-0 flex-grow-1">
+                        @if (c.Url != null)
+                        {
+                            <a class="sp-fname" href="@c.Url" target="_blank" rel="noopener" title="Open in SharePoint">@c.Pub.FileName <i class="bi bi-box-arrow-up-right x-small" aria-hidden="true"></i><span class="visually-hidden"> (opens SharePoint in a new tab)</span></a>
+                        }
+                        else
+                        {
+                            <span class="sp-fname" title="@c.Pub.FileName">@c.Pub.FileName</span>
+                        }
+                        <span class="sp-fmeta"><i class="bi bi-folder2" aria-hidden="true"></i> @Where(c)</span>
+                        <span class="sp-fmeta">@(c.Pub.Revision != null ? $"Rev {c.Pub.Revision} · " : "")@(c.Pub.IsRendition ? "PDF rendition · " : "")@Ui.FileSize(c.Pub.Size) · @Ui.Time(c.Pub.UpdatedAt ?? c.Pub.PublishedAt, tz)</span>
+                        @if (c.Url == null)
+                        {
+                            <span class="sp-fmeta"><i class="bi bi-hdd" aria-hidden="true"></i> Local folder (development) · <span class="mono">@c.Host</span></span>
+                        }
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+
+    @if (m.History.Count > 0)
+    {
+        <details class="sp-history">
+            <summary class="small">Publication history <span class="vl-pill-count">@m.History.Count</span></summary>
+            <ol class="sp-history-list">
+                @foreach (var h in m.History)
+                {
+                    <li>
+                        <span class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="fw-medium text-break">@h.Pub.FileName</span>
+                            <span class="vl-kw @(h.Pub.Status == SpPublicationStatus.Replaced ? "vl-kw-info" : "vl-kw-secondary")">@HistoryLabel(h.Pub.Status)</span>
+                        </span>
+                        <span class="sp-fmeta">@Where(h)@(h.Pub.Revision != null ? $" · rev {h.Pub.Revision}" : "") · published @Ui.Time(h.Pub.PublishedAt, tz, false)</span>
+                        @if (h.Pub.WithdrawnAt is { } w)
+                        {
+                            <span class="sp-fmeta">@(h.Pub.WithdrawnReason ?? "Withdrawn") · @Ui.Time(w, tz, false)</span>
+                        }
+                    </li>
+                }
+            </ol>
+        </details>
+    }
+</div>

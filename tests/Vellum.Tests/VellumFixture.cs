@@ -18,6 +18,8 @@ public sealed class VellumFixture : IAsyncLifetime
     public string Database { get; } = $"Vellum_Test_{DateTime.UtcNow:MMddHHmmss}_{Guid.NewGuid().ToString("N")[..6]}";
     public WebApplicationFactory<Program> Factory { get; private set; } = null!;
     public IServiceProvider Services => Factory.Services;
+    /// <summary>Root of the local-folder SharePoint stand-in for this run.</summary>
+    public string SharePointRoot => Path.Combine(Path.GetTempPath(), Database, "sharepoint");
 
     public Task InitializeAsync()
     {
@@ -32,6 +34,7 @@ public sealed class VellumFixture : IAsyncLifetime
             b.UseSetting("Vellum:DisableScheduler", "true");
             b.UseSetting("Vellum:FileRoot", Path.Combine(Path.GetTempPath(), Database, "blobs"));
             b.UseSetting("Vellum:MailPickup", Path.Combine(Path.GetTempPath(), Database, "mail"));
+            b.UseSetting("Vellum:SharePoint:LocalRoot", SharePointRoot);
         });
         _ = Factory.Services; // runs startup: schema, triggers, core seed, packaged apps
         return Task.CompletedTask;

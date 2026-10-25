@@ -1,0 +1,173 @@
+@page "/admin/integrations/sharepoint"
+@model Vellum.Areas.Admin.Pages.Integrations.SharePoint.IndexModel
+@using Vellum.Modules.Integrations.SharePoint
+@{
+    ViewData["Title"] = "SharePoint publishing";
+    var tz = Shell.TimeZone;
+}
+@section Crumbs { <span>Integrations</span><i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="current">SharePoint</span> }
+
+<div class="vl-page-head align-items-center flex-wrap">
+    <span class="adm-head-icon tone-info"><i class="bi bi-cloud-arrow-up"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">SharePoint publishing</h1>
+        <p class="vl-page-sub">Publish controlled files to SharePoint libraries when records reach a configured phase, and withdraw them when they're superseded or made obsolete (INT §6.3, DOC-084, SAF-021).</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-light" href="/admin/integrations/sharepoint/log"><i class="bi bi-list-ul"></i>Publication log</a>
+        <form method="post" asp-page-handler="Process" class="m-0" data-adm-busy>
+            <button class="btn btn-light"><i class="bi bi-play-fill"></i>Process queue now</button>
+        </form>
+        <a class="btn btn-primary" href="/admin/integrations/sharepoint/rules/new"><i class="bi bi-plus-lg"></i>New rule</a>
+    </div>
+</div>
+
+@if (Model.Failed > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert">
+        <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>
+        <div class="flex-grow-1"><div class="ttl">@Ui.Plural(Model.Failed, "publication") failed permanently</div><div class="small">The profiles' notify lists were told. Fix the cause (credentials, permissions, columns), then retry from the log (INT-306).</div></div>
+        <a class="btn btn-sm btn-light" href="/admin/integrations/sharepoint/log?status=failed">Review failures</a>
+    </div>
+}
+@if (Model.Profiles.Count == 0)
+{
+    <div class="vl-banner vl-banner-info">
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+        <div class="flex-grow-1"><div class="ttl">Start with a SharePoint profile</div><div class="small">A profile holds the connection to one SharePoint site or tenant and its libraries. Then add a mapping profile and a publishing rule.</div></div>
+        <a class="btn btn-sm btn-primary" href="/admin/integrations/sharepoint/profiles/new">New profile</a>
+    </div>
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3"><a class="vl-stat" href="/admin/integrations/sharepoint/log?view=files"><span class="vl-stat-icon tone-ok"><i class="bi bi-cloud-check"></i></span><div class="vl-stat-value">@Model.CurrentFiles</div><div class="vl-stat-label">Current published files</div></a></div>
+    <div class="col-6 col-xl-3"><a class="vl-stat" href="/admin/integrations/sharepoint/log?status=pending"><span class="vl-stat-icon tone-info"><i class="bi bi-hourglass-split"></i></span><div class="vl-stat-value">@Model.Pending</div><div class="vl-stat-label">In the queue@(Model.Retrying > 0 ? $" · {Model.Retrying} retrying" : "")</div></a></div>
+    <div class="col-6 col-xl-3"><a class="vl-stat" href="/admin/integrations/sharepoint/log?status=failed"><span class="vl-stat-icon @(Model.Failed > 0 ? "tone-bad" : "tone-neutral")"><i class="bi bi-x-octagon"></i></span><div class="vl-stat-value">@Model.Failed</div><div class="vl-stat-label">Failed</div></a></div>
+    <div class="col-6 col-xl-3"><a class="vl-stat" href="/admin/integrations/sharepoint/log?view=files&amp;status=all"><span class="vl-stat-icon tone-neutral"><i class="bi bi-calendar-week"></i></span><div class="vl-stat-value">@Model.PublishedWeek</div><div class="vl-stat-label">Published in the last 7 days</div></a></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xxl-8 min-w-0">
+        <div class="vl-table-wrap mb-4">
+            <div class="adm-table-title"><i class="bi bi-hdd-network"></i>Connection profiles <span class="vl-pill-count">@Model.Profiles.Count</span>
+                <a class="btn btn-sm btn-light ms-auto" href="/admin/integrations/sharepoint/profiles/new"><i class="bi bi-plus-lg"></i>New profile</a></div>
+            @if (Model.Profiles.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-hdd-network"></i></div><h3>No profiles yet</h3><p>One profile per SharePoint site or tenant, unique by host (INT-301).</p></div>
+            }
+            else
+            {
+                <div class="vl-table-scroll">
+                    <table class="table vl-table">
+                        <thead><tr><th scope="col">Profile</th><th scope="col">Connection</th><th scope="col">Libraries</th><th scope="col">Connection test</th></tr></thead>
+                        <tbody>
+                            @foreach (var p in Model.Profiles)
+                            {
+                                <tr data-href="/admin/integrations/sharepoint/profiles/@p.Id" class="@(p.Enabled ? "" : "adm-row-muted")">
+                                    <td class="col-title">
+                                        <a class="fw-semibold" href="/admin/integrations/sharepoint/profiles/@p.Id">@p.Name</a>
+                                        @if (!p.Enabled) { <span class="vl-kw vl-kw-secondary ms-1">Disabled</span> }
+                                        @if (p.SimulateOutage) { <span class="vl-kw vl-kw-warning ms-1"><i class="bi bi-cone-striped"></i>Simulated outage</span> }
+                                        <span class="d-block small text-body-secondary sp-mono">@p.Host</span>
+                                    </td>
+                                    <td>@SharePointUi.Connection(p.Connection)</td>
+                                    <td class="small">@(p.Libraries.Count == 0 ? "None yet" : string.Join(", ", p.Libraries.OrderBy(l => l.Name).Select(l => l.Name)))</td>
+                                    <td class="text-nowrap">@SharePointUi.Test(p)@if (p.LastTestAt is { } t) { <span class="d-block x-small text-body-tertiary">@Ui.Time(t, tz)</span> }</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <div class="vl-table-wrap">
+            <div class="adm-table-title"><i class="bi bi-diagram-3"></i>Publishing rules <span class="vl-pill-count">@Model.Rules.Count</span>
+                <a class="btn btn-sm btn-light ms-auto" href="/admin/integrations/sharepoint/rules/new"><i class="bi bi-plus-lg"></i>New rule</a></div>
+            @if (Model.Rules.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-diagram-3"></i></div><h3>No publishing rules</h3><p>A rule publishes a form's attachments when records enter, or are saved in, a phase (DSN-602, INT-304).</p></div>
+            }
+            else
+            {
+                <div class="vl-table-scroll">
+                    <table class="table vl-table">
+                        <thead><tr><th scope="col">Rule</th><th scope="col">Publishes to</th><th scope="col" class="numeric">Files</th><th scope="col">Enabled</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                        <tbody>
+                            @foreach (var r in Model.Rules)
+                            {
+                                var rule = r.Rule;
+                                var when = rule.PhaseKey == "*" ? "on every save" : rule.OnEnter && rule.OnSave ? "on entry and save" : rule.OnSave ? "when saved" : "on entry";
+                                <tr data-href="/admin/integrations/sharepoint/rules/@rule.Id" class="@(rule.Enabled ? "" : "adm-row-muted")">
+                                    <td class="col-title">
+                                        <a class="fw-semibold" href="/admin/integrations/sharepoint/rules/@rule.Id">@rule.Name</a>
+                                        <span class="d-flex align-items-center flex-wrap gap-2 small text-body-secondary mt-1">
+                                            @if (r.AppColor != null) { <span class="vl-app-tile xs" style="--app:@r.AppColor"><i class="bi @r.AppIcon"></i></span> }
+                                            <span>@r.FormName <i class="bi bi-chevron-right x-small" aria-hidden="true"></i> @r.PhaseName</span>
+                                        </span>
+                                        <span class="d-block x-small text-body-tertiary">Publishes @when@(rule.EffectiveOnly ? " · effective revisions only" : "")</span>
+                                    </td>
+                                    <td>
+                                        <span class="sp-path"><span>@(r.Library?.Name ?? "Missing library")</span>@if (rule.FolderTemplate.Length > 0) { <i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="sp-mono">@rule.FolderTemplate</span> }</span>
+                                        <span class="d-block x-small text-body-tertiary">@(r.Profile?.Name ?? "Missing profile")</span>
+                                        <span class="d-block x-small text-body-tertiary">@(r.MappingName ?? "Automatic metadata")</span>
+                                    </td>
+                                    <td class="numeric">@r.CurrentFiles</td>
+                                    <td>
+                                        <form method="post" asp-page-handler="Toggle" class="m-0">
+                                            <input type="hidden" name="id" value="@rule.Id" /><input type="hidden" name="enabled" value="@(rule.Enabled ? "false" : "true")" />
+                                            <button class="adm-switch @(rule.Enabled ? "on" : "")" role="switch" aria-checked="@(rule.Enabled ? "true" : "false")" aria-label="@(rule.Enabled ? "Disable" : "Enable") @rule.Name"
+                                                    data-confirm="@(rule.Enabled ? $"Disable {rule.Name}? Records stop being published by it; files already published stay, and are still withdrawn when superseded." : "")"><span></span></button>
+                                        </form>
+                                    </td>
+                                    <td class="text-end">
+                                        <form method="post" asp-page-handler="PublishExisting" class="m-0" data-adm-busy>
+                                            <input type="hidden" name="id" value="@rule.Id" />
+                                            <button class="btn btn-sm btn-light btn-icon" disabled="@(!rule.Enabled)" data-confirm="Queue every @r.FormName record that is in @r.PhaseName now?" aria-label="Publish existing records" title="Publish existing records"><i class="bi bi-cloud-upload"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="col-xxl-4">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-arrow-left-right"></i>Mapping profiles</h2><span class="vl-pill-count">@Model.Mappings.Count</span>
+                <a class="btn btn-sm btn-light ms-auto" href="/admin/integrations/sharepoint/mappings/new"><i class="bi bi-plus-lg"></i>New</a></div>
+            @if (Model.Mappings.Count == 0)
+            {
+                <div class="card-body small text-body-secondary">Without a mapping profile, form fields whose keys match a column's internal name are filled in automatically (INT-302).</div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var m in Model.Mappings)
+                    {
+                        <a class="vl-list-item py-2" href="/admin/integrations/sharepoint/mappings/@m.Mapping.Id">
+                            <span class="adm-ev-icon sm tone-violet"><i class="bi bi-arrow-left-right"></i></span>
+                            <span class="main"><span class="d-block fw-medium">@m.Mapping.Name</span><span class="line2 d-block">@m.FormName · @Ui.Plural(m.Columns, "column")@(m.UsedBy > 0 ? $" · used by {Ui.Plural(m.UsedBy, "rule")}" : " · not used")</span></span>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-microsoft"></i>Connecting SharePoint Online</h2></div>
+            <div class="card-body">
+                <ol class="sp-steps">
+                    <li>In Microsoft Entra ID, register an application for Vellum (single tenant). Note its <strong>directory (tenant) ID</strong> and <strong>application (client) ID</strong>.</li>
+                    <li>Under API permissions add Microsoft Graph <strong>Sites.Selected</strong> (application) and grant admin consent.</li>
+                    <li>Grant the app <strong>write</strong> access to each site Vellum publishes to (Graph <span class="sp-mono">POST /sites/{site-id}/permissions</span>, or PnP <span class="sp-mono">Grant-PnPAzureADAppSitePermission</span>).</li>
+                    <li>Create a client secret, or upload a certificate (recommended), and enter it on the profile. It's encrypted and never shown again.</li>
+                    <li>Add the libraries by server-relative URL, then <strong>Test connection</strong>. Create the mapped columns in the library first; internal names are case-sensitive.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>

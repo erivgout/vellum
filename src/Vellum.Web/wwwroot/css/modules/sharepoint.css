@@ -1,0 +1,77 @@
+/* ==========================================================================
+   SharePoint publishing (Modules/Integrations/SharePoint, Areas/Admin/Pages/Integrations/SharePoint).
+   Builds on the Vellum design system tokens. Every class is prefixed sp-.
+   ========================================================================== */
+
+/* ---------- Record panel ---------- */
+.sp-status { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.sp-note { margin-top: 0.6rem; padding: 0.55rem 0.7rem; border-radius: 9px; border: 1px solid var(--vl-border); background: var(--vl-surface-2); font-size: 0.82rem; }
+.sp-note-bad { background: var(--vl-bad-bg); border-color: var(--vl-bad-border); }
+.sp-note-bad .fw-semibold { color: var(--vl-bad); }
+.sp-note-info { background: var(--vl-info-bg); border-color: var(--vl-info-border); }
+.sp-panel { min-width: 0; }
+.sp-files { list-style: none; padding: 0; margin: 0.7rem 0 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.45rem; }
+.sp-file { display: flex; align-items: flex-start; gap: 0.6rem; min-width: 0; padding: 0.55rem 0.65rem; border: 1px solid var(--vl-border); border-radius: 9px; background: var(--vl-surface); }
+.sp-ficon { font-size: 1.25rem; color: var(--vl-text-2); line-height: 1.2; }
+.sp-ficon.bi-file-earmark-pdf { color: #d93025; }
+.sp-fname { display: block; font-weight: 580; font-size: 0.84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vl-text); }
+a.sp-fname:hover { color: var(--vl-brand); }
+.sp-fmeta { display: block; font-size: 0.74rem; color: var(--vl-text-3); overflow: hidden; text-overflow: ellipsis; }
+.sp-fmeta.mono { font-size: 0.68rem; white-space: normal; overflow-wrap: anywhere; }
+.sp-history { margin-top: 0.7rem; }
+.sp-history > summary { cursor: pointer; color: var(--vl-text-2); display: flex; align-items: center; gap: 0.4rem; }
+.sp-history > summary:hover { color: var(--vl-text); }
+.sp-history-list { list-style: none; margin: 0.5rem 0 0; padding: 0 0 0 0.75rem; border-left: 2px solid var(--vl-border); display: grid; gap: 0.55rem; font-size: 0.8rem; }
+
+/* ---------- Administration ---------- */
+.sp-conn { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: var(--vl-text-2); white-space: nowrap; }
+.sp-conn .bi { color: var(--vl-text-3); }
+.sp-mono { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 0.78rem; }
+.sp-path { display: inline-flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; font-size: 0.78rem; color: var(--vl-text-2); }
+.sp-path .sep { color: var(--vl-text-3); font-size: 0.65rem; }
+.sp-choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.6rem; }
+.sp-choice label { display: flex; gap: 0.65rem; align-items: flex-start; padding: 0.7rem 0.8rem; border: 1px solid var(--vl-border); border-radius: 10px; background: var(--vl-surface); cursor: pointer; transition: border-color .12s, box-shadow .12s, background .12s; }
+.sp-choice label:hover { border-color: var(--vl-border-strong); }
+.sp-choice input { margin-top: 0.2rem; flex: 0 0 auto; }
+.sp-choice label:has(input:checked) { border-color: color-mix(in srgb, var(--vl-brand) 45%, transparent); background: var(--vl-brand-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--vl-brand) 25%, transparent); }
+.sp-choice label:has(input:focus-visible) { box-shadow: var(--vl-ring); }
+.sp-choice .ttl { display: block; font-weight: 600; font-size: 0.86rem; }
+.sp-choice .sub { display: block; font-size: 0.76rem; color: var(--vl-text-2); line-height: 1.4; margin-top: 0.1rem; }
+.sp-tokens { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.4rem; }
+.sp-token { display: inline-flex; align-items: center; padding: 0.05rem 0.45rem; border-radius: 6px; font-size: 0.72rem; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  color: var(--vl-text-2); background: var(--vl-surface-2); border: 1px solid var(--vl-border); cursor: pointer; }
+.sp-token:hover, .sp-token:focus-visible { color: var(--vl-brand); border-color: color-mix(in srgb, var(--vl-brand) 40%, transparent); }
+.sp-token-panel { padding: 0.55rem 0.7rem; border-radius: 9px; background: var(--vl-surface-2); border: 1px solid var(--vl-border); }
+.sp-token-panel details > summary { cursor: pointer; color: var(--vl-text-2); }
+.sp-preview { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; padding: 0.5rem 0.65rem; border-radius: 8px; background: var(--vl-surface-2); border: 1px dashed var(--vl-border-strong); font-size: 0.8rem; color: var(--vl-text-2); }
+.sp-preview .bi { color: var(--vl-text-3); }
+.sp-map-table td { vertical-align: middle; }
+.sp-map-table .form-select, .sp-map-table .form-control { min-width: 160px; }
+.sp-map-arrow { color: var(--vl-text-3); text-align: center; width: 2rem; }
+.sp-map-num { width: 2.2rem; color: var(--vl-text-3); font-variant-numeric: tabular-nums; }
+.sp-map-template { display: none; }
+.sp-map-row:has(option[value="__template"]:checked) .sp-map-template { display: block; }
+.sp-check { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.4rem; font-size: 0.82rem; }
+.sp-check li { display: flex; gap: 0.55rem; align-items: flex-start; padding: 0.5rem 0.65rem; border-radius: 8px; border: 1px solid var(--vl-border); background: var(--vl-surface-2); }
+.sp-check li.ok .bi { color: var(--vl-ok); }
+.sp-check li.bad { background: var(--vl-bad-bg); border-color: var(--vl-bad-border); }
+.sp-check li.bad .bi { color: var(--vl-bad); }
+.sp-secret { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; font-weight: 580; color: var(--vl-ok); }
+.sp-secret.missing { color: var(--vl-text-3); }
+.sp-attempts { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.25rem; font-size: 0.74rem; }
+.sp-attempts li { display: flex; gap: 0.5rem; align-items: baseline; }
+.sp-attempts .bi-check-circle-fill { color: var(--vl-ok); }
+.sp-attempts .bi-x-circle-fill { color: var(--vl-bad); }
+.sp-err { max-width: 420px; }
+.sp-narrow { max-width: 720px; }
+.sp-record-title { max-width: 280px; }
+.sp-steps { margin: 0; padding-left: 1.1rem; font-size: 0.8rem; color: var(--vl-text-2); display: grid; gap: 0.3rem; }
+
+/* Profile form: show only the settings of the chosen connection and credential (no script needed). */
+.sp-profile-form:has(input[name="Input.Connection"][value="LocalFolder"]:checked) [data-sp-when="graph"],
+.sp-profile-form:has(input[name="Input.Connection"][value="Graph"]:checked) [data-sp-when="local"],
+.sp-profile-form:has(input[name="Input.AuthMethod"][value="ClientSecret"]:checked) [data-sp-when="certificate"],
+.sp-profile-form:has(input[name="Input.AuthMethod"][value="Certificate"]:checked) [data-sp-when="secret"] { display: none !important; }
+/* Rule form: the obsolete folder only applies when files are marked obsolete. */
+.sp-rule-form:has(input[name="Input.WithdrawAction"][value="Delete"]:checked) [data-sp-when="obsolete"] { display: none !important; }
+.sp-rule-form:has(#r-prefer:not(:checked)) [data-sp-when="rendition"] { display: none !important; }

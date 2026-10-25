@@ -1,0 +1,311 @@
+@page "/admin/integrations/sharepoint/profiles/{id}"
+@model Vellum.Areas.Admin.Pages.Integrations.SharePoint.ProfileModel
+@using Vellum.Modules.Integrations.SharePoint
+@{
+    var p = Model.Profile;
+    var i = Model.Input;
+    ViewData["Title"] = p?.Name ?? "New SharePoint profile";
+    var tz = Shell.TimeZone;
+    var notify = i.NotifyUserIds.Select(id => Shell.Directory.Get(id)).OfType<UserInfo>().ToList();
+    var candidates = Shell.Directory.All.Where(u => u.IsActive).ToList();
+    var isLocal = i.Connection == SpConnection.LocalFolder;
+}
+@section Crumbs {
+    <span>Integrations</span><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <a href="/admin/integrations/sharepoint">SharePoint</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">@(p?.Name ?? "New profile")</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-info"><i class="bi bi-hdd-network"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title d-flex align-items-center gap-2 flex-wrap">@(p?.Name ?? "New SharePoint profile")
+            @if (p != null)
+            {
+                @if (p.Enabled) { <span class="vl-kw vl-kw-success">Enabled</span> } else { <span class="vl-kw vl-kw-secondary">Disabled</span> }
+                @SharePointUi.Test(p)
+            }
+        </h1>
+        <p class="vl-page-sub">@(p != null ? p.Host : "One profile per SharePoint site or tenant, unique by host. It holds the connection, the accounts to notify when publishing fails and the document libraries (INT-301).")</p>
+    </div>
+</div>
+
+<partial name="_Errors" model="Model.Errors" />
+
+<div class="row g-4">
+    <div class="col-xxl-8 min-w-0">
+        <form method="post" asp-page-handler="Save" asp-route-id="@(p?.Id.ToString() ?? "new")" enctype="multipart/form-data" class="card mb-4 sp-profile-form" autocomplete="off">
+            <div class="card-body">
+                <fieldset class="adm-fieldset">
+                    <legend class="adm-legend"><i class="bi bi-card-heading"></i>Profile</legend>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="sp-name">Name <span class="req">*</span></label>
+                            <input class="form-control" id="sp-name" name="Input.Name" value="@i.Name" required maxlength="120" placeholder="For example: Contoso quality site" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="sp-host">Host <span class="req">*</span></label>
+                            <input class="form-control sp-mono" id="sp-host" name="Input.Host" value="@i.Host" required maxlength="253" spellcheck="false" placeholder="contoso.sharepoint.com" aria-describedby="sp-host-help" />
+                            <div class="form-text" id="sp-host-help">The SharePoint host name only. A pasted URL is trimmed to its host. Unique across profiles.</div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="adm-fieldset">
+                    <legend class="adm-legend"><i class="bi bi-plug"></i>Connection</legend>
+                    <div class="sp-choice" role="radiogroup" aria-label="Connection type">
+                        <label>
+                            <input class="form-check-input" type="radio" name="Input.Connection" value="Graph" checked="@(!isLocal)" />
+                            <span><span class="ttl"><i class="bi bi-microsoft"></i> SharePoint Online</span><span class="sub">Microsoft Graph with an app registration (client credentials, Sites.Selected).</span></span>
+                        </label>
+                        <label>
+                            <input class="form-check-input" type="radio" name="Input.Connection" value="LocalFolder" checked="@isLocal" />
+                            <span><span class="ttl"><i class="bi bi-folder2"></i> Local folder (development)</span><span class="sub">Writes files and a .metadata.json sidecar on the server, for development, demos and tests.</span></span>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <fieldset class="adm-fieldset" data-sp-when="graph">
+                    <legend class="adm-legend"><i class="bi bi-key"></i>App registration</legend>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="sp-tenant">Directory (tenant) ID <span class="req">*</span></label>
+                            <input class="form-control sp-mono" id="sp-tenant" name="Input.TenantId" value="@i.TenantId" maxlength="100" spellcheck="false" placeholder="00000000-0000-0000-0000-000000000000" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="sp-client">Application (client) ID <span class="req">*</span></label>
+                            <input class="form-control sp-mono" id="sp-client" name="Input.ClientId" value="@i.ClientId" maxlength="100" spellcheck="false" placeholder="00000000-0000-0000-0000-000000000000" />
+                        </div>
+                        <div class="col-12">
+                            <span class="form-label d-block" id="sp-auth-label">Credential</span>
+                            <div class="sp-choice" role="radiogroup" aria-labelledby="sp-auth-label">
+                                <label>
+                                    <input class="form-check-input" type="radio" name="Input.AuthMethod" value="Certificate" checked="@(i.AuthMethod == SpAuthMethod.Certificate)" />
+                                    <span><span class="ttl">Certificate <span class="vl-kw vl-kw-success ms-1">Recommended</span></span><span class="sub">Upload the .pfx with its private key; the public key goes on the app registration.</span></span>
+                                </label>
+                                <label>
+                                    <input class="form-check-input" type="radio" name="Input.AuthMethod" value="ClientSecret" checked="@(i.AuthMethod == SpAuthMethod.ClientSecret)" />
+                                    <span><span class="ttl">Client secret</span><span class="sub">Simpler to set up. Secrets expire, so plan the rotation.</span></span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-8" data-sp-when="secret">
+                            <label class="form-label" for="sp-secret">Client secret</label>
+                            <div class="input-group">
+                                <input class="form-control sp-mono" type="password" id="sp-secret" name="Input.Secret" autocomplete="new-password" spellcheck="false" maxlength="400"
+                                       placeholder="@(p?.SecretProtected != null ? "Leave blank to keep the stored secret" : "Paste the secret value")" aria-describedby="sp-secret-help" />
+                                <button class="btn btn-light" type="button" data-adm-reveal="#sp-secret" aria-label="Show secret"><i class="bi bi-eye"></i></button>
+                            </div>
+                            <div class="form-text" id="sp-secret-help">
+                                @if (p?.SecretProtected != null) { <span class="sp-secret"><i class="bi bi-shield-lock-fill" aria-hidden="true"></i>Secret stored, encrypted@(p.SecretSetAt is { } at ? $" · set {at:dd MMM yyyy}" : "")</span> }
+                                else { <span>Encrypted at rest with ASP.NET Core Data Protection and never shown again.</span> }
+                            </div>
+                        </div>
+                        <div class="col-md-7" data-sp-when="certificate">
+                            <label class="form-label" for="sp-cert">Certificate (.pfx)</label>
+                            <input class="form-control" type="file" id="sp-cert" name="certificate" accept=".pfx,.p12,application/x-pkcs12" aria-describedby="sp-cert-help" />
+                            <div class="form-text" id="sp-cert-help">
+                                @if (p?.CertificateThumbprint != null)
+                                {
+                                    <span class="sp-secret"><i class="bi bi-shield-lock-fill" aria-hidden="true"></i>Certificate stored</span>
+                                    <span class="d-block sp-mono text-break">@p.CertificateThumbprint</span>
+                                    <span class="d-block">@p.CertificateSubject · expires @p.CertificateExpiresAt?.ToString("dd MMM yyyy")</span>
+                                    <span class="d-block">Upload a new file only to replace it.</span>
+                                }
+                                else { <span>Encrypted at rest and never shown again. Only the thumbprint and expiry are displayed.</span> }
+                            </div>
+                        </div>
+                        <div class="col-md-5" data-sp-when="certificate">
+                            <label class="form-label" for="sp-certpw">Certificate password</label>
+                            <input class="form-control" type="password" id="sp-certpw" name="Input.CertificatePassword" autocomplete="new-password" maxlength="200" />
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="adm-fieldset" data-sp-when="local">
+                    <legend class="adm-legend"><i class="bi bi-folder2-open"></i>Local folder</legend>
+                    <div class="vl-prompt mb-3"><i class="bi bi-info-circle"></i><div class="small">Files go to <span class="sp-mono text-break">@Model.LocalRoot\@(string.IsNullOrEmpty(i.Host) ? "{host}" : i.Host)\{library}\{folder}\{file}</span> with a <span class="sp-mono">.metadata.json</span> sidecar. The root comes from <span class="sp-mono">Vellum:SharePoint:LocalRoot</span>. Never use this connection in production.</div></div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="sp-outage" name="Input.SimulateOutage" value="true" checked="@i.SimulateOutage" aria-describedby="sp-outage-help" />
+                        <label class="form-check-label" for="sp-outage">Simulate a SharePoint outage</label>
+                        <input type="hidden" name="Input.SimulateOutage" value="false" />
+                        <div class="form-text" id="sp-outage-help">Every call fails as unavailable, so you can watch records keep working while publications queue and retry with backoff (NFR-025).</div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="adm-fieldset mb-0">
+                    <legend class="adm-legend"><i class="bi bi-bell"></i>Failure notifications and status</legend>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label" for="sp-notify-input">Notify when publishing fails</label>
+                            <div class="vl-picker" data-picker="users" data-name="Input.NotifyUserIds" data-multi="true">
+                                <div class="vl-picker-box">
+                                    @foreach (var u in notify)
+                                    {
+                                        <span class="vl-token">@Ui.Avatar(u, "xs")<span class="t">@u.DisplayName</span><button type="button" class="x" aria-label="Remove @u.DisplayName">×</button><input type="hidden" name="Input.NotifyUserIds" value="@u.Id" /></span>
+                                    }
+                                    <input type="text" id="sp-notify-input" placeholder="@(notify.Count == 0 ? "Add people…" : "")" autocomplete="off" aria-describedby="sp-notify-help" />
+                                </div>
+                                <div class="vl-picker-menu" role="listbox"></div>
+                            </div>
+                            <div class="form-text" id="sp-notify-help">Emailed and notified in-app, with the error code, when a publication fails permanently (INT-306). Empty notifies administrators.</div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="sp-enabled" name="Input.Enabled" value="true" checked="@i.Enabled" />
+                                <label class="form-check-label" for="sp-enabled">Enabled</label>
+                                <input type="hidden" name="Input.Enabled" value="false" />
+                                <div class="form-text">While disabled, queued publications through this profile are skipped.</div>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+            </div>
+            <div class="card-footer d-flex justify-content-end gap-2">
+                <a class="btn btn-light" href="/admin/integrations/sharepoint">Cancel</a>
+                <button class="btn btn-primary"><i class="bi bi-check2"></i>@(p == null ? "Create profile" : "Save profile")</button>
+            </div>
+        </form>
+
+        @if (p != null)
+        {
+            <div class="vl-table-wrap" id="libraries">
+                <div class="adm-table-title"><i class="bi bi-collection"></i>Libraries <span class="vl-pill-count">@p.Libraries.Count</span></div>
+                @if (p.Libraries.Count > 0)
+                {
+                    <div class="vl-table-scroll">
+                        <table class="table vl-table">
+                            <thead><tr><th scope="col">Library</th><th scope="col">Relative URL</th>@if (p.Connection == SpConnection.LocalFolder) { <th scope="col">Simulated columns</th> }<th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                            <tbody>
+                                @foreach (var l in p.Libraries.OrderBy(l => l.Name))
+                                {
+                                    if (Model.EditLibraryId == l.Id)
+                                    {
+                                        <tr class="adm-edit-row"><td colspan="4">
+                                            <form method="post" asp-page-handler="Library" asp-route-id="@p.Id" asp-route-libraryId="@l.Id" class="row g-2 align-items-end">
+                                                <partial name="_LibraryFields" model="new LibraryFieldsVm(l, p.Connection)" />
+                                                <div class="col-12 d-flex gap-2 justify-content-end">
+                                                    <a class="btn btn-light btn-sm" href="/admin/integrations/sharepoint/profiles/@p.Id#libraries">Cancel</a>
+                                                    <button class="btn btn-primary btn-sm"><i class="bi bi-check2"></i>Save library</button>
+                                                </div>
+                                            </form>
+                                        </td></tr>
+                                        continue;
+                                    }
+                                    var cols = LocalFolderSharePointClient.Columns(l);
+                                    <tr>
+                                        <td class="col-title"><span class="fw-semibold">@l.Name</span><span class="d-block x-small text-body-tertiary sp-mono">@l.Key</span></td>
+                                        <td class="sp-mono small text-break">@l.RelativeUrl</td>
+                                        @if (p.Connection == SpConnection.LocalFolder) { <td class="small">@(cols == null ? "Any column" : string.Join(", ", cols.Select(c => c.Name)))</td> }
+                                        <td class="text-end text-nowrap">
+                                            <a class="btn btn-sm btn-ghost" href="?library=@l.Id#libraries"><i class="bi bi-pencil"></i>Edit</a>
+                                            <form method="post" asp-page-handler="RemoveLibrary" asp-route-id="@p.Id" class="d-inline">
+                                                <input type="hidden" name="libraryId" value="@l.Id" />
+                                                <button class="btn btn-sm btn-ghost btn-icon" aria-label="Remove @l.Name" data-confirm="Remove the library @l.Name from this profile?"><i class="bi bi-x-lg"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @if (Model.EditLibraryId is null or 0)
+                {
+                    <form method="post" asp-page-handler="Library" asp-route-id="@p.Id" class="row g-2 align-items-end p-3 border-top">
+                        <div class="col-12 small fw-semibold text-body-secondary"><i class="bi bi-plus-lg"></i> Add a library</div>
+                        <partial name="_LibraryFields" model="new LibraryFieldsVm(Model.EditLibraryId == 0 ? new SharePointLibrary { Key = Model.Lib.Key, Name = Model.Lib.Name, RelativeUrl = Model.Lib.RelativeUrl, SimulatedColumns = Model.Lib.SimulatedColumns } : new SharePointLibrary(), p.Connection, IsNew: true)" />
+                        <div class="col-12 d-flex justify-content-end"><button class="btn btn-light btn-sm"><i class="bi bi-plus-lg"></i>Add library</button></div>
+                    </form>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="col-xxl-4">
+        @if (p != null)
+        {
+            <div class="card mb-4">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-activity"></i>Connection test</h2>
+                    <form method="post" asp-page-handler="Test" asp-route-id="@p.Id" class="ms-auto m-0" data-adm-busy>
+                        <button class="btn btn-sm btn-primary" disabled="@(p.Libraries.Count == 0)"><i class="bi bi-plug"></i>Test connection</button>
+                    </form>
+                </div>
+                <div class="card-body">
+                    @if (Model.Test is { } t)
+                    {
+                        <div class="vl-banner @(t.Ok && Model.MappingProblems.Count == 0 ? "vl-banner-ok" : "vl-banner-bad") mb-3" role="status">
+                            <i class="bi @(t.Ok && Model.MappingProblems.Count == 0 ? "bi-check-circle-fill" : "bi-x-octagon-fill")" aria-hidden="true"></i>
+                            <div class="small">@t.Summary</div>
+                        </div>
+                        @if (t.Libraries.Count > 0 || Model.MappingProblems.Count > 0)
+                        {
+                            <ul class="sp-check">
+                                @foreach (var c in t.Libraries)
+                                {
+                                    <li class="@(c.Ok ? "ok" : "bad")"><i class="bi @(c.Ok ? "bi-check-circle-fill" : "bi-x-circle-fill")" aria-hidden="true"></i><div><div class="fw-semibold">@c.Name</div><div class="small text-break">@c.Message</div></div></li>
+                                }
+                                @foreach (var m in Model.MappingProblems)
+                                {
+                                    <li class="bad"><i class="bi bi-x-circle-fill" aria-hidden="true"></i><div class="small">@m</div></li>
+                                }
+                            </ul>
+                        }
+                    }
+                    else if (p.LastTestAt is { } at)
+                    {
+                        <p class="mb-1">@SharePointUi.Test(p) <span class="small text-body-tertiary">· @Ui.Time(at, tz)</span></p>
+                        <p class="small text-body-secondary mb-0">@p.LastTestSummary</p>
+                    }
+                    else
+                    {
+                        <p class="small text-body-secondary mb-0">@(p.Libraries.Count == 0 ? "Add a library, then test the connection." : "Signs in, resolves every library, and checks the columns of the mappings that publish here (INT-302).")</p>
+                    }
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-diagram-3"></i>Used by</h2><span class="vl-pill-count">@Model.Rules.Count</span></div>
+                @if (Model.Rules.Count == 0)
+                {
+                    <div class="card-body small text-body-secondary">No publishing rules use this profile yet. <a href="/admin/integrations/sharepoint/rules/new">Create one</a>.</div>
+                }
+                else
+                {
+                    <div class="vl-list">
+                        @foreach (var (r, form) in Model.Rules)
+                        {
+                            <a class="vl-list-item py-2 @(r.Enabled ? "" : "adm-row-muted")" href="/admin/integrations/sharepoint/rules/@r.Id">
+                                <span class="main"><span class="d-block fw-medium">@r.Name</span><span class="line2 d-block">@form · @(p.Libraries.FirstOrDefault(l => l.Id == r.LibraryId)?.Name)</span></span>
+                                @if (!r.Enabled) { <span class="vl-kw vl-kw-secondary">Disabled</span> }
+                            </a>
+                        }
+                    </div>
+                }
+                <div class="card-footer small text-body-secondary">@Ui.Plural(Model.CurrentFiles, "current file") published through this profile.</div>
+            </div>
+
+            <form method="post" asp-page-handler="Delete" asp-route-id="@p.Id" class="card">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-trash3"></i>Delete profile</h2></div>
+                <div class="card-body small text-body-secondary">Only possible when no rule uses it and none of its files are still current, so nothing is left behind in SharePoint without control (SAF-021).</div>
+                <div class="card-footer d-flex justify-content-end"><button class="btn btn-light text-danger" data-confirm="Delete the profile @p.Name? This can't be undone."><i class="bi bi-trash3"></i>Delete</button></div>
+            </form>
+        }
+        else
+        {
+            <div class="card adm-sticky">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-list-check"></i>Next steps</h2></div>
+                <div class="card-body">
+                    <ol class="sp-steps">
+                        <li>Create the profile with its connection.</li>
+                        <li>Add the document libraries by server-relative URL, for example <span class="sp-mono">/sites/QMS/Controlled Documents</span>.</li>
+                        <li>Test the connection.</li>
+                        <li>Create a mapping profile and a publishing rule.</li>
+                    </ol>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<script type="application/json" id="vl-directory">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(candidates.Select(u => new { id = u.Id, name = u.DisplayName, initials = u.Initials, title = u.JobTitle, hue = u.Hue })))</script>

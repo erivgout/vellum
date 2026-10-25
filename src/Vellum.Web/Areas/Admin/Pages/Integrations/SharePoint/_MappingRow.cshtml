@@ -1,0 +1,38 @@
+@model Vellum.Areas.Admin.Pages.Integrations.SharePoint.MappingRowVm
+@using Vellum.Modules.Integrations.SharePoint
+@using Vellum.Areas.Admin.Pages.Integrations.SharePoint
+@{
+    var r = Model.Row;
+    var n = Model.Number;
+    static string TypeLabel(FieldDefinition f) => f.Type switch
+    {
+        FieldType.Number => "Number", FieldType.Currency => "Currency", FieldType.Date or FieldType.DateTime => "Date and Time",
+        FieldType.TextArea => "Multiple lines of text", _ => "Single line of text",
+    };
+}
+<tr class="sp-map-row" data-sp-map-row>
+    <td class="sp-map-num" data-sp-num>@(n > 0 ? n : "")</td>
+    <td>
+        <select class="form-select form-select-sm" name="source" aria-label="Vellum value@(n > 0 ? $", row {n}" : "")">
+            <option value="">Choose a value…</option>
+            <optgroup label="System values">
+                @foreach (var s in SharePointMetadata.SystemValues)
+                {
+                    <option value="@s.Key" selected="@(r.Source == s.Key)">@s.Label</option>
+                }
+            </optgroup>
+            <optgroup label="@Model.Form.Name fields">
+                @foreach (var f in Model.Fields)
+                {
+                    <option value="@f.Key" selected="@(r.Source == f.Key)">@f.Label · @TypeLabel(f)</option>
+                }
+            </optgroup>
+            <option value="@MappingModel.TemplateSource" selected="@(r.Source == MappingModel.TemplateSource)">Template…</option>
+        </select>
+        <input class="form-control form-control-sm sp-mono mt-1 sp-map-template" name="template" value="@r.Template" maxlength="400" spellcheck="false"
+               placeholder="{number} rev {revision}" aria-label="Template@(n > 0 ? $", row {n}" : "")" />
+    </td>
+    <td class="sp-map-arrow"><i class="bi bi-arrow-right" aria-hidden="true"></i></td>
+    <td><input class="form-control form-control-sm sp-mono" name="column" value="@r.Column" maxlength="255" spellcheck="false" placeholder="DocumentNumber" aria-label="Column internal name@(n > 0 ? $", row {n}" : "")" /></td>
+    <td class="text-end"><button type="button" class="btn btn-sm btn-ghost btn-icon" data-sp-map-remove aria-label="Remove this column"><i class="bi bi-x-lg"></i></button></td>
+</tr>

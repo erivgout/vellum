@@ -9,7 +9,7 @@ namespace Vellum.Areas.Quality.Pages.Aer;
 
 /// <summary>AER-001/002: the application profile, MFR/importer mappings by location, product codes (with import) and the eMDR rule set (AER-006).</summary>
 [Authorize]
-public class SetupModel(AerSetup setup, AccessService access, ConfigCache cfg, EmdrProfileService profiles, CurrentUser me) : PageModel
+public class SetupModel(AerSetup setup, ConfigCache cfg, EmdrProfileService profiles, CurrentUser me) : PageModel
 {
     public AerProfileInfo? Profile { get; private set; }
     public List<AerMappingInfo> Mappings { get; private set; } = [];
