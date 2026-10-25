@@ -409,6 +409,17 @@ public class AdminTests(VellumFixture fx)
         Assert.True(await s.Db().SecurityEvents.AnyAsync(e => e.Kind == "Dormant account disabled" && e.UserId == u.Id));
     }
 
+    [Fact] // INV-121, ADM-803: a finished run releases its lease, so the task can run again straight away
+    public async Task A_task_can_run_again_as_soon_as_its_run_has_finished()
+    {
+        using var s = fx.As("admin");
+        await Svc<TaskAdminService>(s).EnsureProfilesAsync();
+        Assert.True(await Svc<Scheduler>(s).RunAsync("session-cleanup", manual: true));
+        Assert.Null(await s.Db().Tasks.AsNoTracking().Where(t => t.Key == "session-cleanup").Select(t => t.LeaseUntil).SingleAsync());
+        Assert.True(await Svc<Scheduler>(s).RunAsync("session-cleanup", manual: true));
+        Assert.True((await Svc<TaskAdminService>(s).RunNowAsync("session-cleanup")).Ok);
+    }
+
     [Fact] // ADM-301
     public async Task Business_calendar_rejects_pointless_working_days_and_audits_changes()
     {
