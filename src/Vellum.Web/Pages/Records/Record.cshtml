@@ -140,7 +140,7 @@
 
 <div class="row g-4">
     <div class="col-xl-8 min-w-0">
-        <form id="record-form" method="post" enctype="multipart/form-data" data-record-form data-record-id="@r.Id" data-editing="@(vm.Editing ? "true" : "false")" novalidate
+        <form id="record-form" method="post" action="/records/@r.Id?handler=Save@(mode != null ? "&mode=override" : "")" enctype="multipart/form-data" data-record-form data-record-id="@r.Id" data-editing="@(vm.Editing ? "true" : "false")" novalidate
               class="@(watermark != null ? "vl-watermark" : "")" data-watermark="@watermark">
             <input type="hidden" name="__RequestVerificationToken" value="@token" />
             <input type="hidden" name="version" value="@r.Version" />

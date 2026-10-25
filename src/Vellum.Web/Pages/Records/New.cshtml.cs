@@ -58,7 +58,7 @@ public class NewModel(ConfigCache cfg, AccessService access, RecordService recor
             var res = await records.CreateAsync(new CreateRequest { FormKey = form.Key, ParentId = parent?.Id, Data = data, Files = files, SkipAccessCheck = viaParent && !access.CanCreate(form) });
             if (res.Ok)
             {
-                TempData["Toast"] = $"{form.Name} {res.Record!.Number} created.";
+                TempData["Toast"] = $"{res.Record!.Number} created.";
                 return Redirect($"/records/{res.Record.Id}");
             }
             errors.AddRange(res.Errors);

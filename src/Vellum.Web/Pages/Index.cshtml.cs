@@ -70,6 +70,25 @@ public class IndexModel(WorkService work, VellumDbContext db, CurrentUser me, Ac
         _ => Work,
     };
 
+    /// <summary>Turn an audit action into a phrase that reads after "You".</summary>
+    public static string Verb(string action) => action switch
+    {
+        "Created" => "created this",
+        "Field set" or "Field changed" or "Row added" or "Row removed" => "edited this",
+        "Routed" or "System route" => "sent this on",
+        "Routed back" => "sent this back",
+        "Voided" => "voided this",
+        "Signed" => "signed this",
+        "Vote" => "voted on this",
+        "Activity created" => "added an activity",
+        "Comment added" => "commented",
+        "Attachment added" => "attached a file",
+        "Attachment downloaded" => "downloaded a file",
+        "Reassigned" => "reassigned this",
+        "Printed" => "printed this",
+        _ => action.ToLowerInvariant(),
+    };
+
     public string Greeting
     {
         get

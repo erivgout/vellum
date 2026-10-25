@@ -8,3 +8,6 @@ TestResults/
 node_modules/
 *.log
 .DS_Store
+
+# Local agent worktrees and settings
+.claude/

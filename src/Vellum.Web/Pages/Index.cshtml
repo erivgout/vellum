@@ -133,7 +133,7 @@
                             <span class="vl-app-tile sm" style="--app:@f.App.Color"><i class="bi @f.Icon"></i></span>
                             <span class="main">
                                 <span class="line1"><span class="num">@r.Number</span><span class="ttl">@r.Title</span></span>
-                                <span class="line2 d-block">You @action.ToLowerInvariant() · @Ui.Ago(at)</span>
+                                <span class="line2 d-block">You @Vellum.Pages.IndexModel.Verb(action) · @Ui.Ago(at)</span>
                             </span>
                             <span class="aside">@Ui.Phase(Shell.Config.Phase(r.PhaseId)?.Name, r.PhaseType, r.DueDate, r.IsArchived, r.IsEffective)</span>
                         </a>

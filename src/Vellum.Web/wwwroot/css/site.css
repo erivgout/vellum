@@ -405,7 +405,7 @@ textarea.form-control { min-height: 4.5rem; resize: vertical; line-height: 1.55;
 .vl-table tbody tr[data-href] { cursor: pointer; }
 .vl-table .col-number { white-space: nowrap; font-weight: 620; }
 .vl-table .col-number a { color: var(--vl-text); }
-.vl-table .col-title { min-width: 240px; max-width: 520px; }
+.vl-table .col-title { min-width: 200px; max-width: 460px; }
 .vl-table .col-title .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .vl-table .col-check { width: 36px; }
 .vl-table .numeric { text-align: right; font-variant-numeric: tabular-nums; }
