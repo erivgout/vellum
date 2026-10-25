@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Vellum.Data;
 using Vellum.Domain;
 using Vellum.Engine;
+using Vellum.Engine.Records;
 using Vellum.Engine.Security;
 using Vellum.Infrastructure.Jobs;
 using Vellum.Modules.Admin;
