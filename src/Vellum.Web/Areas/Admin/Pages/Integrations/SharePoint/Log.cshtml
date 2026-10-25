@@ -1,0 +1,191 @@
+@page "/admin/integrations/sharepoint/log"
+@model Vellum.Areas.Admin.Pages.Integrations.SharePoint.LogModel
+@using Vellum.Modules.Integrations.SharePoint
+@using Vellum.Areas.Admin.Pages.Integrations.SharePoint
+@{
+    ViewData["Title"] = "SharePoint publication log";
+    var tz = Shell.TimeZone;
+    var files = Model.View == "files";
+    var back = HttpContext.Request.QueryString.Value ?? "";
+    (string Key, string Label)[] queuePills = [("", "All"), ("pending", "Pending"), ("retrying", "Retrying"), ("failed", "Failed"), ("succeeded", "Succeeded"), ("skipped", "Skipped")];
+    (string Key, string Label)[] filePills = [("", "Current"), ("withdrawn", "Replaced or withdrawn"), ("all", "All")];
+    string RecordLabel(SpRecordRef r) => r.Readable ? r.Number + (r.Revision != null ? $" rev {r.Revision}" : "") : "Restricted or deleted record";
+    string Wait(DateTime at) { var s = at - DateTime.UtcNow; return s.TotalSeconds < 60 ? "within a minute" : s.TotalMinutes < 60 ? $"in {(int)Math.Ceiling(s.TotalMinutes)} min" : $"in {(int)s.TotalHours} h {s.Minutes} min"; }
+}
+@section Crumbs {
+    <span>Integrations</span><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <a href="/admin/integrations/sharepoint">SharePoint</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">Publication log</span>
+}
+
+<div class="vl-page-head align-items-center flex-wrap">
+    <span class="adm-head-icon tone-neutral"><i class="bi bi-list-ul"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Publication log</h1>
+        <p class="vl-page-sub">Every queued publication and withdrawal with its attempts, error codes and result, and the history of every published file (ADM-1005, INT-306, INT-307).</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        @if (Model.FailedCount > 0)
+        {
+            <form method="post" asp-page-handler="RetryAll" class="m-0"><input type="hidden" name="back" value="@back" />
+                <button class="btn btn-light" data-confirm="Retry all @Model.FailedCount failed items?"><i class="bi bi-arrow-repeat"></i>Retry all failed</button></form>
+        }
+        <form method="post" asp-page-handler="Process" class="m-0" data-adm-busy><input type="hidden" name="back" value="@back" />
+            <button class="btn btn-primary"><i class="bi bi-play-fill"></i>Process queue now</button></form>
+    </div>
+</div>
+
+<div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+    <nav class="vl-filter-pills" aria-label="Log view">
+        <a class="@(!files ? "active" : "")" aria-current="@(!files ? "page" : null)" href="@LogModel.Path@(Model.RecordFilter is { } r1 ? $"?record={r1}" : "")"><i class="bi bi-inboxes"></i> Queue@if (Model.PendingCount > 0) { <span class="vl-pill-count ms-1">@Model.PendingCount</span> }</a>
+        <a class="@(files ? "active" : "")" aria-current="@(files ? "page" : null)" href="@LogModel.Path?view=files@(Model.RecordFilter is { } r2 ? $"&record={r2}" : "")"><i class="bi bi-files"></i> Published files</a>
+    </nav>
+    @if (Model.FilteredRecord is { } fr)
+    {
+        <span class="vl-kw vl-kw-info"><i class="bi bi-funnel"></i>@RecordLabel(fr)<a class="ms-1" href="@Model.With("record", null)" aria-label="Clear the record filter"><i class="bi bi-x"></i></a></span>
+        @if (fr.Readable) { <a class="small" href="/records/@fr.Id">Open record</a> }
+    }
+</div>
+
+<div class="vl-table-wrap">
+    <form method="get" class="adm-filters border-bottom">
+        @if (files) { <input type="hidden" name="view" value="files" /> }
+        @if (Model.RecordFilter is { } rf) { <input type="hidden" name="record" value="@rf" /> }
+        <div class="adm-filters-grow">
+            <label class="form-label" for="lg-q">Record</label>
+            <input class="form-control form-control-sm" type="search" id="lg-q" name="q" value="@Model.Q" placeholder="Number or title" />
+        </div>
+        @if (!files)
+        {
+            <div>
+                <label class="form-label" for="lg-kind">Action</label>
+                <select class="form-select form-select-sm" id="lg-kind" name="kind" data-autosubmit>
+                    <option value="">Publish and withdraw</option>
+                    <option value="publish" selected="@(Model.Kind == "publish")">Publish</option>
+                    <option value="withdraw" selected="@(Model.Kind == "withdraw")">Withdraw</option>
+                </select>
+            </div>
+        }
+        <input type="hidden" name="status" value="@Model.Status" />
+        <div class="adm-filters-actions"><button class="btn btn-sm btn-light"><i class="bi bi-search"></i>Search</button></div>
+    </form>
+    <div class="adm-table-bar">
+        <div class="vl-filter-pills" role="group" aria-label="Status">
+            @foreach (var (k, l) in files ? filePills : queuePills) { <a class="@((Model.Status ?? "") == k ? "active" : "")" href="@Model.With("status", k)">@l</a> }
+        </div>
+    </div>
+
+    @if (!files && Model.Jobs is { } jobs)
+    {
+        if (jobs.Total == 0)
+        {
+            <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-inboxes"></i></div><h3>Nothing here</h3><p>Publications are queued when records enter or are saved in a configured phase.</p></div>
+        }
+        else
+        {
+            <div class="vl-table-scroll">
+                <table class="table vl-table vl-table-compact">
+                    <thead><tr><th scope="col">Queued</th><th scope="col">Record</th><th scope="col">Action</th><th scope="col">Status</th><th scope="col">Result</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var row in jobs.Items)
+                        {
+                            var j = row.Job;
+                            <tr>
+                                <td class="text-nowrap">@Ui.Time(j.CreatedAt, tz)<span class="d-block x-small text-body-tertiary">#@j.Id</span></td>
+                                <td class="col-title">
+                                    @if (row.Record.Readable)
+                                    {
+                                        <a class="fw-semibold" href="/records/@j.RecordId">@RecordLabel(row.Record)</a>
+                                        <span class="d-block small text-body-secondary text-truncate sp-record-title">@row.Record.Title</span>
+                                    }
+                                    else { <span class="text-body-tertiary">@RecordLabel(row.Record)</span> }
+                                </td>
+                                <td>
+                                    @SharePointUi.Kind(j.Kind)
+                                    <span class="d-block x-small text-body-tertiary">@j.Trigger@(row.RuleName != null ? " · " + row.RuleName : "")</span>
+                                </td>
+                                <td class="text-nowrap">
+                                    @SharePointUi.JobStatus(j)
+                                    <span class="d-block x-small text-body-tertiary">
+                                        @if (j.Status == SpJobStatus.Pending) { <text>@(j.Attempts == 0 ? "Sends" : $"Attempt {j.Attempts + 1} of {j.MaxAttempts}") @Wait(j.NextAttemptAt)</text> }
+                                        else { <text>@Ui.Plural(j.Attempts, "attempt")</text> }
+                                    </span>
+                                </td>
+                                <td class="sp-err">
+                                    @if (j.ErrorCode != null)
+                                    {
+                                        <span class="d-block"><span class="sp-mono fw-semibold @(j.Status == SpJobStatus.Failed ? "text-danger" : "")">@j.ErrorCode</span> <span class="small">@SpErrors.Describe(j.ErrorCode)</span></span>
+                                        <span class="d-block small text-body-secondary text-break">@j.Error</span>
+                                    }
+                                    else if (j.Result != null) { <span class="small">@j.Result</span> }
+                                    @if (row.Attempts.Count > 0)
+                                    {
+                                        <details class="mt-1">
+                                            <summary class="x-small">Attempts</summary>
+                                            <ol class="sp-attempts">
+                                                @foreach (var a in row.Attempts)
+                                                {
+                                                    <li><i class="bi @(a.Success ? "bi-check-circle-fill" : "bi-x-circle-fill")" aria-hidden="true"></i><span class="text-nowrap">@Ui.Time(a.At, tz, false)</span><span class="tabular text-body-tertiary">@a.DurationMs ms</span><span class="text-break">@(a.ErrorCode != null ? a.ErrorCode + ": " : "")@a.Message</span></li>
+                                                }
+                                            </ol>
+                                        </details>
+                                    }
+                                </td>
+                                <td class="text-end text-nowrap">
+                                    @if (j.Status is SpJobStatus.Failed or SpJobStatus.Skipped or SpJobStatus.Cancelled)
+                                    {
+                                        <form method="post" asp-page-handler="Retry" class="d-inline"><input type="hidden" name="id" value="@j.Id" /><input type="hidden" name="back" value="@back" />
+                                            <button class="btn btn-sm btn-light"><i class="bi bi-arrow-repeat"></i>Retry</button></form>
+                                    }
+                                    @if (j.Status == SpJobStatus.Pending && j.Kind == SpJobKind.Publish)
+                                    {
+                                        <form method="post" asp-page-handler="Cancel" class="d-inline"><input type="hidden" name="id" value="@j.Id" /><input type="hidden" name="back" value="@back" />
+                                            <button class="btn btn-sm btn-ghost" data-confirm="Cancel this publication?">Cancel</button></form>
+                                    }
+                                    @if (!(Model.RecordFilter == j.RecordId)) { <a class="btn btn-sm btn-ghost btn-icon" href="@Model.With("record", j.RecordId)" aria-label="Show only this record" title="Show only this record"><i class="bi bi-funnel"></i></a> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <partial name="_Pager" model='PagerModel.For(jobs, "items", Request)' />
+        }
+    }
+
+    @if (files && Model.Files is { } fl)
+    {
+        if (fl.Total == 0)
+        {
+            <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-files"></i></div><h3>No published files</h3><p>Files appear here once publications succeed.</p></div>
+        }
+        else
+        {
+            <div class="vl-table-scroll">
+                <table class="table vl-table vl-table-compact">
+                    <thead><tr><th scope="col">File</th><th scope="col">Record</th><th scope="col">Location</th><th scope="col">Status</th><th scope="col">Published</th></tr></thead>
+                    <tbody>
+                        @foreach (var row in fl.Items)
+                        {
+                            var p = row.Pub;
+                            <tr>
+                                <td class="col-title">
+                                    <span class="d-flex align-items-center gap-2"><i class="bi @Ui.FileIcon(p.FileName) text-body-tertiary" aria-hidden="true"></i>
+                                        @if (p.WebUrl is { } u && u.StartsWith("https://")) { <a class="fw-semibold text-break" href="@u" target="_blank" rel="noopener">@p.FileName<span class="visually-hidden"> (opens SharePoint)</span></a> }
+                                        else { <span class="fw-semibold text-break">@p.FileName</span> }
+                                    </span>
+                                    <span class="d-block x-small text-body-tertiary">@(p.IsRendition ? "PDF rendition · " : "")@Ui.FileSize(p.Size) · SHA-256 <span class="sp-mono">@p.Sha256[..12]…</span></span>
+                                </td>
+                                <td>@if (row.Record.Readable) { <a href="/records/@p.RecordId">@RecordLabel(row.Record)</a> } else { <span class="text-body-tertiary">@RecordLabel(row.Record)</span> }</td>
+                                <td><span class="sp-path"><span>@row.Library</span>@foreach (var seg in p.FolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries)) { <i class="bi bi-chevron-right sep" aria-hidden="true"></i><span>@seg</span> }</span><span class="d-block x-small text-body-tertiary sp-mono">@row.Profile</span></td>
+                                <td>@SharePointUi.PubStatus(p.Status)@if (p.WithdrawnReason != null) { <span class="d-block x-small text-body-tertiary">@p.WithdrawnReason</span> }</td>
+                                <td class="text-nowrap small">@Ui.Time(p.UpdatedAt ?? p.PublishedAt, tz)@if (p.WithdrawnAt is { } w) { <span class="d-block x-small text-body-tertiary">Withdrawn @Ui.Time(w, tz, false)</span> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <partial name="_Pager" model='PagerModel.For(fl, "files", Request)' />
+        }
+    }
+</div>
