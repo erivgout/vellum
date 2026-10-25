@@ -282,7 +282,7 @@ public sealed class PdfService(
         if (rendition == null || (!me.IsSystem && !await access.CanReadAsync(rendition.RecordId))) return null;
         var record = await db.Records.AsNoTracking().FirstAsync(r => r.Id == rendition.RecordId);
         var policy = await renditions.AccessAsync(record, rendition.FieldKey);
-        if (!policy.Download && !policy.Print) return null;
+        if (!policy.Download) return null;
         var body = await renditions.ReadMarkedAsync(rendition, record);
         var manifest = await ManifestAsync(record.Id, auditIt: false);
         if (manifest == null) return null;

@@ -1,0 +1,133 @@
+@page "/pdf/{id:long}"
+@model Vellum.Areas.Pdf.Pages.ViewModel
+@using System.Text.Json
+@{
+    var r = Model.Record;
+    var app = Model.Form.App;
+    var tz = Shell.TimeZone;
+    ViewData["Title"] = $"{r.Number} · {Model.Rendition.FileName}";
+    ViewData["ActiveApp"] = app.Key;
+    var config = new
+    {
+        src = $"/pdf/{Model.Rendition.Id}?handler=File",
+        lib = "/lib/pdfjs/pdf.min.mjs",
+        worker = "/lib/pdfjs/pdf.worker.min.mjs",
+        fonts = "/lib/pdfjs/standard_fonts/",
+        cmaps = "/lib/pdfjs/cmaps/",
+        wasm = "/lib/pdfjs/wasm/",
+        canPrint = Model.Access.Print,
+        title = Model.Rendition.FileName,
+    };
+    var markTone = Model.Marking == "DRAFT" ? "info" : "warn";
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/@app.Key">@app.Name</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/records/@r.Id">@r.Number</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">PDF</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="vl-app-tile lg d-none d-sm-grid" style="--app:@app.Color"><i class="bi bi-file-earmark-pdf"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <div class="small text-body-secondary d-flex flex-wrap align-items-center gap-2">
+            <a href="/records/@r.Id" class="fw-semibold text-body-secondary">@r.Number</a>
+            @if (r.Revision != null) { <span class="vl-kw">Rev @r.Revision</span> }
+            @Ui.Phase(Model.Phase?.Name, r.PhaseType, r.DueDate, r.IsArchived, r.IsEffective)
+            @if (r.IsEffective && r.EffectiveDate is { } eff) { <span><i class="bi bi-patch-check-fill text-success" aria-hidden="true"></i> Effective @eff.ToString("dd MMM yyyy")</span> }
+        </div>
+        <h1 class="vl-page-title text-truncate">@r.Title</h1>
+        <p class="vl-page-sub mb-0">
+            PDF rendition <strong>@Model.Rendition.FileName</strong>
+            @if (Model.Original != null) { <span>· derived from @Model.Original.FileName</span> }
+            · made @Ui.Time(Model.Rendition.UploadedAt, tz)
+            @if (Model.Job?.Converter is { } conv) { <span>· @conv</span> }
+            · <span class="vl-hash" title="SHA-256 @Model.Rendition.Sha256">@Model.Rendition.Sha256[..12]</span>
+        </p>
+    </div>
+</div>
+
+@if (Model.Marking != null)
+{
+    <div class="vl-banner vl-banner-@markTone" role="note">
+        <i class="bi @(Model.Marking == "DRAFT" ? "bi-pencil" : "bi-archive")"></i>
+        <div>
+            <div class="ttl">@(Model.Marking switch { "DRAFT" => "Draft: not for operational use", "SUPERSEDED" => "Superseded: not for use", "OBSOLETE" => "Obsolete: withdrawn from use", _ => "Voided" })</div>
+            <div class="small">
+                Every page shows a <strong>@Model.Marking</strong> watermark (SAF-043).
+                @if (Model.EffectiveRevision is { } eff2)
+                {
+                    <span>Revision @eff2.Revision is in force, effective @eff2.EffectiveDate?.ToString("dd MMM yyyy"). <a href="/records/@eff2.Id">Open revision @eff2.Revision</a>.</span>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<div class="vl-pdfv" data-pdf-viewer>
+    <div class="vl-pdfv-bar" role="toolbar" aria-label="PDF viewer">
+        <div class="btn-group" role="group" aria-label="Pages">
+            <button type="button" class="btn btn-sm btn-light btn-icon" data-pdf-prev title="Previous page" aria-label="Previous page"><i class="bi bi-chevron-up"></i></button>
+            <button type="button" class="btn btn-sm btn-light btn-icon" data-pdf-next title="Next page" aria-label="Next page"><i class="bi bi-chevron-down"></i></button>
+        </div>
+        <label class="vl-pdfv-page small">
+            <span class="visually-hidden">Page</span>
+            <input type="number" min="1" value="1" class="form-control form-control-sm tabular" data-pdf-pageno aria-label="Page number" />
+            <span class="text-body-secondary">of <span data-pdf-pages>–</span></span>
+        </label>
+        <span class="vl-pdfv-sep" aria-hidden="true"></span>
+        <div class="btn-group" role="group" aria-label="Zoom">
+            <button type="button" class="btn btn-sm btn-light btn-icon" data-pdf-zoom="out" title="Zoom out" aria-label="Zoom out"><i class="bi bi-zoom-out"></i></button>
+            <button type="button" class="btn btn-sm btn-light btn-icon" data-pdf-zoom="in" title="Zoom in" aria-label="Zoom in"><i class="bi bi-zoom-in"></i></button>
+        </div>
+        <select class="form-select form-select-sm vl-pdfv-zoom" data-pdf-scale aria-label="Zoom level">
+            <option value="width" selected>Fit width</option>
+            <option value="page">Fit page</option>
+            <option value="0.75">75%</option>
+            <option value="1">100%</option>
+            <option value="1.25">125%</option>
+            <option value="1.5">150%</option>
+            <option value="2">200%</option>
+        </select>
+        <span class="grow"></span>
+        @if (Model.Access.Print)
+        {
+            <button type="button" class="btn btn-sm btn-light" data-pdf-print disabled><i class="bi bi-printer"></i><span class="d-none d-md-inline">Print</span></button>
+        }
+        @if (Model.Access.Download)
+        {
+            <a class="btn btn-sm btn-light" href="/pdf/@Model.Rendition.Id?handler=Download"><i class="bi bi-download"></i><span class="d-none d-md-inline">Download</span></a>
+            @if (Model.Manifest)
+            {
+                <a class="btn btn-sm btn-light" href="/pdf/@Model.Rendition.Id?handler=Copy" title="This PDF followed by the approval manifest (DOC-043)"><i class="bi bi-journal-check"></i><span class="d-none d-lg-inline">Controlled copy</span></a>
+            }
+        }
+        @if (Model.Manifest)
+        {
+            <a class="btn btn-sm btn-light" href="/pdf/manifest/@r.Id" title="Signature page of this revision (DOC-043)"><i class="bi bi-patch-check"></i><span class="d-none d-lg-inline">Manifest</span></a>
+        }
+        @if (Model.SeeOriginal)
+        {
+            <a class="btn btn-sm btn-ghost" href="/files/@Model.Original!.Id" title="Download the original @Model.Original.FileName"><i class="bi bi-file-earmark-arrow-down"></i><span class="d-none d-xl-inline">Original</span></a>
+        }
+    </div>
+    <div class="vl-pdfv-scroll" data-pdf-scroll tabindex="0" aria-label="Document pages">
+        <div class="vl-pdfv-pages" data-pdf-host></div>
+        <div class="vl-pdfv-state" data-pdf-state role="status">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Loading the PDF…
+        </div>
+    </div>
+    @if (!Model.Access.Print || !Model.Access.Download)
+    {
+        <div class="vl-pdfv-perm small text-body-secondary">
+            <i class="bi bi-shield-lock" aria-hidden="true"></i>
+            @(!Model.Access.Print && !Model.Access.Download ? "Viewing only: printing and downloading aren't permitted" : !Model.Access.Print ? "Printing isn't permitted" : "Downloading isn't permitted") for your role in @(Model.Phase?.Name ?? "this phase") (DOC-081).
+        </div>
+    }
+</div>
+<div class="vl-pdf-print" data-pdf-print-host aria-hidden="true"></div>
+@if (!Model.Access.Print)
+{
+    <div class="vl-pdf-noprint" aria-hidden="true">Printing this document isn't permitted in @(Model.Phase?.Name ?? "this phase").</div>
+}
+<script type="application/json" id="vl-pdf-config">@Html.Raw(JsonSerializer.Serialize(config))</script>

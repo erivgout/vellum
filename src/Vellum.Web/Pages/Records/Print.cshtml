@@ -10,8 +10,11 @@
 }
 <div class="vl-print-bar no-print">
     <a href="/records/@r.Id" class="btn btn-light btn-sm"><i class="bi bi-arrow-left"></i>Back to record</a>
-    <span class="text-body-secondary small">Use your browser's print dialog to save as PDF.</span>
-    <button class="btn btn-primary btn-sm" data-print><i class="bi bi-printer"></i>Print</button>
+    <span class="text-body-secondary small d-none d-md-inline">Print it, or download it as a PDF with the signature manifestation.</span>
+    <span class="d-inline-flex gap-2">
+        <a class="btn btn-light btn-sm" href="/pdf/record/@r.Id"><i class="bi bi-filetype-pdf"></i>Download PDF</a>
+        <button class="btn btn-primary btn-sm" data-print><i class="bi bi-printer"></i>Print</button>
+    </span>
 </div>
 <article class="vl-print-page @(r.IsEffective ? "" : "vl-watermark")" data-watermark="@(r.IsEffective ? null : r.IsArchived ? "SUPERSEDED" : r.PhaseType == PhaseType.Normal ? "DRAFT" : null)">
     <header class="vl-print-head">
