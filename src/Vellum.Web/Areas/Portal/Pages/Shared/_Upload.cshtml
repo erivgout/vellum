@@ -1,0 +1,16 @@
+@model Vellum.Areas.Portal.Pages.PortalUploadVm
+@{
+    var id = "up-" + Model.Field;
+}
+<div class="vp-upload mb-3">
+    <label class="form-label" for="@id">@Model.Label@if (Model.Required) { <span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required to submit)</span> }</label>
+    @await Html.PartialAsync("_FileList", new PortalFileListVm(Model.ShareId, Model.Files, true))
+    <div class="vp-drop" data-portal-drop>
+        <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
+        <div>
+            <input class="form-control" type="file" id="@id" name="file.@Model.Field" multiple aria-describedby="@id-help" data-portal-file />
+            <div class="form-text" id="@id-help">PDF, Word, Excel or images, up to 25 MB each. Files are stored with a checksum so they can't change after upload.</div>
+            <ul class="vp-picked" data-portal-picked aria-live="polite"></ul>
+        </div>
+    </div>
+</div>

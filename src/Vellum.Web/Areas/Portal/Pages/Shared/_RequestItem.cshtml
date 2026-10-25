@@ -1,0 +1,28 @@
+@model Vellum.Modules.Portal.PortalItem
+@{
+    var i = Model;
+    var today = BusinessCalendar.Today;
+    var days = i.Due is { } d ? d.DayNumber - today.DayNumber : (int?)null;
+    var dueText = days switch
+    {
+        null => null,
+        < 0 => $"{-days} day{(days == -1 ? "" : "s")} overdue",
+        0 => "Due today",
+        1 => "Due tomorrow",
+        _ => $"Due {i.Due!.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}",
+    };
+    var dueTone = i.State.Closed ? "" : days < 0 ? "bad" : days <= 3 ? "warn" : "";
+}
+<a class="vp-item" href="@PortalService.Url(i.Share.Id)">
+    <span class="vp-kind vp-kind-@i.Kind.Key" aria-hidden="true"><i class="bi @i.Kind.Icon"></i></span>
+    <span class="vp-item-main">
+        <span class="vp-item-meta"><span>@i.Kind.Noun</span><span aria-hidden="true">·</span><span class="mono">@i.Number</span></span>
+        <span class="vp-item-title">@i.Title</span>
+        <span class="vp-item-tags">
+            <span class="vp-status vp-@i.State.Tone"><i class="bi @i.State.Icon" aria-hidden="true"></i>@i.State.Label</span>
+            @if (dueText != null && !i.State.Closed) { <span class="vp-due @(dueTone.Length > 0 ? "vp-due-" + dueTone : "")"><i class="bi bi-calendar-event" aria-hidden="true"></i>@dueText</span> }
+            else if (i.State.Closed) { <span class="vp-due"><i class="bi bi-clock-history" aria-hidden="true"></i>Updated @Ui.Ago(i.UpdatedAt)</span> }
+        </span>
+    </span>
+    <span class="vp-item-go" aria-hidden="true">@(i.State.ActionNeeded ? "Respond" : "View")<i class="bi bi-arrow-right"></i></span>
+</a>

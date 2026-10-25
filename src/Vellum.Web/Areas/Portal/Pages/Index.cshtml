@@ -1,0 +1,144 @@
+@page "/portal"
+@model IndexModel
+@{
+    ViewData["Title"] = "Home";
+    var me = Portal.User;
+    var company = await Portal.CompanyAsync();
+    var sc = Model.LatestScorecard;
+}
+<section class="vp-hero">
+    <div>
+        <p class="vp-eyebrow">@company</p>
+        <h1 class="vp-title">@Model.Greeting(), @(me?.DisplayName.Split(' ')[0])</h1>
+        <p class="vp-lead">
+            @if (Model.ToDo.Count == 0) { <text>You're all caught up. Nothing from @Portal.OrganizationName needs your response right now.</text> }
+            else { <text>@Portal.OrganizationName needs @Ui.Plural(Model.ToDo.Count, "response") from you@(Model.Overdue > 0 ? $", {Model.Overdue} overdue" : "").</text> }
+        </p>
+    </div>
+    @if (Model.ToDo.FirstOrDefault() is { } next)
+    {
+        <a class="btn btn-primary btn-lg vp-hero-cta" href="@PortalService.Url(next.Share.Id)"><span>Start with @next.Number</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    }
+</section>
+
+<div class="row g-3 mb-4" role="list" aria-label="Summary">
+    <div class="col-6 col-lg-3" role="listitem">
+        <a class="vl-stat" href="/portal/requests">
+            <div class="vl-stat-icon tone-warn"><i class="bi bi-pencil-square" aria-hidden="true"></i></div>
+            <div class="vl-stat-value">@Model.ToDo.Count</div><div class="vl-stat-label">Need your response</div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-3" role="listitem">
+        <a class="vl-stat" href="/portal/requests">
+            <div class="vl-stat-icon @(Model.Overdue > 0 ? "tone-bad" : "tone-info")"><i class="bi @(Model.Overdue > 0 ? "bi-exclamation-circle" : "bi-calendar-week")" aria-hidden="true"></i></div>
+            <div class="vl-stat-value">@(Model.Overdue > 0 ? Model.Overdue : Model.DueSoon)</div><div class="vl-stat-label">@(Model.Overdue > 0 ? "Overdue" : "Due in the next 7 days")</div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-3" role="listitem">
+        <a class="vl-stat" href="/portal/requests?status=review">
+            <div class="vl-stat-icon tone-info"><i class="bi bi-hourglass-split" aria-hidden="true"></i></div>
+            <div class="vl-stat-value">@Model.UnderReview.Count</div><div class="vl-stat-label">Under review</div>
+        </a>
+    </div>
+    <div class="col-6 col-lg-3" role="listitem">
+        <a class="vl-stat" href="/portal/scorecards">
+            <div class="vl-stat-icon tone-ok"><i class="bi bi-speedometer2" aria-hidden="true"></i></div>
+            <div class="vl-stat-value">@Model.Items.Count(i => i.Kind.ReadOnly)</div><div class="vl-stat-label">Scorecards shared</div>
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <section class="vp-section" aria-labelledby="todo-title">
+            <div class="vp-section-head">
+                <h2 class="vp-h2" id="todo-title">Needs your response</h2>
+                <a class="small" href="/portal/requests">All requests<i class="bi bi-arrow-right ms-1" aria-hidden="true"></i></a>
+            </div>
+            @if (Model.ToDo.Count == 0)
+            {
+                <div class="vp-card vl-empty">
+                    <div class="vl-empty-icon tone-ok"><i class="bi bi-check2-all" aria-hidden="true"></i></div>
+                    <h3>You're all caught up</h3>
+                    <p>When @Portal.OrganizationName sends you a corrective action request, a document request, a questionnaire or audit findings, it appears here and you get an email.</p>
+                </div>
+            }
+            else
+            {
+                <div class="vp-items">
+                    @foreach (var i in Model.ToDo) { <partial name="_RequestItem" model="i" /> }
+                </div>
+            }
+        </section>
+
+        @if (Model.UnderReview.Count > 0)
+        {
+            <section class="vp-section" aria-labelledby="review-title">
+                <div class="vp-section-head"><h2 class="vp-h2" id="review-title">Submitted, under review</h2></div>
+                <div class="vp-items">
+                    @foreach (var i in Model.UnderReview) { <partial name="_RequestItem" model="i" /> }
+                </div>
+            </section>
+        }
+
+        @if (Model.Recent.Count > 0)
+        {
+            <section class="vp-section" aria-labelledby="recent-title">
+                <div class="vp-section-head"><h2 class="vp-h2" id="recent-title">Recently closed</h2></div>
+                <div class="vp-items">
+                    @foreach (var i in Model.Recent) { <partial name="_RequestItem" model="i" /> }
+                </div>
+            </section>
+        }
+    </div>
+
+    <aside class="col-lg-4" aria-label="Your account">
+        @if (sc != null)
+        {
+            <div class="vp-card mb-3">
+                <div class="vp-card-head"><h2 class="vp-h3"><i class="bi bi-speedometer2" aria-hidden="true"></i>Latest scorecard</h2></div>
+                <div class="vp-card-body">
+                    <div class="fw-semibold">@sc.Title</div>
+                    <div class="small text-body-secondary mb-3">Shared @Ui.Ago(sc.Share.SharedAt)</div>
+                    <a class="btn btn-light btn-sm w-100" href="@PortalService.Url(sc.Share.Id)"><i class="bi bi-bar-chart" aria-hidden="true"></i>Open the scorecard</a>
+                </div>
+            </div>
+        }
+        @if (Model.Contacts.Count > 0)
+        {
+            <div class="vp-card mb-3">
+                <div class="vp-card-head"><h2 class="vp-h3"><i class="bi bi-person-lines-fill" aria-hidden="true"></i>Your contacts at @Portal.OrganizationName</h2></div>
+                <ul class="vp-people">
+                    @foreach (var c in Model.Contacts)
+                    {
+                        <li>
+                            <span class="vl-avatar vl-avatar-md" aria-hidden="true">@string.Concat(c.Name.Split(' ').Take(2).Select(w => w[0]))</span>
+                            <span class="min-w-0"><span class="d-block fw-semibold small">@c.Name</span>@if (c.Title != null) { <span class="d-block x-small text-body-tertiary">@c.Title</span> }<a class="d-block x-small text-truncate" href="mailto:@c.Email">@c.Email</a></span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+        <div class="vp-card">
+            <div class="vp-card-head"><h2 class="vp-h3"><i class="bi bi-bell" aria-hidden="true"></i>Recent updates</h2></div>
+            @if (Model.Updates.Count == 0)
+            {
+                <p class="vp-card-body small text-body-secondary mb-0">Messages about your requests appear here and are also emailed to you.</p>
+            }
+            else
+            {
+                <ul class="vp-updates">
+                    @foreach (var n in Model.Updates)
+                    {
+                        <li>
+                            <a href="@(n.Url is { } u && u.StartsWith("/portal") ? u : "/portal")">
+                                <span class="d-block small fw-semibold">@n.Title</span>
+                                <span class="d-block x-small text-body-tertiary">@Ui.Ago(n.CreatedAt)</span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </aside>
+</div>

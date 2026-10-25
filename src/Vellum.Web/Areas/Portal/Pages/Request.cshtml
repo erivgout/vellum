@@ -1,0 +1,312 @@
+@page "/portal/requests/{id:int}"
+@model RequestModel
+@{
+    var v = Model.View;
+    var k = v.Kind;
+    ViewData["Title"] = $"{v.Number} {v.Title}";
+    var today = BusinessCalendar.Today;
+    var dueDays = v.Due is { } dd ? dd.DayNumber - today.DayNumber : (int?)null;
+    var fromUs = v.Files.Where(f => k.VisibleFiles.Contains(f.Field)).ToList();
+    var uploads = v.Files.Where(f => k.UploadFiles.Contains(f.Field)).ToList();
+    var company = await Portal.CompanyAsync();
+    string Date(DateOnly? d) => d?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "–";
+    bool IsNc(PortalRowVm r) => PortalKinds.NonconformanceClasses.Contains(r.KeywordKey("classification"));
+}
+<nav class="vp-crumbs" aria-label="Breadcrumb">
+    <a href="/portal">Home</a><i class="bi bi-chevron-right" aria-hidden="true"></i>
+    @if (k.ReadOnly) { <a href="/portal/scorecards">Scorecards</a> } else { <a href="/portal/requests">Requests</a> }
+    <i class="bi bi-chevron-right" aria-hidden="true"></i><span aria-current="page" class="mono">@v.Number</span>
+</nav>
+
+<header class="vp-req-head">
+    <span class="vp-kind vp-kind-lg vp-kind-@k.Key" aria-hidden="true"><i class="bi @k.Icon"></i></span>
+    <div class="min-w-0 flex-grow-1">
+        <p class="vp-eyebrow mb-1">@k.Noun · <span class="mono">@v.Number</span></p>
+        <h1 class="vp-title vp-title-sm">@v.Title</h1>
+        <div class="vp-item-tags mt-2">
+            <span class="vp-status vp-@v.State.Tone"><i class="bi @v.State.Icon" aria-hidden="true"></i>@v.State.Label</span>
+            @if (v.Due is { } due && !v.State.Closed)
+            {
+                <span class="vp-due @(dueDays < 0 ? "vp-due-bad" : dueDays <= 3 ? "vp-due-warn" : "")"><i class="bi bi-calendar-event" aria-hidden="true"></i>
+                    @(dueDays < 0 ? $"Overdue since {Date(due)}" : dueDays == 0 ? "Due today" : $"Due {Date(due)}")</span>
+            }
+        </div>
+    </div>
+</header>
+
+@if (Model.Errors.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert" tabindex="-1" data-focus-on-load>
+        <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+        <div><div class="ttl">Your response wasn't @(Request.Form["submit"] == "1" ? "submitted" : "saved")</div><ul class="mb-0 mt-1">@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div>
+    </div>
+}
+@if (v.Share.Status == ExternalShareStatus.Returned && v.CanRespond)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-arrow-return-left" aria-hidden="true"></i>
+        <div><div class="ttl">@Portal.OrganizationName asked for changes</div>@if (v.Share.Feedback is { Length: > 0 } fb) { <div class="vp-pre mt-1">@fb</div> }<div class="small mt-1">Update your response below and submit it again.</div></div>
+    </div>
+}
+else if (v.Share.Status == ExternalShareStatus.Submitted)
+{
+    <div class="vl-banner vl-banner-info"><i class="bi bi-hourglass-split" aria-hidden="true"></i>
+        <div><div class="ttl">Submitted @(v.Share.SubmittedAt is { } sa ? Ui.Ago(sa) : ""), under review</div><div class="small">@Portal.OrganizationName will let you know if anything else is needed. You can't change your response while it's being reviewed.</div></div>
+    </div>
+}
+else if (v.Share.Status == ExternalShareStatus.Accepted && !k.ReadOnly)
+{
+    <div class="vl-banner vl-banner-ok"><i class="bi bi-check-circle" aria-hidden="true"></i><div><div class="ttl">Accepted</div><div class="small">@Portal.OrganizationName accepted your response. Thank you.</div></div></div>
+}
+else if (v.State.Closed && !k.ReadOnly)
+{
+    <div class="vl-banner vl-banner-info"><i class="bi bi-lock" aria-hidden="true"></i><div><div class="ttl">This request is closed</div><div class="small">It's shown here for your records.</div></div></div>
+}
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        @if (v.Share.Message is { Length: > 0 } msg && !k.ReadOnly)
+        {
+            <figure class="vp-message">
+                <blockquote class="vp-pre mb-0">@msg</blockquote>
+                <figcaption><i class="bi bi-chat-left-quote" aria-hidden="true"></i>@(v.ContactName ?? Portal.OrganizationName), @Portal.OrganizationName</figcaption>
+            </figure>
+        }
+
+        @if (k.Key == PortalKinds.Scorecard)
+        {
+            var grade = v.Field("grade");
+            var gradeKey = grade?.KeywordKey;
+            var tone = gradeKey switch { "a" => "tone-ok", "b" => "tone-info", "c" => "tone-warn", "d" => "tone-bad", _ => "tone-neutral" };
+            <section class="vp-card mb-3" aria-labelledby="score-title">
+                <div class="vp-card-body vp-score">
+                    <div class="vp-grade @tone" aria-hidden="true">@(gradeKey?.ToUpperInvariant() ?? "–")</div>
+                    <div class="min-w-0">
+                        <h2 class="vp-h2 mb-1" id="score-title">@(grade?.Display ?? "Not graded")</h2>
+                        <div class="text-body-secondary">Overall score <strong class="tabular text-body">@(v.Value("overall_score") ?? "–")</strong> of 100 · @v.Value("period")</div>
+                    </div>
+                </div>
+                <div class="vp-bars">
+                    @foreach (var (key, label) in new[] { ("s_quality", "Quality"), ("s_delivery", "On-time delivery"), ("s_response", "Responsiveness"), ("s_audit", "Audit") })
+                    {
+                        var val = v.Value(key);
+                        var pct = decimal.TryParse(val, NumberStyles.Number, CultureInfo.InvariantCulture, out var n) ? Math.Clamp(n, 0, 100) : (decimal?)null;
+                        <div class="vp-bar">
+                            <span class="vp-bar-label">@label</span>
+                            <span class="vp-bar-track" role="img" aria-label="@label score @(val ?? "not applicable")"><span class="vp-bar-fill" style="width:@((pct ?? 0).ToString("0.#", CultureInfo.InvariantCulture))%"></span></span>
+                            <span class="vp-bar-value tabular">@(val ?? "n/a")</span>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
+        @foreach (var (g, fields) in v.Groups.Where(x => k.Key != PortalKinds.Scorecard || x.Group.Title != "Scores"))
+        {
+            <section class="vp-card mb-3" aria-label="@g.Title">
+                <div class="vp-card-head"><h2 class="vp-h3"><i class="bi @g.Icon" aria-hidden="true"></i>@g.Title</h2></div>
+                <dl class="vp-dl">
+                    @foreach (var f in fields)
+                    {
+                        <div class="@(f.Type is FieldType.TextArea || f.Display.Length > 80 ? "vp-dl-wide" : "")">
+                            <dt>@f.Label</dt>
+                            <dd class="vp-pre">@if (f.KeywordKey != null) { @Ui.KeywordBadge(f.Display, f.KeywordColor) } else { @f.Display }</dd>
+                        </div>
+                    }
+                </dl>
+            </section>
+        }
+
+        @if (v.CanRespond)
+        {
+            <form method="post" enctype="multipart/form-data" asp-page-handler="Respond" asp-route-id="@v.Share.Id" class="vp-respond" novalidate data-portal-form>
+                <input type="hidden" name="version" value="@v.Version" />
+
+                @if (k.Rows is { } spec && v.Rows.Count > 0)
+                {
+                    <section class="mb-3" aria-labelledby="rows-title">
+                        <h2 class="vp-h2 mb-2" id="rows-title">@(k.Key == PortalKinds.Questionnaire ? "Questions" : "Findings to answer")</h2>
+                        @foreach (var r in v.Rows)
+                        {
+                            <article class="vp-card vp-row mb-3" aria-labelledby="row-@r.Id-t">
+                                @if (k.Key == PortalKinds.Questionnaire)
+                                {
+                                    var input = Model.RowInput(r, "answer");
+                                    var yesNo = r.KeywordKey("q_type") == "yes_no";
+                                    <div class="vp-card-body">
+                                        <div class="d-flex gap-3">
+                                            <span class="vp-num" aria-hidden="true">@(r.Order + 1)</span>
+                                            <div class="min-w-0 flex-grow-1">
+                                                <h3 class="vp-q" id="row-@r.Id-t">@r.Get("q_text")@if (input.Field.Required) { <span class="req" aria-hidden="true"> *</span><span class="visually-hidden"> (required)</span> }</h3>
+                                                @if (r.Get("q_guidance") is { } gd) { <p class="small text-body-secondary mb-2">@gd</p> }
+                                                @if (yesNo)
+                                                {
+                                                    <div class="vl-seg" role="radiogroup" aria-labelledby="row-@r.Id-t">
+                                                        @foreach (var opt in new[] { "Yes", "No", "N/A" })
+                                                        {
+                                                            var oid = $"{input.Id}-{opt.Replace("/", "")}";
+                                                            <input type="radio" class="btn-check" name="@input.Name" id="@oid" value="@opt" checked="@(input.Value == opt)" /><label for="@oid">@(opt == "N/A" ? "Not applicable" : opt)</label>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <label class="visually-hidden" for="@input.Id">Your answer</label>
+                                                    <textarea class="form-control vl-autogrow" id="@input.Id" name="@input.Name" rows="2" maxlength="@input.Field.MaxLength" placeholder="Your answer">@input.Value</textarea>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="vp-card-head">
+                                        <h3 class="vp-h3" id="row-@r.Id-t">Finding @(r.Get("finding_no") ?? (r.Order + 1).ToString())</h3>
+                                        <span class="ms-auto d-flex gap-2 align-items-center">
+                                            @if (r.Get("clause") is { } cl) { <span class="small text-body-secondary">@cl</span> }
+                                            @if (r.Fields["classification"] is { KeywordKey: not null } c) { @Ui.KeywordBadge(c.Display, c.KeywordColor) }
+                                        </span>
+                                    </div>
+                                    <div class="vp-card-body">
+                                        <p class="fw-semibold mb-1">@r.Get("finding")</p>
+                                        @if (r.Get("evidence") is { } ev) { <p class="small text-body-secondary vp-pre">Evidence: @ev</p> }
+                                        @if (!IsNc(r)) { <p class="x-small text-body-tertiary mb-2">A response is optional for observations and opportunities for improvement.</p> }
+                                        <div class="row g-3">
+                                            <div class="col-md-6">@await Html.PartialAsync("_Input", Model.RowInput(r, "sr_root_cause"))</div>
+                                            <div class="col-md-6">@await Html.PartialAsync("_Input", Model.RowInput(r, "sr_correction"))</div>
+                                            <div class="col-md-8">@await Html.PartialAsync("_Input", Model.RowInput(r, "sr_corrective_action"))</div>
+                                            <div class="col-md-4">@await Html.PartialAsync("_Input", Model.RowInput(r, "sr_target_date"))</div>
+                                        </div>
+                                    </div>
+                                }
+                            </article>
+                        }
+                    </section>
+                }
+
+                <section class="vp-card mb-3" aria-labelledby="resp-title">
+                    <div class="vp-card-head"><h2 class="vp-h3" id="resp-title"><i class="bi bi-reply" aria-hidden="true"></i>@(k.Key == PortalKinds.Scar ? "Your response (supplier response section)" : k.Key == PortalKinds.Document ? "Upload the document" : "Your comments")</h2></div>
+                    <div class="vp-card-body">
+                        @if (k.Key == PortalKinds.Document)
+                        {
+                            @await Html.PartialAsync("_Upload", new PortalUploadVm(v.Share.Id, k.UploadFiles[0], "Document", true, uploads))
+                        }
+                        <div class="row g-3">
+                            @foreach (var key in k.Editable)
+                            {
+                                var f = v.Editable[key];
+                                <div class="@(f.Type is FieldType.Date ? "col-md-4" : f.Type == FieldType.Text ? "col-md-8" : "col-12")">@await Html.PartialAsync("_Input", Model.MainInput(key))</div>
+                            }
+                        </div>
+                        @if (k.Key != PortalKinds.Document)
+                        {
+                            foreach (var field in k.UploadFiles)
+                            {
+                                <div class="mt-3">@await Html.PartialAsync("_Upload", new PortalUploadVm(v.Share.Id, field,
+                                    k.Key == PortalKinds.Scar ? "Supporting files (8D report, photos, records)" : "Supporting documents", false, uploads.Where(u => u.Field == field).ToList()))</div>
+                            }
+                        }
+                    </div>
+                </section>
+
+                <div class="vp-actionbar">
+                    <span class="small text-body-secondary d-none d-md-inline"><i class="bi bi-info-circle" aria-hidden="true"></i> Save a draft any time. Submitting sends it to @Portal.OrganizationName for review.</span>
+                    <span class="ms-auto d-flex gap-2">
+                        <button type="submit" name="submit" value="0" class="btn btn-light"><i class="bi bi-floppy" aria-hidden="true"></i>Save draft</button>
+                        <button type="submit" name="submit" value="1" class="btn btn-primary" data-confirm="Submit your response to @Portal.OrganizationName? You can't change it while it's being reviewed."><i class="bi bi-send" aria-hidden="true"></i>Submit response</button>
+                    </span>
+                </div>
+            </form>
+        }
+        else if (!k.ReadOnly)
+        {
+            @* Read-only copy of the supplier's own response. *@
+            @if (v.Rows.Count > 0)
+            {
+                <section class="mb-3" aria-labelledby="rows-ro-title">
+                    <h2 class="vp-h2 mb-2" id="rows-ro-title">@(k.Key == PortalKinds.Questionnaire ? "Your answers" : "Your answers to the findings")</h2>
+                    @foreach (var r in v.Rows)
+                    {
+                        <article class="vp-card mb-2">
+                            <div class="vp-card-body">
+                                @if (k.Key == PortalKinds.Questionnaire)
+                                {
+                                    <div class="d-flex gap-3"><span class="vp-num" aria-hidden="true">@(r.Order + 1)</span>
+                                        <div class="min-w-0"><div class="fw-semibold">@r.Get("q_text")</div><div class="vp-pre mt-1">@(r.Get("answer") ?? "No answer")</div></div></div>
+                                }
+                                else
+                                {
+                                    <div class="d-flex flex-wrap gap-2 align-items-center mb-1"><strong>Finding @r.Get("finding_no")</strong>@if (r.Fields["classification"] is { KeywordKey: not null } c) { @Ui.KeywordBadge(c.Display, c.KeywordColor) }<span class="small text-body-secondary">@r.Get("clause")</span></div>
+                                    <p class="mb-2">@r.Get("finding")</p>
+                                    <dl class="vp-dl vp-dl-tight">
+                                        @foreach (var key in k.Rows!.Editable)
+                                        {
+                                            <div><dt>@v.RowLabels[key]</dt><dd class="vp-pre">@(r.Get(key) ?? "–")</dd></div>
+                                        }
+                                    </dl>
+                                }
+                            </div>
+                        </article>
+                    }
+                </section>
+            }
+            <section class="vp-card mb-3" aria-labelledby="resp-ro-title">
+                <div class="vp-card-head"><h2 class="vp-h3" id="resp-ro-title"><i class="bi bi-reply" aria-hidden="true"></i>Your response</h2></div>
+                <dl class="vp-dl">
+                    @foreach (var key in k.Editable)
+                    {
+                        var f = v.Editable[key];
+                        <div class="@(f.Type is FieldType.TextArea ? "vp-dl-wide" : "")"><dt>@f.Label</dt><dd class="vp-pre">@(f.Display.Length > 0 ? f.Display : "–")</dd></div>
+                    }
+                    @if (v.RespondedBy != null) { <div><dt>Submitted by</dt><dd>@v.RespondedBy</dd></div> }
+                </dl>
+                @if (uploads.Count > 0)
+                {
+                    <div class="vp-card-body pt-0">@await Html.PartialAsync("_FileList", new PortalFileListVm(v.Share.Id, uploads, false))</div>
+                }
+            </section>
+        }
+    </div>
+
+    <aside class="col-lg-4" aria-label="About this request">
+        <div class="vp-card mb-3">
+            <div class="vp-card-head"><h2 class="vp-h3"><i class="bi bi-info-circle" aria-hidden="true"></i>Details</h2></div>
+            <dl class="vl-kv vp-card-body">
+                <dt>Reference</dt><dd class="mono">@v.Number</dd>
+                <dt>Status</dt><dd>@v.State.Label</dd>
+                @if (v.Due is { } d2) { <dt>Due</dt><dd>@Date(d2)</dd> }
+                <dt>Sent</dt><dd>@Date(DateOnly.FromDateTime(v.Share.SharedAt))</dd>
+                @if (v.Share.SubmittedAt is { } sub) { <dt>Submitted</dt><dd>@Date(DateOnly.FromDateTime(sub))</dd> }
+                <dt>For</dt><dd>@company</dd>
+            </dl>
+        </div>
+        @if (v.ContactName != null)
+        {
+            <div class="vp-card mb-3">
+                <div class="vp-card-head"><h2 class="vp-h3"><i class="bi bi-person-lines-fill" aria-hidden="true"></i>Your contact</h2></div>
+                <div class="vp-card-body">
+                    <div class="fw-semibold">@v.ContactName</div>
+                    <div class="small text-body-secondary">@Portal.OrganizationName</div>
+                    @if (v.ContactEmail != null) { <a class="small" href="mailto:@v.ContactEmail?subject=@Uri.EscapeDataString(v.Number)">@v.ContactEmail</a> }
+                </div>
+            </div>
+        }
+        @if (fromUs.Count > 0)
+        {
+            <div class="vp-card mb-3">
+                <div class="vp-card-head"><h2 class="vp-h3"><i class="bi bi-paperclip" aria-hidden="true"></i>Files from @Portal.OrganizationName</h2></div>
+                <div class="vp-card-body">@await Html.PartialAsync("_FileList", new PortalFileListVm(v.Share.Id, fromUs, false))</div>
+            </div>
+        }
+        @if (v.CanRespond)
+        {
+            <div class="vp-card vp-help">
+                <div class="vp-card-head"><h2 class="vp-h3"><i class="bi bi-signpost-2" aria-hidden="true"></i>How this works</h2></div>
+                <ol class="vp-steps">
+                    <li>Fill in your response. Fields marked <span class="req">*</span> are needed to submit.</li>
+                    <li>Save a draft as often as you like, and come back later.</li>
+                    <li>Submit. @(v.ContactName ?? "Your contact") is notified and reviews it.</li>
+                </ol>
+            </div>
+        }
+    </aside>
+</div>

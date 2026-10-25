@@ -1,0 +1,137 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@*
+    The supplier portal shell (SUP-004). Deliberately separate from the internal layout: no sidebar, search, command palette,
+    notifications menu or module scripts. Only portal links, portal.css and portal.js; everything else an external user could
+    request outside /portal is refused by ExternalUserBoundary anyway.
+*@
+@{
+    var path = (Context.Request.Path.Value ?? "/").ToLowerInvariant();
+    var token = Antiforgery.GetAndStoreTokens(Context).RequestToken;
+    var me = Portal.User;
+    var company = await Portal.CompanyAsync();
+    var actionNeeded = Shell.Me.IsExternal ? await Portal.ActionNeededAsync() : 0;
+    var settings = Portal.Settings;
+    var toast = TempData["Toast"] as string;
+    var toastKind = TempData["ToastKind"] as string ?? "ok";
+    bool Active(string prefix, bool exact = false) => exact ? path == prefix : path.StartsWith(prefix);
+}
+<!DOCTYPE html>
+<html lang="en" data-theme-pref="@Shell.Theme">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="@token" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="robots" content="noindex" />
+    <title>@(ViewData["Title"] is string t ? t + " · " : "")@Portal.OrganizationName supplier portal</title>
+    <script src="~/js/theme.js" asp-append-version="true"></script>
+    <link rel="icon" href="~/img/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/modules/portal.css" asp-append-version="true" />
+</head>
+<body class="vp-body @(Portal.IsProduction ? "" : "has-env-banner")">
+    <a class="visually-hidden-focusable" href="#main">Skip to content</a>
+    @if (!Portal.IsProduction)
+    {
+        <div class="vl-env-banner" role="note">
+            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            <span>@settings.EnvironmentName environment</span><span aria-hidden="true">·</span><span>@(settings.BannerText ?? "Not for production use")</span>
+        </div>
+    }
+
+    <header class="vp-top">
+        <div class="vp-top-inner">
+            <a class="vp-brand" href="/portal" aria-label="@Portal.OrganizationName supplier portal home">
+                <span class="vp-brand-mark" aria-hidden="true">@Portal.OrganizationMark</span>
+                <span class="min-w-0">
+                    <span class="vp-brand-name">@Portal.OrganizationName</span>
+                    <span class="vp-brand-sub">Supplier portal</span>
+                </span>
+            </a>
+
+            <nav class="vp-nav" aria-label="Supplier portal">
+                <a class="vp-nav-link @(Active("/portal", exact: true) ? "active" : "")" href="/portal" aria-current="@(Active("/portal", exact: true) ? "page" : null)"><i class="bi bi-house" aria-hidden="true"></i><span>Home</span></a>
+                <a class="vp-nav-link @(Active("/portal/requests") ? "active" : "")" href="/portal/requests" aria-current="@(Active("/portal/requests") ? "page" : null)">
+                    <i class="bi bi-inbox" aria-hidden="true"></i><span>Requests</span>
+                    @if (actionNeeded > 0) { <span class="vp-nav-badge" title="@actionNeeded need your response">@actionNeeded<span class="visually-hidden"> need your response</span></span> }
+                </a>
+                <a class="vp-nav-link @(Active("/portal/scorecards") ? "active" : "")" href="/portal/scorecards" aria-current="@(Active("/portal/scorecards") ? "page" : null)"><i class="bi bi-speedometer2" aria-hidden="true"></i><span>Scorecards</span></a>
+            </nav>
+
+            <div class="vp-top-right">
+                <span class="vp-company d-none d-md-inline-flex" title="Your company"><i class="bi bi-building" aria-hidden="true"></i><span class="text-truncate">@company</span></span>
+                <div class="dropdown">
+                    <button class="vp-theme-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Colour theme"><i class="bi bi-circle-half" aria-hidden="true"></i></button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                        <button class="dropdown-item" data-theme-set="light"><i class="bi bi-sun" aria-hidden="true"></i>Light</button>
+                        <button class="dropdown-item" data-theme-set="dark"><i class="bi bi-moon-stars" aria-hidden="true"></i>Dark</button>
+                        <button class="dropdown-item" data-theme-set="auto"><i class="bi bi-display" aria-hidden="true"></i>Match system</button>
+                    </div>
+                </div>
+                @if (me != null)
+                {
+                    <div class="dropdown">
+                        <button class="vp-user-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu for @me.DisplayName">
+                            @Ui.Avatar(me, "md")<span class="d-none d-lg-inline vp-user-name">@me.DisplayName</span><i class="bi bi-chevron-down d-none d-lg-inline" aria-hidden="true"></i>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end" style="min-width:250px">
+                            <div class="px-3 py-2 d-flex align-items-center gap-2">
+                                @Ui.Avatar(me, "lg")
+                                <div class="min-w-0"><div class="fw-semibold text-truncate">@me.DisplayName</div><div class="small text-body-tertiary text-truncate">@me.Email</div><div class="x-small text-body-tertiary text-truncate">@company</div></div>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="/portal/account"><i class="bi bi-person" aria-hidden="true"></i>Account &amp; security</a>
+                            <a class="dropdown-item" href="/portal/account/password"><i class="bi bi-key" aria-hidden="true"></i>Change password</a>
+                            <div class="dropdown-divider"></div>
+                            <form method="post" action="/logout" class="m-0">
+                                <input type="hidden" name="__RequestVerificationToken" value="@token" />
+                                <button class="dropdown-item"><i class="bi bi-box-arrow-right" aria-hidden="true"></i>Sign out</button>
+                            </form>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </header>
+
+    <main id="main" class="vp-main" tabindex="-1">
+        @RenderBody()
+    </main>
+
+    <footer class="vp-footer">
+        <div class="vp-footer-inner">
+            <span><i class="bi bi-shield-lock" aria-hidden="true"></i> You see only what @Portal.OrganizationName shares with @company. Everything you submit is recorded with your name and the time.</span>
+            <span class="text-body-tertiary">@Portal.OrganizationName supplier portal · powered by Vellum</span>
+        </div>
+    </footer>
+
+    <div class="modal fade" id="vl-timeout" tabindex="-1" aria-labelledby="vl-timeout-title">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+            <div class="modal-content">
+                <div class="modal-body text-center p-4">
+                    <div class="vl-empty-icon tone-warn mb-3"><i class="bi bi-hourglass-split" aria-hidden="true"></i></div>
+                    <h2 class="h5" id="vl-timeout-title">Your session is about to end</h2>
+                    <p class="text-body-secondary mb-1">For security, you'll be signed out after a period of inactivity.</p>
+                    <div class="display-6 fw-bold my-2 tabular" data-countdown>2:00</div>
+                    <p class="small text-body-tertiary">Save your draft to keep your answers.</p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <form method="post" action="/logout" class="m-0"><input type="hidden" name="__RequestVerificationToken" value="@token" /><button class="btn btn-light">Sign out now</button></form>
+                    <button type="button" class="btn btn-primary" data-stay><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Stay signed in</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (toast != null)
+    {
+        <span hidden data-toast="@toast" data-kind="@toastKind"></span>
+    }
+
+    <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/modules/portal.js" asp-append-version="true"></script>
+</body>
+</html>

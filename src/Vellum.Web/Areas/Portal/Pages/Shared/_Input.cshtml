@@ -1,0 +1,37 @@
+@model Vellum.Areas.Portal.Pages.PortalInput
+@{
+    var f = Model.Field;
+    var id = Model.Id;
+    var help = f.Help != null && !f.Help.Contains("supplier portal", StringComparison.OrdinalIgnoreCase) ? f.Help : null;
+    var describedBy = help != null ? id + "-help" : null;
+    var long_ = f.Type == FieldType.TextArea || (f.Type == FieldType.Text && (f.MaxLength ?? 400) > 600);
+}
+<div class="vp-field">
+    <label class="form-label" for="@id">@f.Label@if (f.Required) { <span class="req" aria-hidden="true">*</span><span class="visually-hidden"> (required to submit)</span> }</label>
+    @switch (f.Type)
+    {
+        case FieldType.Date:
+            <input type="date" class="form-control vp-date" id="@id" name="@Model.Name" value="@Model.Value" aria-describedby="@describedBy" />
+            break;
+        case FieldType.Number:
+            <input type="number" step="any" inputmode="decimal" class="form-control" id="@id" name="@Model.Name" value="@Model.Value" aria-describedby="@describedBy" />
+            break;
+        case FieldType.YesNo:
+            <div class="vl-seg" role="radiogroup" aria-label="@f.Label">
+                <input type="radio" class="btn-check" name="@Model.Name" id="@id" value="yes" checked="@(Model.Value == "yes")" /><label for="@id">Yes</label>
+                <input type="radio" class="btn-check" name="@Model.Name" id="@id-n" value="no" checked="@(Model.Value == "no")" /><label for="@id-n">No</label>
+            </div>
+            break;
+        default:
+            if (long_)
+            {
+                <textarea class="form-control vl-autogrow" id="@id" name="@Model.Name" rows="3" maxlength="@f.MaxLength" placeholder="@f.Placeholder" aria-describedby="@describedBy">@Model.Value</textarea>
+            }
+            else
+            {
+                <input class="form-control" id="@id" name="@Model.Name" value="@Model.Value" maxlength="@f.MaxLength" placeholder="@f.Placeholder" aria-describedby="@describedBy" />
+            }
+            break;
+    }
+    @if (help != null) { <div class="form-text" id="@describedBy">@help</div> }
+</div>
