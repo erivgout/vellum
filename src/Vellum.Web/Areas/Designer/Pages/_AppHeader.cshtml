@@ -1,0 +1,48 @@
+@model DesignerHeaderVm
+@{
+    var t = Model.Target;
+    var doc = t.Doc;
+    var href = $"/designer/apps/{t.AppKey}";
+    string Cls(string tab) => Model.Active == tab ? "active" : "";
+}
+<div class="vl-page-head align-items-center dz-apphead">
+    <span class="vl-app-tile lg" style="--app:@doc.Color"><i class="bi @doc.Icon"></i></span>
+    <div class="min-w-0 flex-grow-1">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h1 class="vl-page-title text-truncate">@doc.Name</h1>
+            @if (t.IsNew)
+            {
+                <span class="vl-chip vl-chip-draft"><i class="bi bi-stars"></i>New application · not published</span>
+            }
+            else if (Model.Changes > 0)
+            {
+                <span class="vl-chip vl-chip-draft"><i class="bi bi-pencil-square"></i>Draft · @Ui.Plural(Model.Changes, "change")</span>
+            }
+            else
+            {
+                <span class="vl-chip vl-chip-done"><i class="bi bi-broadcast"></i>Live · version @Model.Version</span>
+            }
+        </div>
+        <p class="vl-page-sub">Design mode. Changes are saved to a draft and reach users only when you publish (DSN-003).</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        @if (!t.IsNew)
+        {
+            <a class="btn btn-light" href="/apps/@t.AppKey" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i>Open live app</a>
+        }
+        @if (t.HasDraft)
+        {
+            <form method="post" action="@href?handler=Discard" class="m-0">
+                @Html.AntiForgeryToken()
+                <button class="btn btn-light" data-confirm="@(t.IsNew ? "Delete this unpublished application? Nothing has been published, so this can't be undone." : "Discard every unpublished change? The live configuration stays as it is.")"><i class="bi bi-trash3"></i>@(t.IsNew ? "Delete draft" : "Discard draft")</button>
+            </form>
+        }
+        <a class="btn btn-primary @(t.HasDraft ? "" : "disabled")" href="@href/publish" aria-disabled="@(t.HasDraft ? "false" : "true")"><i class="bi bi-rocket-takeoff"></i>Review &amp; publish</a>
+    </div>
+</div>
+<nav class="dz-subnav" aria-label="Application designer">
+    <a class="@Cls("overview")" href="@href"><i class="bi bi-grid-1x2"></i>Overview</a>
+    <a class="@Cls("settings")" href="@href/settings"><i class="bi bi-sliders"></i>Settings</a>
+    <a class="@Cls("publish")" href="@href/publish"><i class="bi bi-rocket-takeoff"></i>Publish @if (Model.Changes > 0) { <span class="vl-pill-count">@Model.Changes</span> }</a>
+    <a class="@Cls("history")" href="/designer/versions?app=@t.AppKey"><i class="bi bi-clock-history"></i>History</a>
+</nav>

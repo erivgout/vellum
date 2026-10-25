@@ -1,0 +1,49 @@
+@model List<ObjectChange>
+@* Structured diff (DSN-1202): one entry per changed object, with property-level before → after. *@
+@{
+    var order = new[] { "Application", "Form", "Section", "Field", "Workflow", "Phase", "Route", "View", "Publication" };
+    string Icon(string type) => type switch
+    {
+        "Application" => "bi-grid-1x2", "Form" => "bi-ui-checks-grid", "Section" => "bi-card-heading", "Field" => "bi-input-cursor",
+        "Workflow" => "bi-diagram-3", "Phase" => "bi-signpost", "Route" => "bi-arrow-right-circle", "View" => "bi-table", _ => "bi-gear",
+    };
+}
+@if (Model.Count == 0)
+{
+    <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-check2-all"></i></div><h3>No changes</h3><p>The configuration is identical.</p></div>
+}
+@foreach (var g in Model.GroupBy(c => c.Type).OrderBy(g => Array.IndexOf(order, g.Key) is var i && i < 0 ? 99 : i))
+{
+    <div class="dz-group-label"><i class="bi @Icon(g.Key)"></i>@g.Key changes <span class="vl-pill-count">@g.Count()</span></div>
+    <ul class="dz-changes">
+        @foreach (var c in g)
+        {
+            var props = c.Properties;
+            var tone = c.Action switch { "Created" => "ok", "Deleted" => "bad", _ => "info" };
+            <li class="dz-change">
+                <details open="@(Model.Count <= 6)">
+                    <summary>
+                        <span class="vl-kw vl-kw-@(tone == "ok" ? "success" : tone == "bad" ? "danger" : "info")">@c.Action</span>
+                        <span class="fw-semibold">@c.Label</span>
+                        <span class="mono x-small text-body-tertiary text-truncate">@c.Key</span>
+                        @if (c.Action == "Updated") { <span class="ms-auto x-small text-body-tertiary">@props.Count @(props.Count == 1 ? "property" : "properties")</span> }
+                    </summary>
+                    @if (props.Count > 0)
+                    {
+                        <div class="vl-diff dz-diff">
+                            @foreach (var p in props.Take(40))
+                            {
+                                <span class="k">@p.Name</span>
+                                <span>
+                                    @if (c.Action != "Created" && !string.IsNullOrEmpty(p.Old)) { <span class="old">@p.Old</span> }
+                                    @if (c.Action == "Updated") { <i class="bi bi-arrow-right mx-1 text-body-tertiary" aria-label="changed to"></i> }
+                                    @if (c.Action != "Deleted") { <span class="new">@(string.IsNullOrEmpty(p.New) ? "(empty)" : p.New)</span> }
+                                </span>
+                            }
+                        </div>
+                    }
+                </details>
+            </li>
+        }
+    </ul>
+}
