@@ -26,7 +26,7 @@ public class TemplateModel(AlertStore store, AlertEngine engine, VellumDbContext
         var t = await store.GetAsync(Id);
         if (t == null) return NotFound();
         T = t;
-        Create = AlertCreateConfig.Parse(t.CreateJson);
+        Create = AlertCreateCatalog.Normalize(AlertCreateConfig.Parse(t.CreateJson));
         Match = JsonSerializer.Deserialize<List<string>>(t.MatchColumnsJson) ?? [];
         Extra = JsonSerializer.Deserialize<List<string>>(t.ReportColumnsJson) ?? [];
         To = AlertRecipients.Parse(t.RecipientsJson);
