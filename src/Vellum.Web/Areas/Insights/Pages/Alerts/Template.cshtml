@@ -10,6 +10,10 @@
     var fields = app?.Forms.SelectMany(f => f.Fields).ToList() ?? [];
     string Col(string k) => Vellum.Engine.Views.ViewService.SystemColumns.GetValueOrDefault(k) ?? fields.FirstOrDefault(f => f.Key == k)?.Label ?? k;
     var due = AlertEngine.IsDue(t, DateTime.UtcNow);
+    var cr = Model.Create;
+    var targetForm = cr.Form != null ? cfg.FormsByKey.GetValueOrDefault(cr.Form) : null;
+    var startPhase = targetForm != null ? AlertCreateRules.FindPhase(targetForm, cr.Phase) : null;
+    var perLabel = AlertCreateConfig.PerOptions.FirstOrDefault(o => o.Key == cr.Per).Label ?? cr.Per;
 }
 @section Crumbs {
     <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
@@ -27,7 +31,7 @@
         <p class="vl-page-sub">@(t.Description ?? $"{t.MinMatches} or more records with the same {string.Join(" + ", Model.Match.Select(Col)).ToLowerInvariant()} in {app?.Name ?? t.AppKey} › {view?.Name ?? t.ViewKey}.")</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <form method="post" action="/insights/alerts/@t.Id?handler=Test" class="m-0">@Html.AntiForgeryToken()<button class="btn btn-light" title="Run now and see what would be sent. Nothing is sent."><i class="bi bi-play-circle" aria-hidden="true"></i>Test report</button></form>
+        <form method="post" action="/insights/alerts/@t.Id?handler=Test" class="m-0">@Html.AntiForgeryToken()<button class="btn btn-light" title="@(Model.Creates ? "Run now and see what would be created. Nothing is created." : "Run now and see what would be sent. Nothing is sent.")"><i class="bi bi-play-circle" aria-hidden="true"></i>Test report</button></form>
         <form method="post" action="/insights/alerts/@t.Id?handler=Toggle" class="m-0">@Html.AntiForgeryToken()<button class="btn btn-light"><i class="bi @(t.Enabled ? "bi-pause-circle" : "bi-check-circle")" aria-hidden="true"></i>@(t.Enabled ? "Disable" : "Enable")</button></form>
         <a class="btn btn-primary" href="/insights/alerts/edit/@t.Id"><i class="bi bi-pencil" aria-hidden="true"></i>Edit</a>
     </div>
@@ -47,18 +51,78 @@
                     <dt>Frequency</dt><dd>Every @Ui.Plural(t.FrequencyDays, "day")</dd>
                     <dt>Window</dt><dd>@RelativeDates.Span(t.WindowStart, t.WindowEnd)@(t.IncrementDates ? " · slides each run" : "")</dd>
                     <dt>Next run</dt><dd>@(!t.Enabled ? "Disabled" : due ? "At the next scheduler check" : t.LastReportAt is { } lr ? Shell.Local(lr.AddDays(t.FrequencyDays)).ToString("dd MMM yyyy HH:mm") : "–")</dd>
-                    <dt>Notify</dt>
-                    <dd>
-                        @foreach (var u in Model.To.Users) { <div>@Ui.Avatar(dir.Get(u), showName: true)</div> }
-                        @foreach (var g in Model.To.Groups) { <div><i class="bi bi-people text-body-tertiary" aria-hidden="true"></i> @(dir.Group(g)?.Name ?? g)</div> }
-                        @if (Model.Cc.Users.Count > 0) { <div class="text-body-tertiary small mt-1">Cc @string.Join(", ", Model.Cc.Users.Select(dir.Name))</div> }
-                    </dd>
+                    @if (!Model.Creates)
+                    {
+                        <dt>Notify</dt>
+                        <dd>
+                            @foreach (var u in Model.To.Users) { <div>@Ui.Avatar(dir.Get(u), showName: true)</div> }
+                            @foreach (var g in Model.To.Groups) { <div><i class="bi bi-people text-body-tertiary" aria-hidden="true"></i> @(dir.Group(g)?.Name ?? g)</div> }
+                            @if (Model.Cc.Users.Count > 0) { <div class="text-body-tertiary small mt-1">Cc @string.Join(", ", Model.Cc.Users.Select(dir.Name))</div> }
+                        </dd>
+                    }
+                    else
+                    {
+                        <dt>Action</dt><dd>Create @(targetForm?.Name ?? cr.Form) records</dd>
+                    }
                     <dt>Only on change</dt><dd>@(t.OnlyWhenChanged ? "Yes" : "No")</dd>
                     <dt>Owner</dt><dd>@Ui.Avatar(dir.Get(t.OwnerId), showName: true)</dd>
                 </dl>
-                <div class="mt-3 small"><span class="text-body-tertiary">Subject</span><div class="fw-medium">@t.Subject</div></div>
+                @if (!Model.Creates) { <div class="mt-3 small"><span class="text-body-tertiary">Subject</span><div class="fw-medium">@t.Subject</div></div> }
             </div>
         </section>
+        @if (Model.Creates)
+        {
+            <section class="card mb-4">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-file-earmark-plus" aria-hidden="true"></i>Create a record</h2></div>
+                <div class="card-body">
+                    @if (targetForm == null || startPhase == null)
+                    {
+                        <div class="vl-banner vl-banner-bad mb-3" role="alert"><i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i><div>The target form or starting phase no longer exists. Runs will fail until the alert is edited.</div></div>
+                    }
+                    <dl class="ins-origin">
+                        <dt>Creates</dt><dd>@(targetForm != null ? $"{targetForm.App.Name} › {targetForm.Name}" : cr.Form)</dd>
+                        <dt>Starts in</dt><dd>@(startPhase?.Phase.Name ?? cr.Phase)</dd>
+                        <dt>One record</dt><dd>@perLabel.Replace("One ", "")</dd>
+                        <dt>Due</dt><dd>@(cr.DueDays is { } dd ? $"In {Ui.Plural(dd, "business day")}" : "The phase's own rule")</dd>
+                        <dt>Assign to</dt>
+                        <dd>
+                            @foreach (var u in cr.Users) { <div>@Ui.Avatar(dir.Get(u), showName: true)</div> }
+                            @foreach (var g in cr.Groups) { <div><i class="bi bi-people text-body-tertiary" aria-hidden="true"></i> @(dir.Group(g)?.Name ?? g)</div> }
+                            @if (cr.Users.Count == 0 && cr.Groups.Count == 0) { <span class="text-body-secondary">The phase's assignment rule</span> }
+                        </dd>
+                        <dt>Notify</dt>
+                        <dd>
+                            @foreach (var u in cr.NotifyUsers) { <div>@Ui.Avatar(dir.Get(u), showName: true)</div> }
+                            @foreach (var g in cr.NotifyGroups) { <div><i class="bi bi-people text-body-tertiary" aria-hidden="true"></i> @(dir.Group(g)?.Name ?? g)</div> }
+                            @if (cr.NotifyUsers.Count == 0 && cr.NotifyGroups.Count == 0) { <span class="text-body-secondary">Assignees only</span> }
+                        </dd>
+                        <dt>While open</dt><dd>@(cr.SkipWhileOpen ? "Don't create another" : "Create one each report")</dd>
+                    </dl>
+                    <h3 class="h6 fw-semibold mt-3 mb-1 small">Field values</h3>
+                    <ul class="ins-ac-summary">
+                        @foreach (var fv in cr.Fields)
+                        {
+                            var fd = targetForm?.Fields.FirstOrDefault(f => f.Key == fv.Field);
+                            var req = fd != null && AlertCreateRules.IsRequired(fd, startPhase?.Phase);
+                            <li><span class="k">@(fd?.Label ?? fv.Field)@if (req) { <span class="visually-hidden"> (required)</span><span class="text-danger" aria-hidden="true"> *</span> }</span><code>@fv.Value</code></li>
+                        }
+                        @if (targetForm != null)
+                        {
+                            foreach (var fd in AlertCreateRules.RequiredFields(targetForm, startPhase?.Phase).Where(f => cr.Fields.All(x => x.Field != f.Key)))
+                            {
+                                var dv = AlertCreateCatalog.DefaultLabel(fd, cfg);
+                                <li>
+                                    <span class="k">@fd.Label<span class="visually-hidden"> (required)</span><span class="text-danger" aria-hidden="true"> *</span></span>
+                                    @if (dv != null) { <span class="text-body-secondary">Form default: @dv</span> }
+                                    else if (fd.VisibleWhen != null || fd.ReadOnly) { <span class="text-body-secondary">@(fd.ReadOnly ? "Computed by the form" : "Only when shown")</span> }
+                                    else { <span class="text-danger"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> Not set: runs will fail</span> }
+                                </li>
+                            }
+                        }
+                    </ul>
+                </div>
+            </section>
+        }
         @if (!Model.HasReports)
         {
             <form method="post" action="/insights/alerts/@t.Id?handler=Delete" class="mb-4">@Html.AntiForgeryToken()

@@ -61,8 +61,10 @@ public class InsightsAlertTemplate
     public int FrequencyDays { get; set; } = 1;
     public bool Enabled { get; set; } = true;
     public bool OnlyWhenChanged { get; set; }
-    /// <summary>notify (create-record is not offered in this release).</summary>
+    /// <summary>notify (RPT-602) | create (RPT-603).</summary>
     public string Action { get; set; } = "notify";
+    /// <summary>RPT-603: the create-record action (<see cref="AlertCreateConfig"/> as JSON). Null for notify alerts.</summary>
+    public string? CreateJson { get; set; }
     /// <summary>JSON: { "users": [ids], "groups": [keys] }.</summary>
     public string RecipientsJson { get; set; } = "{}";
     /// <summary>JSON: { "users": [ids] }.</summary>
@@ -91,12 +93,62 @@ public class InsightsAlertReport
     public string ResultJson { get; set; } = "{}";
     public int GroupCount { get; set; }
     public int RecordCount { get; set; }
-    /// <summary>Notified | Failed | NoMatches | Unchanged | Test</summary>
+    /// <summary>Pending (action not finished yet) | Notified | Created | Skipped | Failed | NoMatches | Unchanged | Test</summary>
     public string ActionStatus { get; set; } = "";
     public string? ActionDetail { get; set; }
     public string ResultHash { get; set; } = "";
     /// <summary>Users notified (JSON array of ids): they may open the report.</summary>
     public string NotifiedJson { get; set; } = "[]";
+}
+
+/// <summary>
+/// RPT-603 / INV-127: one attempt of an alert's create-record action for one item of a report (a group, a matched record,
+/// or the whole report). "Created" rows are written in the same transaction as the record they describe and are unique per
+/// report and item, so a retried or resumed run never creates a duplicate. Failures and dry-run previews are kept too, so
+/// the report shows exactly what happened (or, for a test report, what would happen).
+/// </summary>
+public class InsightsAlertCreation
+{
+    public long Id { get; set; }
+    public long ReportId { get; set; }
+    public int TemplateId { get; set; }
+    /// <summary>Stable key of the item: "report", "g:{hash of the group values}" or "r:{record id}".</summary>
+    public string ItemKey { get; set; } = "";
+    /// <summary>Human label of the item, e.g. the group's values or the matched record's number.</summary>
+    public string ItemLabel { get; set; } = "";
+    /// <summary>Created | Failed | Skipped | Preview (test report: would be created) | PreviewFailed (test report: would fail)</summary>
+    public string Status { get; set; } = "";
+    public Guid? RecordId { get; set; }
+    public string? RecordNumber { get; set; }
+    public string? RecordTitle { get; set; }
+    /// <summary>Failure or skip reason (plain text).</summary>
+    public string? Message { get; set; }
+    /// <summary>JSON <see cref="AlertCreationDetail"/>: target, phase, due date, assignees and field values (created or would be).</summary>
+    public string? DetailJson { get; set; }
+    /// <summary>JSON array of the matched source record ids the created record was linked to.</summary>
+    public string SourcesJson { get; set; } = "[]";
+    public DateTime At { get; set; }
+}
+
+public sealed class InsightsAlertCreationConfig : IEntityTypeConfiguration<InsightsAlertCreation>
+{
+    public void Configure(EntityTypeBuilder<InsightsAlertCreation> e)
+    {
+        e.ToTable("InsightsAlertCreations");
+        e.HasIndex(x => x.ReportId);
+        e.HasIndex(x => new { x.TemplateId, x.ItemKey });
+        e.HasIndex(x => x.RecordId);
+        // Idempotency (RPT-603): at most one created record per report and item, enforced by the database.
+        e.HasIndex(x => new { x.ReportId, x.ItemKey }).IsUnique().HasFilter("[Status] = 'Created'").HasDatabaseName("UX_InsightsAlertCreations_Created");
+        e.Property(x => x.ItemKey).HasMaxLength(100);
+        e.Property(x => x.ItemLabel).HasMaxLength(1000);
+        e.Property(x => x.Status).HasMaxLength(20);
+        e.Property(x => x.RecordNumber).HasMaxLength(100);
+        e.Property(x => x.RecordTitle).HasMaxLength(1000);
+        e.Property(x => x.Message).HasMaxLength(4000);
+        e.Property(x => x.DetailJson).HasMaxLength(-1);
+        e.Property(x => x.SourcesJson).HasMaxLength(-1);
+    }
 }
 
 public sealed class InsightsChartConfig : IEntityTypeConfiguration<InsightsChart>
@@ -123,6 +175,7 @@ public sealed class InsightsAlertTemplateConfig : IEntityTypeConfiguration<Insig
         e.Property(x => x.ReportColumnsJson).HasMaxLength(2000);
         e.Property(x => x.RecipientsJson).HasMaxLength(4000);
         e.Property(x => x.CcJson).HasMaxLength(4000);
+        e.Property(x => x.CreateJson).HasMaxLength(-1);
     }
 }
 
@@ -149,7 +202,7 @@ public static class InsightsSchema
 {
     private static volatile bool _ready;
     private static readonly SemaphoreSlim Gate = new(1, 1);
-    private static readonly string[] Tables = ["InsightsCharts", "InsightsAlertTemplates", "InsightsAlertReports"];
+    private static readonly string[] Tables = ["InsightsCharts", "InsightsAlertTemplates", "InsightsAlertReports", "InsightsAlertCreations"];
 
     public static async Task EnsureAsync(VellumDbContext db)
     {

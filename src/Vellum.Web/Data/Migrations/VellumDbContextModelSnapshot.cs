@@ -2561,6 +2561,78 @@ namespace Vellum.Data.Migrations
                     b.ToTable("DesignerLocks", (string)null);
                 });
 
+            modelBuilder.Entity("Vellum.Modules.Insights.InsightsAlertCreation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DetailJson")
+                        .HasMaxLength(-1)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ItemKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ItemLabel")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid?>("RecordId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RecordNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("RecordTitle")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long>("ReportId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SourcesJson")
+                        .IsRequired()
+                        .HasMaxLength(-1)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("TemplateId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordId");
+
+                    b.HasIndex("ReportId");
+
+                    b.HasIndex("ReportId", "ItemKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_InsightsAlertCreations_Created")
+                        .HasFilter("[Status] = 'Created'");
+
+                    b.HasIndex("TemplateId", "ItemKey");
+
+                    b.ToTable("InsightsAlertCreations", (string)null);
+                });
+
             modelBuilder.Entity("Vellum.Modules.Insights.InsightsAlertReport", b =>
                 {
                     b.Property<long>("Id")
@@ -2658,6 +2730,10 @@ namespace Vellum.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("CreateJson")
+                        .HasMaxLength(-1)
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");

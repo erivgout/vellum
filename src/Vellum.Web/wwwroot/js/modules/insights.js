@@ -85,6 +85,7 @@
     const limitsSel = $("[data-ins-limits]", form);
     const limits = limitsSel && limitsTypes.includes(type) && cmp === "none" ? limitsSel.value : "none";
     return {
+      action: $("[name='Input.Action']:checked", form)?.value || "notify",
       type, cat: kind($("[data-ins-cat]", form)), cmp,
       agg: val("Def.Aggregate"), range: val("Def.Range"), loc: val("Def.LocationScope"), limits,
       lperiod: val("Def.LimitsPeriod"),

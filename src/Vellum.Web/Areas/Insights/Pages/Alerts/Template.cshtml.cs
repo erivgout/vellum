@@ -17,12 +17,16 @@ public class TemplateModel(AlertStore store, AlertEngine engine, VellumDbContext
     public List<string> Extra { get; private set; } = [];
     public AlertRecipients To { get; private set; } = new();
     public AlertRecipients Cc { get; private set; } = new();
+    /// <summary>RPT-603: the create-record action (when the alert creates records).</summary>
+    public AlertCreateConfig Create { get; private set; } = new();
+    public bool Creates => T.Action == "create";
 
     public async Task<IActionResult> OnGetAsync()
     {
         var t = await store.GetAsync(Id);
         if (t == null) return NotFound();
         T = t;
+        Create = AlertCreateCatalog.Normalize(AlertCreateConfig.Parse(t.CreateJson));
         Match = JsonSerializer.Deserialize<List<string>>(t.MatchColumnsJson) ?? [];
         Extra = JsonSerializer.Deserialize<List<string>>(t.ReportColumnsJson) ?? [];
         To = AlertRecipients.Parse(t.RecipientsJson);
@@ -31,7 +35,7 @@ public class TemplateModel(AlertStore store, AlertEngine engine, VellumDbContext
         return Page();
     }
 
-    /// <summary>RPT-605: run now, even when disabled. Nothing is sent; the report shows what would happen.</summary>
+    /// <summary>RPT-605: run now, even when disabled. Nothing is sent or created; the report shows what would happen.</summary>
     public async Task<IActionResult> OnPostTestAsync()
     {
         if (await store.GetAsync(Id) == null) return NotFound();

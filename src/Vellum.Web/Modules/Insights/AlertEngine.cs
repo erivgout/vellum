@@ -65,12 +65,12 @@ public sealed class AlertFailure(string message) : Exception(message);
 /// <summary>
 /// Threshold alerts (RPT §7.6). The watched view is evaluated as the template owner, so a report never contains records
 /// the owner can't open (INV-081); report pages re-trim for whoever views them. A run always produces a report; when
-/// the notify action fails, the failure is raised to the owner and administrators as a safety-critical alert
-/// (RPT-606, SAF-020) instead of failing silently.
+/// the notify (RPT-602) or create-record (RPT-603, <see cref="AlertCreateAction"/>) action fails, the failure is raised to
+/// the owner and administrators as a safety-critical alert (RPT-606, SAF-020) instead of failing silently.
 /// </summary>
 [ScopedService]
 public sealed partial class AlertEngine(IServiceScopeFactory scopes, VellumDbContext db, NotificationService notify, NumberingService numbers,
-    AuditService audit, UserDirectory dir, ConfigCache cfg)
+    AuditService audit, UserDirectory dir, ConfigCache cfg, AlertCreateAction creator)
 {
     public const int MaxRecords = 20_000;
     public static readonly string[] Placeholders = ["name", "number", "app", "view", "groups", "records", "minimum", "date", "link"];
@@ -93,13 +93,22 @@ public sealed partial class AlertEngine(IServiceScopeFactory scopes, VellumDbCon
         return t.LastReportAt == null || now >= t.LastReportAt.Value.AddDays(Math.Max(1, t.FrequencyDays)).AddMinutes(-30);
     }
 
-    /// <summary>Run a template now. <paramref name="test"/> (RPT-605) runs even when disabled and sends nothing.</summary>
+    /// <summary>
+    /// Run a template now. <paramref name="test"/> (RPT-605) runs even when disabled, sends nothing and creates nothing
+    /// (a create-record action is dry-run). A real run whose action didn't finish (the report is still Pending, for example
+    /// after a crash) is resumed instead of repeated, so it never notifies or creates twice.
+    /// </summary>
     public async Task<InsightsAlertReport> RunAsync(int templateId, bool manual, bool test, DateTime? now = null)
     {
         await InsightsSchema.EnsureAsync(db);
         var at = now ?? DateTime.UtcNow;
         var t = await db.Set<InsightsAlertTemplate>().FirstAsync(x => x.Id == templateId);
-        var report = new InsightsAlertReport { TemplateId = t.Id, GeneratedAt = at, IsTest = test, Manual = manual };
+        if (!test && await db.Set<InsightsAlertReport>().Where(r => r.TemplateId == t.Id && !r.IsTest && r.ActionStatus == "Pending")
+                .OrderBy(r => r.Id).FirstOrDefaultAsync() is { } pending)
+            // While Pending, a detail is only ever the evaluation failure (and then there are no matches to act on).
+            return await CompleteAsync(t, pending, manual, at, evaluationFailure: pending.GroupCount == 0 ? pending.ActionDetail : null, retry: false);
+
+        var report = new InsightsAlertReport { TemplateId = t.Id, GeneratedAt = at, IsTest = test, Manual = manual, ActionStatus = "Pending" };
         report.Number = $"ALR-{await numbers.NextAsync("insights-alert-report"):D5}";
         var c = cfg.Current;
         var app = c.AppsByKey.GetValueOrDefault(t.AppKey);
@@ -124,12 +133,76 @@ public sealed partial class AlertEngine(IServiceScopeFactory scopes, VellumDbCon
         report.GroupCount = result.Groups.Count;
         report.RecordCount = result.Groups.Sum(g => g.Count);
         report.ResultHash = Hash(result);
+        report.ActionDetail = failure; // kept while Pending so a resumed run knows the evaluation failed
         db.Set<InsightsAlertReport>().Add(report);
         await db.SaveChangesAsync();
+        return await CompleteAsync(t, report, manual, at, failure, retry: false);
+    }
+
+    /// <summary>
+    /// RPT-603: retry the create-record action of a report whose action failed (or didn't finish). Items that already have a
+    /// created record are skipped (idempotent), so only the missing records are created. Notify actions can't be retried:
+    /// their messages were already sent.
+    /// </summary>
+    public async Task<InsightsAlertReport> RetryAsync(long reportId)
+    {
+        await InsightsSchema.EnsureAsync(db);
+        var report = await db.Set<InsightsAlertReport>().FirstAsync(r => r.Id == reportId);
+        var t = await db.Set<InsightsAlertTemplate>().FirstAsync(x => x.Id == report.TemplateId);
+        if (report.IsTest) throw new AlertFailure("Test reports never create records, so there is nothing to retry. Run a new test report instead.");
+        if (t.Action != "create") throw new AlertFailure("Only create-record actions can be retried: the notifications of this report were already sent.");
+        if (report.ActionStatus is not ("Failed" or "Pending")) throw new AlertFailure("This report's action didn't fail, so there is nothing to retry.");
+        var evaluationFailed = report.GroupCount == 0 && report.RecordCount == 0 && report.ActionStatus == "Failed";
+        if (evaluationFailed) throw new AlertFailure("The view couldn't be evaluated when this report ran, so it has no matches to act on. Run the alert again instead.");
+        return await CompleteAsync(t, report, report.Manual, DateTime.UtcNow, null, retry: true);
+    }
+
+    /// <summary>Carry out (or resume) the action of a saved report and finish it.</summary>
+    private async Task<InsightsAlertReport> CompleteAsync(InsightsAlertTemplate t, InsightsAlertReport report, bool manual, DateTime at, string? evaluationFailure, bool retry)
+    {
+        var test = report.IsTest;
+        var failure = evaluationFailure;
+        var result = JsonSerializer.Deserialize<AlertResult>(report.ResultJson, AlertRecipients.JsonOpts) ?? new AlertResult();
+        var c = cfg.Current;
+        var app = c.AppsByKey.GetValueOrDefault(t.AppKey);
+        var view = app?.Views.FirstOrDefault(v => v.Key == t.ViewKey);
         var url = $"/insights/alerts/reports/{report.Id}";
 
-        var notified = new List<int>();
-        if (failure == null)
+        var notified = AlertStore.Notified(report);
+        if (failure == null && t.Action == "create")
+        {
+            try
+            {
+                var form = AlertCreateAction.ConfigOf(t).Form is { } fk ? c.FormsByKey.GetValueOrDefault(fk) : null;
+                var formName = form?.Name ?? "record";
+                if (report.GroupCount == 0)
+                {
+                    report.ActionStatus = test ? "Test" : "NoMatches";
+                    report.ActionDetail = test ? "Test run: no group reached the minimum, so nothing would be created." : "No group reached the minimum. Nothing was created.";
+                }
+                else if (!test && !retry && t.OnlyWhenChanged && await db.Set<InsightsAlertReport>().Where(r => r.TemplateId == t.Id && !r.IsTest && r.Id != report.Id && r.ActionStatus != "Pending")
+                             .OrderByDescending(r => r.Id).Select(r => r.ResultHash).FirstOrDefaultAsync() == report.ResultHash)
+                {
+                    report.ActionStatus = "Unchanged";
+                    report.ActionDetail = "The results are the same as the previous run, so nothing was created (only act when results differ).";
+                }
+                else
+                {
+                    var o = await creator.ExecuteAsync(t, report, result, dryRun: test);
+                    var summary = o.Summary(formName, test);
+                    notified.AddRange(o.Notified);
+                    if (o.Failed > 0) failure = summary;
+                    else
+                    {
+                        report.ActionStatus = test ? (o.WouldFail > 0 ? "Failed" : "Test") : o.Created + o.Already > 0 ? "Created" : "Skipped";
+                        report.ActionDetail = summary;
+                    }
+                }
+            }
+            catch (AlertFailure ex) { failure = ex.Message; }
+            catch (Exception ex) when (ex is not OperationCanceledException) { failure = "The create-record action failed: " + ex.GetBaseException().Message; }
+        }
+        else if (failure == null)
         {
             try
             {
@@ -148,7 +221,7 @@ public sealed partial class AlertEngine(IServiceScopeFactory scopes, VellumDbCon
                     report.ActionStatus = "NoMatches";
                     report.ActionDetail = "No group reached the minimum. Nothing was sent.";
                 }
-                else if (t.OnlyWhenChanged && await db.Set<InsightsAlertReport>().Where(r => r.TemplateId == t.Id && !r.IsTest && r.Id != report.Id)
+                else if (t.OnlyWhenChanged && await db.Set<InsightsAlertReport>().Where(r => r.TemplateId == t.Id && !r.IsTest && r.Id != report.Id && r.ActionStatus != "Pending")
                              .OrderByDescending(r => r.Id).Select(r => r.ResultHash).FirstOrDefaultAsync() == report.ResultHash)
                 {
                     report.ActionStatus = "Unchanged";
@@ -185,19 +258,23 @@ public sealed partial class AlertEngine(IServiceScopeFactory scopes, VellumDbCon
         }
         report.NotifiedJson = JsonSerializer.Serialize(notified.Distinct().ToList());
 
-        t.LastRunAt = at;
-        if (!test)
+        if (!retry)
         {
-            t.LastReportAt = at;
-            if (t.IncrementDates && !manual)
+            t.LastRunAt = at;
+            if (!test)
             {
-                if (t.WindowStart is { } ws) t.WindowStart = ws.AddDays(t.FrequencyDays);
-                if (t.WindowEnd is { } we) t.WindowEnd = we.AddDays(t.FrequencyDays);
+                t.LastReportAt = at;
+                if (t.IncrementDates && !manual)
+                {
+                    if (t.WindowStart is { } ws) t.WindowStart = ws.AddDays(t.FrequencyDays);
+                    if (t.WindowEnd is { } we) t.WindowEnd = we.AddDays(t.FrequencyDays);
+                }
             }
         }
-        audit.Global(failure != null ? "Alert action failed" : "Alert report generated",
+        // The system log (Administration › Audit trail) records every outcome, failures included (INV-127, RPT-606).
+        audit.Global(retry ? (failure != null ? "Alert action retry failed" : "Alert action retried") : failure != null ? "Alert action failed" : "Alert report generated",
             $"{report.Number} from {t.Number} \"{t.Name}\": {report.GroupCount} group(s), {report.RecordCount} record(s); action {report.ActionStatus}" +
-            (failure != null ? $": {failure}" : "") + (test ? " (test report)" : ""));
+            (failure != null ? $": {failure}" : report.ActionStatus is "Created" or "Skipped" ? $": {report.ActionDetail}" : "") + (test ? " (test report)" : ""));
         await db.SaveChangesAsync();
         return report;
     }
@@ -325,7 +402,7 @@ public sealed class InsightsAlertJob(VellumDbContext db, AlertEngine engine) : I
 {
     public string Key => "insights-alerts";
     public string Name => "Insights threshold alerts";
-    public string Description => "Evaluates enabled alert templates, produces alert reports and notifies recipients. Failed actions are raised to the owner and administrators.";
+    public string Description => "Evaluates enabled alert templates, produces alert reports, and notifies recipients or creates records. Failed actions are raised to the owner and administrators.";
     public int DefaultIntervalMinutes => 60;
 
     public async Task<JobResult> RunAsync(JobContext ctx, CancellationToken ct)
