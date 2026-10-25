@@ -131,6 +131,21 @@ public sealed partial class Page(Browser browser, Uri url, HttpStatusCode status
         return new FormFill(this, form ?? throw new Xunit.Sdk.XunitException($"'{elementCss}' is not inside a form on {Path}."));
     }
 
+    /// <summary>
+    /// Add a subform row the way the "Add row" button does: the section's row template is copied into the table with a
+    /// fresh index. Returns the index, so the row's fields are "r.{section}.{index}.{fieldKey}". Fill forms after adding rows.
+    /// </summary>
+    public int AddRow(string section)
+    {
+        var sf = One($"[data-subform='{section}']");
+        var tpl = sf.QuerySelector("template[data-row-template]") as IHtmlTemplateElement
+            ?? throw new Xunit.Sdk.XunitException($"Subform '{section}' on {Path} can't get new rows here.");
+        var index = 900000 + sf.QuerySelectorAll("tbody tr[data-row]").Length;
+        var html = string.Concat(tpl.Content.ChildNodes.OfType<IElement>().Select(e => e.OuterHtml)).Replace("__INDEX__", index.ToString());
+        sf.QuerySelector("tbody")!.Insert(AdjacentPosition.BeforeEnd, html);
+        return index;
+    }
+
     public string AntiforgeryToken => Doc.QuerySelector("input[name=__RequestVerificationToken]")?.GetAttribute("value")
         ?? Doc.QuerySelector("meta[name=csrf-token]")?.GetAttribute("content")
         ?? throw new Xunit.Sdk.XunitException($"No antiforgery token on {Path}.");
