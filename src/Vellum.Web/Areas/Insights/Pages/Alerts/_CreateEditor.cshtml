@@ -1,0 +1,175 @@
+@model Vellum.Areas.Insights.Pages.Alerts.EditModel
+@{
+    // RPT-603 create-record action editor. Field rows, pickers filtered by the chosen form, the required-field check
+    // (INV-127) and token validation are driven by wwwroot/js/modules/insights-create.js from the #ins-create-catalog island.
+    var c = Model.Input.Create;
+    var dir = Shell.Directory;
+    var apps = Model.CreateCatalog.Apps(Model.OwnerId);
+    var app = apps.FirstOrDefault(x => x.App.Key == c.App) ?? apps.FirstOrDefault();
+    var form = app?.Forms.FirstOrDefault(f => f.Form.Key == c.Form) ?? app?.Forms.FirstOrDefault();
+    var ownerName = dir.Name(Model.OwnerId);
+    string Err(string f) => Model.FieldError("Create." + f);
+}
+<div class="card-header d-flex align-items-center gap-2">
+    <h2 class="card-title-sm"><i class="bi bi-file-earmark-plus" aria-hidden="true"></i>Create a record</h2>
+    <span class="ms-auto small text-body-tertiary">Created by the system on behalf of @ownerName</span>
+</div>
+@if (apps.Count == 0)
+{
+    <div class="vl-empty">
+        <div class="vl-empty-icon"><i class="bi bi-lock"></i></div>
+        <h3>No form to create records in</h3>
+        <p>@ownerName can't create records in any application, so this alert can only notify people.</p>
+    </div>
+}
+else
+{
+    <div data-ins-create>
+        <div class="ins-step">
+            <div class="ins-step-title"><span class="ins-step-num">1</span>Record</div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="ac-app">Application</label>
+                    <select class="form-select" id="ac-app" name="Input.Create.App" data-ac-app>
+                        @foreach (var x in apps) { <option value="@x.App.Key" selected="@(x.App.Key == app?.App.Key)">@x.App.Name</option> }
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="ac-form">Form</label>
+                    <select class="form-select" id="ac-form" name="Input.Create.Form" data-ac-form aria-describedby="ac-form-help">
+                        @if (app != null) { foreach (var f in app.Forms) { <option value="@f.Form.Key" selected="@(f.Form.Key == form?.Form.Key)">@f.Form.Name</option> } }
+                    </select>
+                    <div class="form-text" id="ac-form-help">Only forms @ownerName may create records in.</div>
+                    @if (Err("Form") is { Length: > 0 } e0) { <div class="invalid-feedback d-block">@e0</div> }
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="ac-phase">Starting phase</label>
+                    <select class="form-select" id="ac-phase" name="Input.Create.Phase" data-ac-phase aria-describedby="ac-phase-help">
+                        @if (form != null) { foreach (var (w, p) in form.Phases) { var v = AlertCreateRules.PhaseValue(w, p); <option value="@v" selected="@(v == c.Phase)">@p.Name</option> } }
+                    </select>
+                    <div class="form-text" id="ac-phase-help">The phases a new record can start in.</div>
+                    @if (Err("Phase") is { Length: > 0 } e1) { <div class="invalid-feedback d-block">@e1</div> }
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="ac-due">Due in</label>
+                    <div class="input-group"><input class="form-control" type="number" min="0" max="365" id="ac-due" name="Input.Create.DueDays" value="@c.DueDays" aria-describedby="ac-due-help" /><span class="input-group-text">business days</span></div>
+                    <div class="form-text" id="ac-due-help" data-ac-due-help>Weekends and holidays from the business calendar are skipped. Blank uses the phase's own due date.</div>
+                    @if (Err("DueDays") is { Length: > 0 } e2) { <div class="invalid-feedback d-block">@e2</div> }
+                </div>
+                <div class="col-12">
+                    <span class="form-label d-block" id="ac-per-label">Create</span>
+                    <div class="ins-per" role="radiogroup" aria-labelledby="ac-per-label">
+                        @foreach (var (key, label, help) in AlertCreateConfig.PerOptions)
+                        {
+                            <input type="radio" class="btn-check" name="Input.Create.Per" id="ac-per-@key" value="@key" checked="@(c.Per == key)" />
+                            <label class="ins-choice ins-choice-sm" for="ac-per-@key"><span><span class="ins-choice-title">@label</span><span class="ins-choice-sub">@help</span></span></label>
+                        }
+                    </div>
+                    @if (Err("Per") is { Length: > 0 } e3) { <div class="invalid-feedback d-block">@e3</div> }
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="ac-skip" name="Input.Create.SkipWhileOpen" value="true" checked="@c.SkipWhileOpen" aria-describedby="ac-skip-help" />
+                        <label class="form-check-label" for="ac-skip">Don't create another while the last one for the same group is still open</label>
+                        <input type="hidden" name="Input.Create.SkipWhileOpen" value="false" />
+                        <div class="form-text" id="ac-skip-help">Keeps a daily alert from opening a new record every day for the same problem.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-step">
+            <div class="ins-step-title"><span class="ins-step-num">2</span>People</div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="ac-users-input">Assign to</label>
+                    <div class="vl-picker" id="ac-users" data-picker="users" data-name="Input.Create.Users" data-multi="true" data-ac-assignees>
+                        <div class="vl-picker-box">
+                            @foreach (var u in c.Users.Select(id => dir.Get(id)).OfType<UserInfo>())
+                            {
+                                <span class="vl-token">@Ui.Avatar(u, "xs")<span class="t">@u.DisplayName</span><button type="button" class="x" aria-label="Remove @u.DisplayName">×</button><input type="hidden" name="Input.Create.Users" value="@u.Id" /></span>
+                            }
+                            <input type="text" id="ac-users-input" placeholder="Add people…" aria-describedby="ac-assign-help" autocomplete="off" />
+                        </div>
+                        <div class="vl-picker-menu" role="listbox"></div>
+                    </div>
+                    <div class="form-text" id="ac-assign-help" data-ac-assign-help>Active people only.</div>
+                    @if (Err("Users") is { Length: > 0 } e4) { <div class="invalid-feedback d-block">@e4</div> }
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="ac-groups">Assign to groups</label>
+                    <select class="form-select" id="ac-groups" name="Input.Create.Groups" multiple size="3" data-ac-assign-groups aria-describedby="ac-groups-help">
+                        @foreach (var g in dir.Groups.Where(g => !g.Inactive)) { <option value="@g.Key" selected="@c.Groups.Contains(g.Key)">@g.Name</option> }
+                    </select>
+                    <div class="form-text" id="ac-groups-help">Every active member is assigned.</div>
+                    @if (Err("Groups") is { Length: > 0 } e5) { <div class="invalid-feedback d-block">@e5</div> }
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="ac-notify-input">Notify</label>
+                    <div class="vl-picker" id="ac-notify" data-picker="users" data-name="Input.Create.NotifyUsers" data-multi="true">
+                        <div class="vl-picker-box">
+                            @foreach (var u in c.NotifyUsers.Select(id => dir.Get(id)).OfType<UserInfo>())
+                            {
+                                <span class="vl-token">@Ui.Avatar(u, "xs")<span class="t">@u.DisplayName</span><button type="button" class="x" aria-label="Remove @u.DisplayName">×</button><input type="hidden" name="Input.Create.NotifyUsers" value="@u.Id" /></span>
+                            }
+                            <input type="text" id="ac-notify-input" placeholder="Add people…" aria-describedby="ac-notify-help" autocomplete="off" />
+                        </div>
+                        <div class="vl-picker-menu" role="listbox"></div>
+                    </div>
+                    <div class="form-text" id="ac-notify-help">Told about each record created. Assignees are notified anyway.</div>
+                    @if (Err("NotifyUsers") is { Length: > 0 } e6) { <div class="invalid-feedback d-block">@e6</div> }
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="ac-ngroups">Notify groups</label>
+                    <select class="form-select" id="ac-ngroups" name="Input.Create.NotifyGroups" multiple size="3">
+                        @foreach (var g in dir.Groups.Where(g => !g.Inactive)) { <option value="@g.Key" selected="@c.NotifyGroups.Contains(g.Key)">@g.Name</option> }
+                    </select>
+                    @if (Err("NotifyGroups") is { Length: > 0 } e7) { <div class="invalid-feedback d-block">@e7</div> }
+                </div>
+            </div>
+        </div>
+
+        <div class="ins-step">
+            <div class="ins-step-title"><span class="ins-step-num">3</span>Field values</div>
+            <p class="small text-body-secondary mb-2">
+                Required fields are listed first and must all get a value, or the record isn't created and the failure is raised (INV-127).
+                Values are templates: type text, or insert tokens such as <code>{group}</code> or <code>{today+30}</code>.
+            </p>
+            <div data-ac-status role="status" aria-live="polite"></div>
+            @if (Err("Fields") is { Length: > 0 } e8)
+            {
+                <div class="vl-banner vl-banner-bad" role="alert"><i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i><div>@e8</div></div>
+            }
+            <div class="ins-ac-rows" data-ac-rows></div>
+            <div data-ac-lists hidden></div>
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                <button type="button" class="btn btn-sm btn-light" data-ac-add><i class="bi bi-plus-lg" aria-hidden="true"></i>Add a field</button>
+                <span class="small text-body-tertiary" data-ac-count></span>
+            </div>
+
+            <details class="ins-ac-help mt-3">
+                <summary><i class="bi bi-braces" aria-hidden="true"></i>Token reference</summary>
+                <div class="ins-ac-help-body">
+                    <p class="small mb-2">
+                        Tokens are replaced with values from the alert when the record is created. This is a fixed set of tokens and filters,
+                        not a script: nothing you type here is ever run as code. Write <code>{{</code> or <code>}}</code> for a literal brace.
+                    </p>
+                    <dl class="ins-ac-tokens">
+                        @foreach (var t in AlertTemplate.Tokens) { <dt><code>@t.Token</code></dt><dd>@t.Meaning</dd> }
+                    </dl>
+                    <p class="small fw-semibold mt-3 mb-1">Filters</p>
+                    <p class="small mb-1">Add filters after a bar: <code>{group|upper}</code>, <code>{record.title|truncate:80}</code>, <code>{record.lot_number|default:unknown}</code>.</p>
+                    <dl class="ins-ac-tokens">
+                        @foreach (var f in AlertTemplate.FilterDocs) { <dt><code>@f.Filter</code></dt><dd>@f.Meaning</dd> }
+                    </dl>
+                    <p class="small fw-semibold mt-3 mb-1">How values are read</p>
+                    <ul class="small mb-0 ps-3">
+                        <li>A value that is a single token keeps its type: <code>{record.owner}</code> fills a person field, <code>{records}</code> links every match, <code>{today+30}</code> fills a date.</li>
+                        <li>Choices accept the option's name or key, people a username or full name, dates <code>yyyy-mm-dd</code>. Separate several values with <code>;</code>.</li>
+                        <li>The fields the watched view's forms have are available as <code>{record.KEY}</code>: <span data-ac-record-fields class="text-body-secondary"></span></li>
+                    </ul>
+                </div>
+            </details>
+        </div>
+    </div>
+}

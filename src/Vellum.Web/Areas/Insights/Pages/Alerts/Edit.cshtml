@@ -108,12 +108,35 @@
             </div>
             <div class="col-12 d-flex flex-wrap gap-4">
                 <div class="form-check"><input class="form-check-input" type="checkbox" id="al-en" name="Input.Enabled" value="true" checked="@a.Enabled" /><label class="form-check-label" for="al-en">Enabled</label><input type="hidden" name="Input.Enabled" value="false" /></div>
-                <div class="form-check"><input class="form-check-input" type="checkbox" id="al-chg" name="Input.OnlyWhenChanged" value="true" checked="@a.OnlyWhenChanged" /><label class="form-check-label" for="al-chg">Only notify when the results differ from the previous run</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="al-chg" name="Input.OnlyWhenChanged" value="true" checked="@a.OnlyWhenChanged" /><label class="form-check-label" for="al-chg">Only act when the results differ from the previous run</label></div>
             </div>
         </div>
     </section>
 
     <section class="card mb-3">
+        <div class="card-header"><h2 class="card-title-sm" id="al-action-title"><i class="bi bi-lightning-charge" aria-hidden="true"></i>What the alert does</h2></div>
+        <div class="card-body">
+            <div class="ins-choices" role="radiogroup" aria-labelledby="al-action-title">
+                <input type="radio" class="btn-check" name="Input.Action" id="al-act-notify" value="notify" checked="@(a.Action != "create")" />
+                <label class="ins-choice" for="al-act-notify">
+                    <i class="bi bi-send" aria-hidden="true"></i>
+                    <span><span class="ins-choice-title">Notify people</span><span class="ins-choice-sub">Send a message with a link to the report.</span></span>
+                </label>
+                <input type="radio" class="btn-check" name="Input.Action" id="al-act-create" value="create" checked="@(a.Action == "create")" />
+                <label class="ins-choice" for="al-act-create">
+                    <i class="bi bi-file-earmark-plus" aria-hidden="true"></i>
+                    <span><span class="ins-choice-title">Create a record</span><span class="ins-choice-sub">For example, open a CAPA when complaints about one product repeat.</span></span>
+                </label>
+            </div>
+            @if (Err("Action") is { Length: > 0 } eA) { <div class="invalid-feedback d-block">@eA</div> }
+        </div>
+    </section>
+
+    <section class="card mb-3" data-show="action=create">
+        <partial name="_CreateEditor" model="Model" />
+    </section>
+
+    <section class="card mb-3" data-show="action=notify">
         <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-send" aria-hidden="true"></i>Notify</h2></div>
         <div class="card-body row g-3">
             <div class="col-md-6">
@@ -170,4 +193,6 @@
     </div>
 </form>
 <script type="application/json" id="ins-catalog">@Html.Raw(Model.Catalog.Json())</script>
+<script type="application/json" id="ins-create-catalog">@Html.Raw(Model.CreateCatalog.Json(Model.OwnerId))</script>
+<script type="application/json" id="ins-create-state">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(a.Create.Fields.Select(f => new { field = f.Field, value = f.Value })))</script>
 <script type="application/json" id="vl-directory">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(dir.All.Where(u => u.IsActive).Select(u => new { id = u.Id, name = u.DisplayName, initials = u.Initials, title = u.JobTitle, hue = u.Hue })))</script>

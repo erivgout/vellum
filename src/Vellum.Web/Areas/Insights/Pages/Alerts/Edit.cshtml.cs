@@ -4,8 +4,8 @@ using Vellum.Modules.Insights;
 
 namespace Vellum.Areas.Insights.Pages.Alerts;
 
-/// <summary>Create or edit a threshold alert template (RPT-601/602).</summary>
-public class EditModel(AlertStore store, BuilderCatalog catalog, CurrentUser me) : InsightsPageModel
+/// <summary>Create or edit a threshold alert template (RPT-601/602/603).</summary>
+public class EditModel(AlertStore store, BuilderCatalog catalog, AlertCreateCatalog createCatalog, CurrentUser me) : InsightsPageModel
 {
     [BindProperty(SupportsGet = true)] public int? Id { get; set; }
     [BindProperty] public AlertInput Input { get; set; } = new();
@@ -13,6 +13,9 @@ public class EditModel(AlertStore store, BuilderCatalog catalog, CurrentUser me)
     public InsightsAlertTemplate? Existing { get; private set; }
     public List<ChartIssue> Issues { get; private set; } = [];
     public BuilderCatalog Catalog => catalog;
+    public AlertCreateCatalog CreateCatalog => createCatalog;
+    /// <summary>Records are created on behalf of the template owner, so the target forms are the ones they may create in.</summary>
+    public int OwnerId => Existing?.OwnerId ?? me.Id;
 
     public async Task<IActionResult> OnGetAsync(string? app)
     {
@@ -34,6 +37,7 @@ public class EditModel(AlertStore store, BuilderCatalog catalog, CurrentUser me)
             }
             Input.Users = [me.Id];
             Input.ReportColumns = ["title", "phase", "created"];
+            Input.Create.NotifyUsers = [me.Id];
         }
         return Page();
     }
