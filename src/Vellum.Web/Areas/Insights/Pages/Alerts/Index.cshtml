@@ -72,7 +72,7 @@
         {
             <div class="vl-table-scroll">
                 <table class="table vl-table">
-                    <thead><tr><th scope="col">Number</th><th scope="col">Name</th><th scope="col">Watches</th><th scope="col" class="numeric">Minimum</th><th scope="col">Frequency</th><th scope="col">Status</th><th scope="col">Last report</th><th scope="col">Created by</th></tr></thead>
+                    <thead><tr><th scope="col">Number</th><th scope="col">Name</th><th scope="col">Watches</th><th scope="col" class="numeric">Minimum</th><th scope="col">Action</th><th scope="col">Frequency</th><th scope="col">Status</th><th scope="col">Last report</th><th scope="col">Created by</th></tr></thead>
                     <tbody>
                         @foreach (var t in Model.Templates)
                         {
@@ -82,6 +82,14 @@
                                 <td class="col-title"><span class="t">@t.Name</span></td>
                                 <td class="text-body-secondary">@AppName(t.AppKey) › @(app?.Views.FirstOrDefault(v => v.Key == t.ViewKey)?.Name ?? t.ViewKey)</td>
                                 <td class="numeric">@t.MinMatches</td>
+                                <td class="text-nowrap text-body-secondary">
+                                    @if (t.Action == "create")
+                                    {
+                                        var target = AlertCreateConfig.Parse(t.CreateJson).Form is { } fk ? cfg.FormsByKey.GetValueOrDefault(fk)?.Name ?? fk : "record";
+                                        <i class="bi bi-file-earmark-plus" aria-hidden="true"></i> @($"Create {target}")
+                                    }
+                                    else { <i class="bi bi-send" aria-hidden="true"></i> @("Notify") }
+                                </td>
                                 <td class="text-nowrap">Every @Ui.Plural(t.FrequencyDays, "day")</td>
                                 <td>@if (t.Enabled) { <span class="vl-kw vl-kw-success">Enabled</span> } else { <span class="vl-kw">Disabled</span> }</td>
                                 <td class="text-nowrap text-body-secondary">@(t.LastReportAt is { } at ? Ui.Time(at, Shell.TimeZone) : new Microsoft.AspNetCore.Html.HtmlString("Never"))</td>

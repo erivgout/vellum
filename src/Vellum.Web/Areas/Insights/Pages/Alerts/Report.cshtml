@@ -9,7 +9,10 @@
     var extraCols = Model.Result.Columns.Where(c => !c.Match).ToList();
     var creates = t.Action == "create";
     var createdCount = Model.Creations.Count(c => c.Status == "Created");
-    var failedCount = Model.Creations.Count(c => c.Status is "Failed" or "PreviewFailed");
+    var createdKeys = Model.Creations.Where(c => c.Status == "Created").Select(c => c.ItemKey).ToHashSet();
+    // A failure followed by a successful retry for the same item is shown as an earlier attempt.
+    bool Superseded(InsightsAlertCreation c) => c.Status == "Failed" && createdKeys.Contains(c.ItemKey);
+    var failedCount = Model.Creations.Where(c => c.Status is "Failed" or "PreviewFailed" && !Superseded(c)).Select(c => c.ItemKey).Distinct().Count();
 }
 @section Crumbs {
     <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
@@ -95,8 +98,9 @@ else if (r.ActionDetail != null)
                         var canOpen = c.RecordId is { } rid && Model.VisibleCreated.Contains(rid);
                         <li>
                             <div class="ins-created-head">
-                                @switch (c.Status)
+                                @switch (Superseded(c) ? "Earlier" : c.Status)
                                 {
+                                    case "Earlier": <span class="vl-chip vl-chip-archived"><i class="bi bi-clock-history" aria-hidden="true"></i>Earlier attempt failed</span> break;
                                     case "Created": <span class="vl-chip vl-chip-done"><i class="bi bi-check2-circle" aria-hidden="true"></i>Created</span> break;
                                     case "Preview": <span class="vl-chip vl-chip-draft"><i class="bi bi-eye" aria-hidden="true"></i>Would create</span> break;
                                     case "PreviewFailed": <span class="vl-chip vl-chip-overdue"><i class="bi bi-x-octagon" aria-hidden="true"></i>Would fail</span> break;
@@ -116,7 +120,7 @@ else if (r.ActionDetail != null)
                             </div>
                             @if (c.Message != null)
                             {
-                                <div class="ins-created-msg @(c.Status is "Failed" or "PreviewFailed" ? "bad" : "")">@c.Message</div>
+                                <div class="ins-created-msg @(c.Status is "Failed" or "PreviewFailed" && !Superseded(c) ? "bad" : "")">@c.Message</div>
                             }
                             @if (d != null && c.Status is "Created" or "Preview" or "Failed" or "PreviewFailed")
                             {
