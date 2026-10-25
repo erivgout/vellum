@@ -393,7 +393,7 @@ public sealed partial class SharePointAdminService(
     {
         if (!me.IsAdmin) return new MappingCheck(false, AdminResult.NotAdmin, [], null);
         var mapping = await Mappings.AsNoTracking().Include(m => m.Entries).FirstOrDefaultAsync(m => m.Id == mappingId);
-        var lib = await Libraries.AsNoTracking().Include(l => l.Profile).ThenInclude(p => p.Libraries).FirstOrDefaultAsync(l => l.Id == libraryId);
+        var lib = await Libraries.AsNoTracking().Include(l => l.Profile).FirstOrDefaultAsync(l => l.Id == libraryId);
         if (mapping == null || lib == null) return new MappingCheck(false, "Choose a library to check against.", [], null);
         try
         {
