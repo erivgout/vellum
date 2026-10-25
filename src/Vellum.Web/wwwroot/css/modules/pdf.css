@@ -93,7 +93,7 @@ a.vl-pdf-chip:focus-visible { outline: 0; box-shadow: var(--vl-ring); }
 .pdf-matrix tr.terminal td { background: color-mix(in srgb, var(--vl-surface-3) 60%, transparent); }
 .pdf-tokens { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .pdf-tokens code { font-size: 0.74rem; background: var(--vl-surface-3); border: 1px solid var(--vl-border); border-radius: 6px; padding: 0.05rem 0.4rem; color: var(--vl-text); }
-.pdf-preview { position: relative; aspect-ratio: 8.5 / 11; max-width: 220px; border: 1px solid var(--vl-border); border-radius: 4px; background: #fff; box-shadow: var(--vl-shadow); overflow: hidden; }
+.pdf-preview { position: relative; aspect-ratio: 8.5 / 11; width: 100%; max-width: 200px; border: 1px solid var(--vl-border); border-radius: 4px; background: #fff; box-shadow: var(--vl-shadow); overflow: hidden; }
 .pdf-preview .lines { position: absolute; inset: 14% 12% 18%; background: repeating-linear-gradient(#e7e5e4 0 3px, transparent 3px 12px); opacity: .9; }
 .pdf-preview .mark { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-52deg); font-weight: 800; font-size: 1.15rem; white-space: nowrap; color: var(--pdf-color, #b91c1c); opacity: var(--pdf-opacity, .18); letter-spacing: .02em; }
 .pdf-preview .band { position: absolute; left: 10%; right: 10%; font-size: 0.48rem; font-weight: 640; text-align: center; color: var(--pdf-color, #b91c1c); border: 1px solid currentColor; border-radius: 3px; padding: 1px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #fff; }
