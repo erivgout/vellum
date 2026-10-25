@@ -149,6 +149,17 @@ dotnet tool restore
 dotnet dotnet-ef migrations add <Name> --project src/Vellum.Web --output-dir Data/Migrations
 ```
 
+## Deployment notes
+
+* **Data Protection keys** encrypt stored integration secrets (SharePoint and eMDR credentials). They live in
+  `App_Data/keys` by default, or `Vellum:DataProtection:KeysPath`. Every instance must share that folder, and it must
+  survive redeployments (a persistent volume in containers). Lose it and the stored secrets have to be entered again.
+  On Windows the keys are encrypted with machine-scope DPAPI; elsewhere protect the folder with file-system permissions.
+* **Files** (attachments, renditions) are stored content-addressed under `App_Data/blobs` (or `Vellum:FileRoot`); back
+  them up together with the database.
+* **LibreOffice** (`soffice`) on the server converts Office uploads to PDF renditions. Without it, PDFs and images still
+  get renditions and Office files report a clear conversion failure.
+
 ## Pitfalls
 
 * A `<form method="post">` **without** an `action` attribute gets an antiforgery token injected by the form tag helper. Don't

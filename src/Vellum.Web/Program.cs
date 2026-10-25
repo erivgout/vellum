@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Vellum.Data;
 using Vellum.Engine;
@@ -53,6 +54,14 @@ builder.Services.AddSingleton<Scheduler>();
 if (!builder.Configuration.GetValue("Vellum:DisableScheduler", false))
     builder.Services.AddHostedService(sp => sp.GetRequiredService<Scheduler>());
 builder.Services.AddHttpContextAccessor();
+
+// Data Protection encrypts stored integration secrets (SharePoint, eMDR) and short-lived tickets. The key ring must survive
+// restarts and be shared by every instance, so it lives in a fixed folder (Vellum:DataProtection:KeysPath; put it on a
+// persistent volume in containers). On Windows the keys are encrypted at rest with machine-scope DPAPI.
+var keysPath = builder.Configuration["Vellum:DataProtection:KeysPath"] is { Length: > 0 } configuredKeys
+    ? configuredKeys : Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys");
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("Vellum").PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
 
 // Modules: behaviors, packaged apps, jobs, home widgets, nav contributors and [ScopedService] classes.
 builder.Services.AddVellumModules(typeof(Program).Assembly);
