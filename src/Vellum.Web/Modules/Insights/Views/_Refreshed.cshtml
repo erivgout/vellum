@@ -1,0 +1,11 @@
+@model Refreshed
+@{
+    var local = Shell.Local(Model.At);
+    var age = DateTime.UtcNow - Model.At;
+}
+<span class="ins-refreshed" role="status">
+    <i class="bi bi-clock-history" aria-hidden="true"></i>
+    <span>Data refreshed at <time datetime="@Model.At.ToString("O")" title="@local.ToString("dd MMM yyyy HH:mm:ss") (@Ui.Abbrev(Shell.TimeZone, local)) · cached for up to 5 minutes">@local.ToString("HH:mm")</time>@(age.TotalMinutes >= 1 ? $" ({(int)age.TotalMinutes} min ago)" : "")</span>
+    <span aria-hidden="true">·</span>
+    <a href="@Model.RefreshHref"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh</a>
+</span>

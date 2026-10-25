@@ -1,0 +1,345 @@
+@page "/insights/charts/edit/{id:int?}"
+@model Vellum.Areas.Insights.Pages.Charts.EditModel
+@{
+    var d = Model.Def;
+    var isNew = Model.Existing == null;
+    ViewData["Title"] = isNew ? "New chart" : $"Edit {Model.Existing!.Number}";
+    var apps = Model.Catalog.Apps();
+    var app = apps.FirstOrDefault(a => a.Key == d.App);
+    var cols = Model.Catalog.Columns(d.App, d.View);
+    var groupable = cols.Where(c => c.CanGroup).ToList();
+    var numbers = cols.Where(c => c.IsNumber).ToList();
+    var dates = cols.Where(c => c.IsDate).ToList();
+    string Err(string f) => Model.FieldError(f);
+    var ranges = d.Ranges.Concat(Enumerable.Range(0, 3).Select(_ => new GaugeRangeDef())).Take(3).ToList();
+    if (d.Ranges.Count == 0 && d.Type != "gauge")
+    {
+        ranges = [new GaugeRangeDef { Max = 70, Tone = "bad", Label = "Action needed" }, new GaugeRangeDef { Min = 70, Max = 90, Tone = "warn", Label = "Watch" }, new GaugeRangeDef { Min = 90, Tone = "ok", Label = "On target" }];
+    }
+}
+@section Crumbs {
+    <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <a href="/insights/charts">Charts</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">@(isNew ? "New chart" : Model.Existing!.Number)</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <div class="min-w-0 flex-grow-1">
+        <h1 class="vl-page-title">@(isNew ? "New chart" : $"Edit {Model.Existing!.Title}")</h1>
+        <p class="vl-page-sub">The preview updates as you go. It shows only records you can open, and relative dates are worked out each time the chart is shown.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-light" href="@(isNew ? "/insights/charts" : $"/insights/charts/{Model.Existing!.Id}")">Cancel</a>
+        <button class="btn btn-primary" type="submit" form="ins-builder"><i class="bi bi-check2" aria-hidden="true"></i>Save chart</button>
+    </div>
+</div>
+
+@if (Model.Issues.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert">
+        <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>
+        <div><div class="ttl">The chart can't be saved yet</div><ul class="ins-issues">@foreach (var i in Model.Issues.Select(i => i.Message).Distinct()) { <li>@i</li> }</ul></div>
+    </div>
+}
+
+@if (apps.Count == 0)
+{
+    <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-bar-chart"></i></div><h3>Nothing to chart</h3><p>You don't have access to any application views yet.</p></div></div>
+    return;
+}
+
+<form id="ins-builder" method="post" action="/insights/charts/edit@(Model.Id != null ? "/" + Model.Id : "")?handler=Save" data-ins-builder data-preview-url="/insights/charts/edit@(Model.Id != null ? "/" + Model.Id : "")?handler=Preview" novalidate>
+    @Html.AntiForgeryToken()
+    <div class="ins-builder">
+        <div class="card ins-builder-form">
+            <div class="ins-step">
+                <div class="ins-step-title"><span class="ins-step-num">1</span>Data</div>
+                <div class="mb-2">
+                    <label class="form-label" for="ins-app">Application</label>
+                    <select class="form-select form-select-sm" id="ins-app" name="Def.App" data-ins-app>
+                        @foreach (var a in apps) { <option value="@a.Key" selected="@(a.Key == d.App)">@a.Name</option> }
+                    </select>
+                    @if (Err("App") is { Length: > 0 } e1) { <div class="invalid-feedback d-block">@e1</div> }
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" for="ins-view">View</label>
+                    <select class="form-select form-select-sm" id="ins-view" name="Def.View" data-ins-view>
+                        @if (app != null)
+                        {
+                            foreach (var g in app.Views.GroupBy(v => v.Category))
+                            {
+                                <optgroup label="@g.Key">
+                                    @foreach (var v in g) { <option value="@v.Key" selected="@(v.Key == d.View)">@v.Name</option> }
+                                </optgroup>
+                            }
+                        }
+                    </select>
+                    <div class="form-text">The chart reads the view's records, filters and status.</div>
+                    @if (Err("View") is { Length: > 0 } e2) { <div class="invalid-feedback d-block">@e2</div> }
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-7">
+                        <label class="form-label" for="ins-range">Date range</label>
+                        <select class="form-select form-select-sm" id="ins-range" name="Def.Range" data-ins-range>
+                            @foreach (var (k, l) in ChartDefinition.RangeOptions) { <option value="@k" selected="@(k == d.Range)">@l</option> }
+                        </select>
+                    </div>
+                    <div class="col-5" data-show="range!=none">
+                        <label class="form-label" for="ins-datefield">On</label>
+                        <select class="form-select form-select-sm" id="ins-datefield" name="Def.DateField" data-columns="date">
+                            @foreach (var c in dates) { <option value="@c.Key" selected="@(c.Key == (d.DateField ?? "created"))">@c.Label</option> }
+                        </select>
+                    </div>
+                    <div class="col-5" data-show="range=last_n_days">
+                        <label class="form-label" for="ins-days">N (days)</label>
+                        <input class="form-control form-control-sm" type="number" min="1" max="3660" step="1" id="ins-days" name="Def.RangeDays" value="@(d.RangeDays ?? 30)" />
+                    </div>
+                    <div class="col-6" data-show="range=custom">
+                        <label class="form-label" for="ins-from">From</label>
+                        <input class="form-control form-control-sm" type="date" id="ins-from" name="Def.From" value="@d.From?.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="col-6" data-show="range=custom">
+                        <label class="form-label" for="ins-to">To</label>
+                        <input class="form-control form-control-sm" type="date" id="ins-to" name="Def.To" value="@d.To?.ToString("yyyy-MM-dd")" />
+                    </div>
+                </div>
+                @foreach (var f in new[] { "Range", "RangeDays", "From", "To", "DateField" }) { if (Err(f) is { Length: > 0 } e) { <div class="invalid-feedback d-block">@e</div> } }
+                <div class="row g-2">
+                    <div class="col-7">
+                        <label class="form-label" for="ins-locscope">Location</label>
+                        <select class="form-select form-select-sm" id="ins-locscope" name="Def.LocationScope" data-ins-loc>
+                            <option value="all" selected="@(d.LocationScope == "all")">All locations</option>
+                            <option value="only" selected="@(d.LocationScope == "only")">Only this location</option>
+                            <option value="lower" selected="@(d.LocationScope == "lower")">This location and lower</option>
+                            <option value="higher" selected="@(d.LocationScope == "higher")">This location and higher</option>
+                            <option value="both" selected="@(d.LocationScope == "both")">Lower and higher</option>
+                        </select>
+                    </div>
+                    <div class="col-5" data-show="loc!=all">
+                        <label class="form-label" for="ins-loc">Which</label>
+                        <select class="form-select form-select-sm" id="ins-loc" name="Def.LocationId" aria-describedby="ins-loc-help">
+                            <option value="">Viewer's own location</option>
+                            @foreach (var l in Model.Locations) { <option value="@l.Id" selected="@(l.Id == d.LocationId)">@l.Name</option> }
+                        </select>
+                    </div>
+                    <div class="col-12 form-text mt-1" id="ins-loc-help" data-show="loc!=all">"Viewer's own location" uses the primary location of whoever looks at the chart.</div>
+                </div>
+                @if (Err("LocationId") is { Length: > 0 } e3) { <div class="invalid-feedback d-block">@e3</div> }
+            </div>
+
+            <div class="ins-step">
+                <div class="ins-step-title"><span class="ins-step-num">2</span>Chart type</div>
+                <div class="ins-types" role="radiogroup" aria-label="Chart type">
+                    @foreach (var (k, l, icon) in ChartDefinition.Types)
+                    {
+                        <div>
+                            <input type="radio" name="Def.Type" id="ins-type-@k" value="@k" checked="@(k == d.Type)" data-ins-type />
+                            <label for="ins-type-@k"><i class="bi @icon" aria-hidden="true"></i>@l</label>
+                        </div>
+                    }
+                </div>
+                @if (Err("Type") is { Length: > 0 } e4) { <div class="invalid-feedback d-block">@e4</div> }
+            </div>
+
+            <div class="ins-step">
+                <div class="ins-step-title"><span class="ins-step-num">3</span>Category and value</div>
+                <div class="row g-2 mb-2" data-show="type!=gauge">
+                    <div class="col-7">
+                        <label class="form-label" for="ins-cat">Category (X axis)</label>
+                        <select class="form-select form-select-sm" id="ins-cat" name="Def.Category" data-columns="group" data-ins-cat>
+                            @foreach (var c in groupable) { <option value="@c.Key" data-kind="@c.Kind" selected="@(c.Key == d.Category)">@c.Label</option> }
+                        </select>
+                    </div>
+                    <div class="col-5" data-show="cat=date">
+                        <label class="form-label" for="ins-catdates">Group dates by</label>
+                        <select class="form-select form-select-sm" id="ins-catdates" name="Def.CategoryDates">
+                            @foreach (var (k, l) in ChartDefinition.DateGroups) { <option value="@k" selected="@(k == (d.CategoryDates ?? "month"))">@l</option> }
+                        </select>
+                    </div>
+                </div>
+                @foreach (var f in new[] { "Category", "CategoryDates" }) { if (Err(f) is { Length: > 0 } e) { <div class="invalid-feedback d-block mb-2">@e</div> } }
+                <div class="row g-2 mb-2">
+                    <div class="col-5">
+                        <label class="form-label" for="ins-agg">Value</label>
+                        <select class="form-select form-select-sm" id="ins-agg" name="Def.Aggregate" data-ins-agg>
+                            <option value="count" selected="@(d.Aggregate == "count")">Count of records</option>
+                            <option value="sum" selected="@(d.Aggregate == "sum")">Sum of…</option>
+                            <option value="avg" selected="@(d.Aggregate == "avg")">Average of…</option>
+                        </select>
+                    </div>
+                    <div class="col-7" data-show="agg!=count">
+                        <label class="form-label" for="ins-valfield">Number field</label>
+                        <select class="form-select form-select-sm" id="ins-valfield" name="Def.ValueField" data-columns="number">
+                            <option value="">Choose…</option>
+                            @foreach (var c in numbers) { <option value="@c.Key" selected="@(c.Key == d.ValueField)">@c.Label</option> }
+                        </select>
+                    </div>
+                </div>
+                @foreach (var f in new[] { "Aggregate", "ValueField" }) { if (Err(f) is { Length: > 0 } e) { <div class="invalid-feedback d-block mb-2">@e</div> } }
+                <div class="row g-2 mb-2" data-show="cmpallowed">
+                    <div class="col-7">
+                        <label class="form-label" for="ins-cmp">Compare to <span class="fw-normal text-body-tertiary" data-show="cmprequired">(required)</span></label>
+                        <select class="form-select form-select-sm" id="ins-cmp" name="Def.Compare" data-columns="group" data-ins-cmp data-blank="No comparison">
+                            <option value="">No comparison</option>
+                            @foreach (var c in groupable) { <option value="@c.Key" data-kind="@c.Kind" selected="@(c.Key == d.Compare)">@c.Label</option> }
+                        </select>
+                    </div>
+                    <div class="col-5" data-show="cmp=date">
+                        <label class="form-label" for="ins-cmpdates">Group dates by</label>
+                        <select class="form-select form-select-sm" id="ins-cmpdates" name="Def.CompareDates">
+                            @foreach (var (k, l) in ChartDefinition.DateGroups) { <option value="@k" selected="@(k == (d.CompareDates ?? "month"))">@l</option> }
+                        </select>
+                    </div>
+                </div>
+                @foreach (var f in new[] { "Compare", "CompareDates" }) { if (Err(f) is { Length: > 0 } e) { <div class="invalid-feedback d-block mb-2">@e</div> } }
+                <div class="row g-2" data-show="type!=gauge">
+                    <div class="col-6" data-show="sortallowed">
+                        <label class="form-label" for="ins-sort">Sort</label>
+                        <select class="form-select form-select-sm" id="ins-sort" name="Def.Sort">
+                            <option value="none" selected="@(d.Sort == "none")">As configured</option>
+                            <option value="desc" selected="@(d.Sort == "desc")">Largest first</option>
+                            <option value="asc" selected="@(d.Sort == "asc")">Smallest first</option>
+                        </select>
+                    </div>
+                    <div class="col-6" data-show="cat!=date">
+                        <label class="form-label" for="ins-top">Show at most</label>
+                        <input class="form-control form-control-sm" type="number" min="1" max="50" id="ins-top" name="Def.Top" value="@d.Top" placeholder="20 categories" />
+                    </div>
+                </div>
+                @foreach (var f in new[] { "Sort", "Top" }) { if (Err(f) is { Length: > 0 } e) { <div class="invalid-feedback d-block">@e</div> } }
+            </div>
+
+            <div class="ins-step" data-show="limitsallowed">
+                <div class="ins-step-title"><span class="ins-step-num">4</span>Control limits</div>
+                <select class="form-select form-select-sm mb-2" name="Def.Limits" aria-label="Control limits" data-ins-limits>
+                    <option value="none" selected="@(d.Limits == "none")">None</option>
+                    <option value="calculated" selected="@(d.Limits == "calculated")">Calculated c-chart limits (C̄ ± 3√C̄)</option>
+                    <option value="manual" selected="@(d.Limits == "manual")">Manual limits</option>
+                </select>
+                <div class="row g-2" data-show="limits=calculated">
+                    <div class="col-12">
+                        <label class="form-label" for="ins-lperiod">Calculated over</label>
+                        <select class="form-select form-select-sm" id="ins-lperiod" name="Def.LimitsPeriod" data-ins-lperiod>
+                            <option value="trailing_12_months" selected="@(d.LimitsPeriod == "trailing_12_months")">The last 12 complete months</option>
+                            <option value="last_calendar_year" selected="@(d.LimitsPeriod == "last_calendar_year")">Last calendar year</option>
+                            <option value="custom" selected="@(d.LimitsPeriod == "custom")">A specific period</option>
+                        </select>
+                        <div class="form-text">Counts per period of the date grouping (or per month), on the date-range column.</div>
+                    </div>
+                    <div class="col-6" data-show="lperiod=custom"><label class="form-label" for="ins-lfrom">From</label><input class="form-control form-control-sm" type="date" id="ins-lfrom" name="Def.LimitsFrom" value="@d.LimitsFrom?.ToString("yyyy-MM-dd")" /></div>
+                    <div class="col-6" data-show="lperiod=custom"><label class="form-label" for="ins-lto">To</label><input class="form-control form-control-sm" type="date" id="ins-lto" name="Def.LimitsTo" value="@d.LimitsTo?.ToString("yyyy-MM-dd")" /></div>
+                </div>
+                <div data-show="limits=manual">
+                    @foreach (var (key, label, valueName, titleName, val, title) in new[]
+                    {
+                        ("ucl", "UCL", "Def.Ucl", "Def.UclTitle", d.Ucl, d.UclTitle),
+                        ("cl", "Average", "Def.Center", "Def.CenterTitle", d.Center, d.CenterTitle),
+                        ("lcl", "LCL", "Def.Lcl", "Def.LclTitle", d.Lcl, d.LclTitle),
+                    })
+                    {
+                        <div class="row g-2 mb-1 align-items-end">
+                            <div class="col-5"><label class="form-label" for="ins-@key">@label</label><input class="form-control form-control-sm" type="number" step="any" id="ins-@key" name="@valueName" value="@val" /></div>
+                            <div class="col-7"><label class="form-label visually-hidden" for="ins-@key-t">@label title</label><input class="form-control form-control-sm" id="ins-@key-t" name="@titleName" value="@title" placeholder="Title (default @label)" /></div>
+                        </div>
+                    }
+                </div>
+                @foreach (var f in new[] { "Limits", "LimitsPeriod", "LimitsFrom", "LimitsTo", "Lcl", "Ucl" }) { if (Err(f) is { Length: > 0 } e) { <div class="invalid-feedback d-block">@e</div> } }
+            </div>
+
+            <div class="ins-step" data-show="type=gauge">
+                <div class="ins-step-title"><span class="ins-step-num">4</span>Gauge scale and ranges</div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="form-label" for="ins-gmin">Minimum</label><input class="form-control form-control-sm" type="number" step="any" id="ins-gmin" name="Def.GaugeMin" value="@(d.GaugeMin ?? 0)" /></div>
+                    <div class="col-6"><label class="form-label" for="ins-gmax">Maximum</label><input class="form-control form-control-sm" type="number" step="any" id="ins-gmax" name="Def.GaugeMax" value="@(d.GaugeMax ?? 100)" /></div>
+                </div>
+                <div class="ins-range-row small fw-semibold text-body-secondary" aria-hidden="true"><span>From</span><span>To</span><span>Colour</span><span>Label</span></div>
+                @for (var i = 0; i < ranges.Count; i++)
+                {
+                    var r = ranges[i];
+                    <div class="ins-range-row" role="group" aria-label="Range @(i + 1)">
+                        <input class="form-control form-control-sm" type="number" step="any" name="Def.Ranges[@i].Min" value="@r.Min" aria-label="Range @(i + 1) from" placeholder="@(i == 0 ? "min" : "")" />
+                        <input class="form-control form-control-sm" type="number" step="any" name="Def.Ranges[@i].Max" value="@r.Max" aria-label="Range @(i + 1) to" placeholder="@(i == ranges.Count - 1 ? "max" : "")" />
+                        <select class="form-select form-select-sm" name="Def.Ranges[@i].Tone" aria-label="Range @(i + 1) colour">
+                            <option value="ok" selected="@(r.Tone == "ok")">Good</option>
+                            <option value="warn" selected="@(r.Tone == "warn")">Warning</option>
+                            <option value="bad" selected="@(r.Tone == "bad")">Critical</option>
+                            <option value="info" selected="@(r.Tone == "info")">Neutral</option>
+                        </select>
+                        <input class="form-control form-control-sm" name="Def.Ranges[@i].Label" value="@r.Label" aria-label="Range @(i + 1) label" />
+                    </div>
+                }
+                <div class="form-text">Ranges can't overlap. Leave the first "from" or the last "to" blank to extend it to the edge of the scale.</div>
+                @foreach (var f in new[] { "GaugeMax", "Ranges" }) { if (Err(f) is { Length: > 0 } e) { <div class="invalid-feedback d-block">@e</div> } }
+            </div>
+
+            <div class="ins-step">
+                <div class="ins-step-title"><span class="ins-step-num">5</span>Title and labels</div>
+                <div class="mb-2">
+                    <label class="form-label" for="ins-title">Title</label>
+                    <input class="form-control form-control-sm" id="ins-title" name="Title" value="@Model.Title" maxlength="200" required placeholder="For example: Open CAPAs by phase" />
+                    @if (Err("Title") is { Length: > 0 } e5) { <div class="invalid-feedback d-block">@e5</div> }
+                </div>
+                <div class="mb-2">
+                    <label class="form-label" for="ins-desc">Description</label>
+                    <textarea class="form-control form-control-sm" id="ins-desc" name="Description" rows="2" maxlength="2000">@Model.Description</textarea>
+                </div>
+                <div class="row g-2" data-show="type!=gauge">
+                    <div class="col-6"><label class="form-label" for="ins-ytitle">Value axis title</label><input class="form-control form-control-sm" id="ins-ytitle" name="Def.YTitle" value="@d.YTitle" placeholder="Default: Records" /></div>
+                    <div class="col-6"><label class="form-label" for="ins-xtitle">Category axis title</label><input class="form-control form-control-sm" id="ins-xtitle" name="Def.XTitle" value="@d.XTitle" /></div>
+                    <div class="col-12">
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" id="ins-hidetotal" name="Def.HideTotal" value="true" checked="@d.HideTotal" />
+                            <label class="form-check-label small" for="ins-hidetotal">Hide the total row of the report table</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (Model.CanManageTemplates && (isNew || Model.Existing!.IsTemplate))
+            {
+                <div class="ins-step">
+                    <div class="ins-step-title"><span class="ins-step-num">6</span>Sharing</div>
+                    @if (isNew)
+                    {
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="ins-istemplate" name="IsTemplate" value="true" checked="@Model.IsTemplate" />
+                            <label class="form-check-label small" for="ins-istemplate">Save as a chart template others can use</label>
+                        </div>
+                    }
+                    else
+                    {
+                        <input type="hidden" name="IsTemplate" value="true" />
+                        <p class="small text-body-secondary mb-2">This is a shared chart template.</p>
+                    }
+                    <label class="form-label" for="ins-tloc">Template visible at</label>
+                    <select class="form-select form-select-sm" id="ins-tloc" name="TemplateLocationId">
+                        <option value="">Every location</option>
+                        @foreach (var l in Model.Locations) { <option value="@l.Id" selected="@(l.Id == Model.TemplateLocationId)">@l.Path</option> }
+                    </select>
+                    <div class="form-text">Users at this location and below can see and use the template.</div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="ins-disabled" name="Disabled" value="true" checked="@Model.Disabled" />
+                        <label class="form-check-label small" for="ins-disabled">Disable the template</label>
+                    </div>
+                </div>
+            }
+            <div class="ins-step d-flex justify-content-end gap-2">
+                <noscript><button class="btn btn-light" type="submit" formaction="/insights/charts/edit@(Model.Id != null ? "/" + Model.Id : "")?handler=Preview">Update preview</button></noscript>
+                <button class="btn btn-primary" type="submit"><i class="bi bi-check2" aria-hidden="true"></i>Save chart</button>
+            </div>
+        </div>
+
+        <div class="ins-builder-preview">
+            <section class="card" aria-live="polite">
+                <div class="card-header">
+                    <h2 class="card-title-sm"><i class="bi bi-eye" aria-hidden="true"></i>Preview</h2>
+                    <span class="ms-auto small text-body-tertiary">Select a bar to see its records</span>
+                </div>
+                <div class="card-body" data-ins-preview>
+                    <partial name="_BuilderPreview" model="Model" />
+                </div>
+            </section>
+        </div>
+    </div>
+</form>
+<script type="application/json" id="ins-catalog">@Html.Raw(Model.Catalog.Json())</script>

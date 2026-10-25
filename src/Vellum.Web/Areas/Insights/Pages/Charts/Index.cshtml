@@ -1,0 +1,110 @@
+@page "/insights/charts"
+@model Vellum.Areas.Insights.Pages.Charts.IndexModel
+@{
+    ViewData["Title"] = "Charts";
+    var cfg = Shell.Config;
+    string Source(InsightsChart c) => cfg.AppsByKey.TryGetValue(c.AppKey, out var a) ? $"{a.Name} › {a.Views.FirstOrDefault(v => v.Key == c.ViewKey)?.Name ?? c.ViewKey}" : c.AppKey;
+    string TypeIcon(string t) => ChartDefinition.Types.FirstOrDefault(x => x.Key == t).Icon ?? "bi-bar-chart";
+    string TypeName(string t) => ChartDefinition.Types.FirstOrDefault(x => x.Key == t).Label ?? t;
+}
+@section Crumbs {
+    <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">Charts</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <div class="min-w-0 flex-grow-1">
+        <h1 class="vl-page-title">Charts</h1>
+        <p class="vl-page-sub">Build charts from any view you can read. Pin them to your homepage, export their data, and drill into the records behind every bar.</p>
+    </div>
+    <a class="btn btn-primary" href="/insights/charts/edit"><i class="bi bi-plus-lg" aria-hidden="true"></i>New chart</a>
+</div>
+
+<section class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-bar-chart-line" aria-hidden="true"></i>My charts</h2>
+        <span class="vl-pill-count">@Model.Mine.Count</span>
+    </div>
+    @if (Model.Mine.Count == 0)
+    {
+        <div class="vl-empty">
+            <div class="vl-empty-icon"><i class="bi bi-bar-chart"></i></div>
+            <h3>No charts yet</h3>
+            <p>Pick an application and one of its views, choose a chart type and what to count. Or start from a template below.</p>
+            <a class="btn btn-primary mt-3" href="/insights/charts/edit"><i class="bi bi-plus-lg" aria-hidden="true"></i>New chart</a>
+        </div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table mb-0">
+                <thead><tr><th scope="col">Number</th><th scope="col">Title</th><th scope="col">Source</th><th scope="col">Type</th><th scope="col">Homepage</th><th scope="col">Modified</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                <tbody>
+                    @foreach (var c in Model.Mine)
+                    {
+                        <tr data-href="/insights/charts/@c.Id">
+                            <td class="col-number"><a href="/insights/charts/@c.Id">@c.Number</a></td>
+                            <td class="col-title"><span class="t">@c.Title</span></td>
+                            <td class="text-body-secondary">@Source(c)</td>
+                            <td class="text-nowrap"><i class="bi @TypeIcon(c.Type) text-body-tertiary me-1" aria-hidden="true"></i>@TypeName(c.Type)</td>
+                            <td>
+                                <form method="post" action="/insights/charts?handler=Pin&amp;id=@c.Id" class="m-0">@Html.AntiForgeryToken()
+                                    <input type="hidden" name="pin" value="@(c.Pinned ? "false" : "true")" />
+                                    <button class="btn btn-sm btn-ghost ins-pin @(c.Pinned ? "on" : "")" aria-pressed="@(c.Pinned ? "true" : "false")" title="@(c.Pinned ? "Unpin from homepage" : "Pin to homepage")">
+                                        <i class="bi @(c.Pinned ? "bi-pin-angle-fill" : "bi-pin-angle")" aria-hidden="true"></i>@(c.Pinned ? "Pinned" : "Pin")
+                                    </button>
+                                </form>
+                            </td>
+                            <td class="text-nowrap text-body-secondary">@Ui.Time(c.ModifiedAt, Shell.TimeZone)</td>
+                            <td class="text-end text-nowrap">
+                                <a class="btn btn-sm btn-ghost btn-icon" href="/insights/charts/edit/@c.Id" aria-label="Edit @c.Title" title="Edit"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-collection" aria-hidden="true"></i>Chart templates</h2>
+        <span class="vl-pill-count">@Model.Templates.Count</span>
+        <span class="ms-auto small text-body-tertiary">Shared definitions. Using one creates your own chart you can change.</span>
+    </div>
+    @if (Model.Templates.Count == 0)
+    {
+        <div class="card-body small text-body-secondary">
+            No templates are shared at your location yet.@if (Model.CanManageTemplates) { <text> Save a chart as a template from the chart builder to share it.</text> }
+        </div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table mb-0">
+                <thead><tr><th scope="col">Number</th><th scope="col">Title</th><th scope="col">Source</th><th scope="col">Type</th><th scope="col">Location</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                <tbody>
+                    @foreach (var t in Model.Templates)
+                    {
+                        <tr>
+                            <td class="col-number"><a href="/insights/charts/@t.Id">@t.Number</a></td>
+                            <td class="col-title"><span class="t">@t.Title</span>@if (t.Disabled) { <span class="vl-kw ms-2">Disabled</span> }</td>
+                            <td class="text-body-secondary">@Source(t)</td>
+                            <td class="text-nowrap"><i class="bi @TypeIcon(t.Type) text-body-tertiary me-1" aria-hidden="true"></i>@TypeName(t.Type)</td>
+                            <td class="text-body-secondary">@(t.LocationId is { } l ? Model.LocationNames.GetValueOrDefault(l, "–") : "All locations")</td>
+                            <td class="text-end">
+                                @if (!t.Disabled)
+                                {
+                                    <form method="post" action="/insights/charts?handler=Use&amp;id=@t.Id" class="m-0 d-inline">@Html.AntiForgeryToken()
+                                        <button class="btn btn-sm btn-light"><i class="bi bi-plus-square" aria-hidden="true"></i>Use template</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

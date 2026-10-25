@@ -1,0 +1,41 @@
+@model IEnumerable<Kpi>
+@{
+    static (string Text, string Cls, string Icon)? Delta(Kpi k)
+    {
+        if (k.Previous is not { } prev) return null;
+        var diff = k.Value - prev;
+        if (Math.Abs(diff) < 1e-9) return ("No change vs prior 30 days", "", "bi-dash");
+        var pct = prev > 0 ? $"{Math.Abs(diff) / prev * 100:0}%" : $"{Math.Abs(diff):0.#}";
+        var good = k.UpIsGood switch { true => diff > 0, false => diff < 0, _ => (bool?)null };
+        var cls = good switch { true => "good", false => "bad", _ => "" };
+        return ($"{(diff > 0 ? "Up" : "Down")} {pct} vs prior 30 days", cls, diff > 0 ? "bi-arrow-up-right" : "bi-arrow-down-right");
+    }
+}
+<div class="row g-3">
+    @foreach (var k in Model)
+    {
+        var delta = Delta(k);
+        <div class="col-6 col-md-4 col-xxl-2">
+            <a class="vl-stat ins-kpi" href="@k.Href">
+                <span class="vl-stat-icon tone-@k.Tone"><i class="bi @k.Icon" aria-hidden="true"></i></span>
+                <div class="vl-stat-value @k.ValueClass">@ChartMath.Format(k.Value, k.Format)</div>
+                <div class="vl-stat-label">@k.Label</div>
+                <div class="ins-kpi-foot">
+                    @if (delta is { } dl)
+                    {
+                        <span class="ins-delta @dl.Cls"><i class="bi @dl.Icon" aria-hidden="true"></i>@dl.Text</span>
+                    }
+                    else if (k.Sub != null)
+                    {
+                        <span class="ins-delta">@k.Sub</span>
+                    }
+                    else { <span></span> }
+                    @if (k.Trend != null)
+                    {
+                        @ChartRenderer.Sparkline(k.Trend, $"Trend over the last {k.Trend.Length} weeks: {string.Join(", ", k.Trend.Select(v => v.ToString("0")))}", k.Tone == "violet" ? "s7" : "s1", 84, 30)
+                    }
+                </div>
+            </a>
+        </div>
+    }
+</div>

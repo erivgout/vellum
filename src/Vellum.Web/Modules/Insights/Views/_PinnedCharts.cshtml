@@ -1,0 +1,34 @@
+@model List<PinnedChart>
+@{
+    var oldest = Model.Min(p => p.At);
+}
+<div class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-pin-angle" aria-hidden="true"></i>My charts</h2>
+        <span class="ms-auto d-flex align-items-center gap-3">
+            <span class="ins-refreshed d-none d-md-inline-flex"><i class="bi bi-clock-history" aria-hidden="true"></i>Data refreshed at @Shell.Local(oldest).ToString("HH:mm")</span>
+            <a class="small" href="/insights/charts">Manage</a>
+        </span>
+    </div>
+    <div class="ins-pinned-grid">
+        @foreach (var p in Model)
+        {
+            <div class="ins-pinned-item">
+                <div class="ins-pinned-title"><a href="/insights/charts/@p.Chart.Id">@p.Chart.Title</a></div>
+                @if (!p.Result.Ok)
+                {
+                    <div class="vl-banner vl-banner-warn mb-0"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><div>@p.Result.Issues.FirstOrDefault()?.Message</div></div>
+                }
+                else if (p.Chart.PinMode == "table")
+                {
+                    @Html.Raw(ChartRenderer.Table(p.Result.Chart!))
+                }
+                else
+                {
+                    @ChartRenderer.Figure(p.Result.Chart!, p.Chart.PinMode == "both" ? TableMode.Open : TableMode.Collapsed, 420)
+                }
+                <p class="ins-note">@p.Result.RangeText</p>
+            </div>
+        }
+    </div>
+</div>

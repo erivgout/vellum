@@ -1,0 +1,100 @@
+@page "/insights/alerts"
+@model Vellum.Areas.Insights.Pages.Alerts.IndexModel
+@{
+    ViewData["Title"] = "Alerts";
+    var cfg = Shell.Config;
+    var dir = Shell.Directory;
+    string AppName(string key) => cfg.AppsByKey.GetValueOrDefault(key)?.Name ?? key;
+    var owners = Model.AllTemplates.Select(t => t.OwnerId).Distinct().ToList();
+    var appKeys = Model.AllTemplates.Select(t => t.AppKey).Distinct().ToList();
+}
+@section Crumbs {
+    <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">Alerts</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <div class="min-w-0 flex-grow-1">
+        <h1 class="vl-page-title">Threshold alerts</h1>
+        <p class="vl-page-sub">Watch a view and get told when enough records share a value, for example 3 or more CAPAs from the same source in 90 days.</p>
+    </div>
+    <a class="btn btn-primary" href="/insights/alerts/edit"><i class="bi bi-plus-lg" aria-hidden="true"></i>New alert</a>
+</div>
+
+<div class="ins-filterbar">
+    <nav class="vl-filter-pills" aria-label="Alerts">
+        <a class="@(Model.Tab == "templates" ? "active" : "")" href="@Model.Link("templates")">Templates <span class="vl-pill-count">@Model.AllTemplates.Count</span></a>
+        <a class="@(Model.Tab == "reports" ? "active" : "")" href="@Model.Link("reports")">Reports</a>
+    </nav>
+    <form method="get" action="/insights/alerts" class="d-flex flex-wrap gap-2 align-items-center">
+        <input type="hidden" name="tab" value="@Model.Tab" />
+        <select class="form-select form-select-sm" name="app" aria-label="Application" data-autosubmit>
+            <option value="">All applications</option>
+            @foreach (var k in appKeys) { <option value="@k" selected="@(k == Model.App)">@AppName(k)</option> }
+        </select>
+        @if (Model.IsAdmin)
+        {
+            <select class="form-select form-select-sm" name="owner" aria-label="Created by" data-autosubmit>
+                <option value="">Anyone</option>
+                @foreach (var o in owners) { <option value="@o" selected="@(o == Model.Owner)">@dir.Name(o)</option> }
+            </select>
+        }
+        @if (Model.Tab == "templates")
+        {
+            <select class="form-select form-select-sm" name="every" aria-label="Frequency" data-autosubmit>
+                <option value="">Any frequency</option>
+                @foreach (var f in Model.AllTemplates.Select(t => t.FrequencyDays).Distinct().Order()) { <option value="@f" selected="@(f == Model.Every)">Every @Ui.Plural(f, "day")</option> }
+            </select>
+        }
+        else
+        {
+            <select class="form-select form-select-sm" name="days" aria-label="Generated" data-autosubmit>
+                @foreach (var (d, l) in new[] { (7, "Last 7 days"), (30, "Last 30 days"), (90, "Last 90 days"), (0, "Any date") }) { <option value="@d" selected="@(d == Model.Days)">@l</option> }
+            </select>
+        }
+        <noscript><button class="btn btn-sm btn-light">Apply</button></noscript>
+    </form>
+</div>
+
+@if (Model.Tab == "templates")
+{
+    <div class="vl-table-wrap mb-4">
+        @if (Model.Templates.Count == 0)
+        {
+            <div class="vl-empty">
+                <div class="vl-empty-icon"><i class="bi bi-bell"></i></div>
+                <h3>@(Model.AllTemplates.Count == 0 ? "No alerts yet" : "No alerts match")</h3>
+                <p>An alert checks a view on a schedule and notifies people when a group of records reaches your threshold.</p>
+                @if (Model.AllTemplates.Count == 0) { <a class="btn btn-primary mt-3" href="/insights/alerts/edit"><i class="bi bi-plus-lg" aria-hidden="true"></i>New alert</a> }
+            </div>
+        }
+        else
+        {
+            <div class="vl-table-scroll">
+                <table class="table vl-table">
+                    <thead><tr><th scope="col">Number</th><th scope="col">Name</th><th scope="col">Watches</th><th scope="col" class="numeric">Minimum</th><th scope="col">Frequency</th><th scope="col">Status</th><th scope="col">Last report</th><th scope="col">Created by</th></tr></thead>
+                    <tbody>
+                        @foreach (var t in Model.Templates)
+                        {
+                            var app = cfg.AppsByKey.GetValueOrDefault(t.AppKey);
+                            <tr data-href="/insights/alerts/@t.Id">
+                                <td class="col-number"><a href="/insights/alerts/@t.Id">@t.Number</a></td>
+                                <td class="col-title"><span class="t">@t.Name</span></td>
+                                <td class="text-body-secondary">@AppName(t.AppKey) › @(app?.Views.FirstOrDefault(v => v.Key == t.ViewKey)?.Name ?? t.ViewKey)</td>
+                                <td class="numeric">@t.MinMatches</td>
+                                <td class="text-nowrap">Every @Ui.Plural(t.FrequencyDays, "day")</td>
+                                <td>@if (t.Enabled) { <span class="vl-kw vl-kw-success">Enabled</span> } else { <span class="vl-kw">Disabled</span> }</td>
+                                <td class="text-nowrap text-body-secondary">@(t.LastReportAt is { } at ? Ui.Time(at, Shell.TimeZone) : new Microsoft.AspNetCore.Html.HtmlString("Never"))</td>
+                                <td class="text-nowrap">@Ui.Avatar(dir.Get(t.OwnerId), showName: true)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <partial name="_Reports" model="Model.Reports" />
+}

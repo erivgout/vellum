@@ -1,0 +1,69 @@
+@page "/insights/apps/{key}"
+@model AppDashboardModel
+@{
+    var app = Model.App;
+    var d = Model.Data;
+    ViewData["Title"] = $"{app.Name} dashboard";
+    var periodLabel = DashboardService.Periods.First(p => p.Key == d.Period).Label;
+    var refreshHref = Model.Link(d.Period) + "&refresh=true";
+    ChartCard Card(string id, string? sub, string icon, int width) => new(d.Chart(id)!, Sub: sub, CsvHref: Model.Csv(id), Icon: icon, Width: width);
+}
+@section Crumbs {
+    <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">@app.Name</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="vl-app-tile lg" style="--app:@app.Color"><i class="bi @app.Icon"></i></span>
+    <div class="min-w-0 flex-grow-1">
+        <h1 class="vl-page-title">@app.Name dashboard</h1>
+        <p class="vl-page-sub text-truncate">@(app.Description ?? "Workload, trends and Pareto analysis for this application.")</p>
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-3">
+        <partial name="~/Modules/Insights/Views/_Refreshed.cshtml" model="new Refreshed(Model.At, refreshHref)" />
+        <a class="btn btn-light" href="/apps/@app.Key"><i class="bi bi-table" aria-hidden="true"></i>Open application</a>
+        <a class="btn btn-primary" href="/insights/charts/edit?app=@app.Key"><i class="bi bi-plus-lg" aria-hidden="true"></i>New chart</a>
+    </div>
+</div>
+
+<partial name="~/Modules/Insights/Views/_Kpis.cshtml" model="d.Tiles" />
+
+<h2 class="ins-section-title">Current workload</h2>
+<div class="row g-4">
+    <div class="col-xl-7 min-w-0"><partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='Card("open-by-phase", "Overdue highlighted · in workflow order", "bi-diagram-3", 640)' /></div>
+    <div class="col-xl-5 min-w-0"><partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='Card("aging", "Days since each open record was created", "bi-hourglass-bottom", 460)' /></div>
+    @if (d.Chart("heat") != null)
+    {
+        <div class="col-12 min-w-0"><partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='Card("heat", "Where open work sits, by phase · darker = more records", "bi-grid-3x3", 1080)' /></div>
+    }
+</div>
+
+<h2 class="ins-section-title">Trends</h2>
+<div class="row g-4">
+    <div class="col-xl-6 min-w-0"><partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='Card("overdue-trend", "Records past their phase due date, weekly snapshot", "bi-graph-up", 540)' /></div>
+    <div class="col-xl-6 min-w-0"><partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='Card("throughput", "Created and completed per week", "bi-arrow-left-right", 540)' /></div>
+    <div class="col-12 min-w-0"><partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='Card("c-chart", "Statistical control chart (c-chart) of monthly volume", "bi-activity", 1080)' /></div>
+</div>
+
+<h2 class="ins-section-title">Analysis</h2>
+<div class="ins-filterbar">
+    <span class="small fw-semibold text-body-secondary">Period</span>
+    <nav class="vl-filter-pills" aria-label="Analysis period">
+        @foreach (var (key, label) in DashboardService.Periods)
+        {
+            <a class="@(key == d.Period ? "active" : "")" href="@Model.Link(key)" aria-current="@(key == d.Period ? "true" : null)">@label</a>
+        }
+    </nav>
+    <span class="small text-body-tertiary">@RelativeDates.Span(d.From, d.To) · scopes cycle time and the Pareto charts below</span>
+</div>
+<div class="row g-4 mb-4">
+    <div class="col-xl-6 min-w-0"><partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='Card("cycle-time", $"Calendar days per phase, {periodLabel.ToLowerInvariant()}", "bi-hourglass-split", 540)' /></div>
+    @foreach (var id in d.ParetoIds)
+    {
+        <div class="col-xl-6 min-w-0"><partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='Card(id, $"Records created, {periodLabel.ToLowerInvariant()} · bars sorted, line shows cumulative share", "bi-sort-down", 540)' /></div>
+    }
+    @if (d.ParetoIds.Count == 0)
+    {
+        <div class="col-xl-6"><div class="card h-100"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-sort-down"></i></div><h3>No keyword fields</h3><p>@app.Name's main form has no keyword fields to build Pareto charts from.</p></div></div></div>
+    }
+</div>

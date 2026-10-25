@@ -1,0 +1,9 @@
+@model InsightsAlertReport
+@switch (Model.ActionStatus)
+{
+    case "Notified": <span class="vl-chip vl-chip-done"><i class="bi bi-send-check" aria-hidden="true"></i>Notified</span> break;
+    case "Failed": <span class="vl-chip vl-chip-overdue"><i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>Action failed</span> break;
+    case "Unchanged": <span class="vl-chip vl-chip-archived"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Unchanged</span> break;
+    case "Test": <span class="vl-chip vl-chip-draft"><i class="bi bi-eyedropper" aria-hidden="true"></i>Test run</span> break;
+    default: <span class="vl-chip vl-chip-archived"><i class="bi bi-dash-circle" aria-hidden="true"></i>No matches</span> break;
+}
