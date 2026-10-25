@@ -13,7 +13,8 @@ namespace Vellum.Modules.Documents;
 /// DOC-050: releases revisions in Awaiting Release whose effective date has arrived, once Document Control has signed the release
 /// and any training gate is met (TRN-071). Runs as the system identity; the release signature was captured from a person beforehand.
 /// </summary>
-public sealed class DocumentReleaseJob(VellumDbContext db, RecordService records, WorkflowEngine workflow, DocumentControlService svc) : IScheduledJob
+public sealed class DocumentReleaseJob(VellumDbContext db, RecordService records, WorkflowEngine workflow, DocumentControlService svc,
+    Pdf.RenditionService renditions) : IScheduledJob
 {
     public string Key => "documents-scheduled-release";
     public string Name => "Release documents on their effective date";
@@ -36,10 +37,17 @@ public sealed class DocumentReleaseJob(VellumDbContext db, RecordService records
             if (sig == null) { ctx.Log($"{label}: effective date reached; waiting for Document Control to release it."); continue; }
             var gate = await svc.GateAsync(snap);
             if (!gate.Satisfied) { ctx.Log($"{label}: {gate.Message}"); continue; }
-            var res = await workflow.SystemRouteAsync(id, DocKeys.Approved,
-                $"Effective date {planned:dd MMM yyyy} reached; release signed by {sig.SignerName} on {sig.SignedAt:dd MMM yyyy} (DOC-050)");
-            if (res.Ok) { released++; ctx.Log($"{label}: released."); }
-            else ctx.Log($"{label}: {string.Join("; ", res.Errors.Select(e => e.Message))}");
+            // INV-054: never effective without its PDF rendition; wait for the conversion instead of failing the run.
+            var missing = await renditions.MissingRequiredAsync(snap.Record, snap.Form, svc.DocPhase(DocKeys.Approved), producedOnEntry: true);
+            if (missing.Count > 0) { ctx.Log($"{label}: {string.Join(" ", missing)}"); continue; }
+            try
+            {
+                var res = await workflow.SystemRouteAsync(id, DocKeys.Approved,
+                    $"Effective date {planned:dd MMM yyyy} reached; release signed by {sig.SignerName} on {sig.SignedAt:dd MMM yyyy} (DOC-050)");
+                if (res.Ok) { released++; ctx.Log($"{label}: released."); }
+                else ctx.Log($"{label}: {string.Join("; ", res.Errors.Select(e => e.Message))}");
+            }
+            catch (WorkflowException ex) { ctx.Log($"{label}: not released: {ex.Message}"); }
         }
         return new JobResult(released, $"Released {released} document revision(s); {ids.Count - released} still awaiting release.");
     }
