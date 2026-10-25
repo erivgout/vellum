@@ -2372,6 +2372,338 @@ namespace Vellum.Data.Migrations
                     b.ToTable("Workflows");
                 });
 
+            modelBuilder.Entity("Vellum.Modules.AdverseEvents.EmdrProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AccountType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("AcknowledgementUrl")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("CertCommonName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CertCountry")
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("CertEmail")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("CertFdaConfirmedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CertGeneratedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CertLocality")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("CertNotAfter")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CertNotBefore")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CertOrganization")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CertOrganizationalUnit")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CertPem")
+                        .HasMaxLength(-1)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CertState")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CertThumbprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EnvironmentKey")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("EnvironmentName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("EsgPasswordProtected")
+                        .HasMaxLength(-1)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("EsgPasswordSetAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EsgUrl")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("FdaCertificatePem")
+                        .HasMaxLength(-1)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FdaRoutingId")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("Gateway")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("PrivateKeyProtected")
+                        .HasMaxLength(-1)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SenderEmail")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SenderOrganization")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("SenderRoutingId")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("SimulatedOutcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("SubmissionCenter")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UpdatedById")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EnvironmentKey")
+                        .IsUnique();
+
+                    b.ToTable("AerEmdrProfiles", (string)null);
+                });
+
+            modelBuilder.Entity("Vellum.Modules.AdverseEvents.EmdrSubmission", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AccountType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("Ack1At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("Ack2At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("Ack3At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("AttachmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Attempt")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CreatedById")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("DeadlineAlertedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FailureAlertedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("FileSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("FormVersion")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("Gateway")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid>("MedWatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MessageId")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime?>("OverdueAlertedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReportNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("RuleSetVersion")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<string>("SchemaVersion")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SimulatedOutcome")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("Superseded")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique();
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("MedWatchId", "Attempt")
+                        .IsUnique();
+
+                    b.ToTable("AerEmdrSubmissions", (string)null);
+                });
+
+            modelBuilder.Entity("Vellum.Modules.AdverseEvents.MedWatchReport", b =>
+                {
+                    b.Property<Guid>("MedWatchId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ComplaintId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("FollowUpNumber")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsInitial")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("MdrTreeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("NumberAssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("OriginalMedWatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReportCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("ReportSequence")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReportYear")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReporterType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<bool>("SequenceGenerated")
+                        .HasColumnType("bit");
+
+                    b.HasKey("MedWatchId");
+
+                    b.HasIndex("ComplaintId");
+
+                    b.HasIndex("MdrTreeId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AerMedWatch_InitialPerTree")
+                        .HasFilter("[MdrTreeId] IS NOT NULL AND [IsInitial] = 1 AND [IsVoided] = 0 AND [ReporterType] = 'manufacturer'");
+
+                    b.HasIndex("OriginalMedWatchId", "FollowUpNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AerMedWatch_FollowUp")
+                        .HasFilter("[OriginalMedWatchId] IS NOT NULL AND [FollowUpNumber] IS NOT NULL AND [IsVoided] = 0");
+
+                    b.HasIndex("ReporterType", "ReportCode", "ReportYear", "ReportSequence")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AerMedWatch_Number")
+                        .HasFilter("[IsInitial] = 1 AND [ReportSequence] IS NOT NULL AND [ReportCode] IS NOT NULL AND [ReportYear] IS NOT NULL");
+
+                    b.ToTable("AerMedWatchReports", (string)null);
+                });
+
             modelBuilder.Entity("Vellum.Modules.Assets.AssetTagClaim", b =>
                 {
                     b.Property<string>("Tag")
