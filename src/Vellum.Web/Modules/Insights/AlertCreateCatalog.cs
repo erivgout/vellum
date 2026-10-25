@@ -39,7 +39,9 @@ public sealed class AlertCreateCatalog(IServiceScopeFactory scopes, ConfigCache 
         App = c.App, Form = c.Form, Phase = c.Phase, Per = c.Per, DueDays = c.DueDays, SkipWhileOpen = c.SkipWhileOpen,
         Users = c.Users.Distinct().ToList(), Groups = c.Groups.Where(g => !string.IsNullOrWhiteSpace(g)).Distinct().ToList(),
         NotifyUsers = c.NotifyUsers.Distinct().ToList(), NotifyGroups = c.NotifyGroups.Where(g => !string.IsNullOrWhiteSpace(g)).Distinct().ToList(),
-        Fields = c.Fields.Where(f => !string.IsNullOrWhiteSpace(f.Field)).Select(f => new AlertFieldValue { Field = f.Field.Trim(), Value = f.Value?.Trim() }).ToList(),
+        // Blank values aren't stored: the field keeps the form's default (the editor lists required fields again on load).
+        Fields = c.Fields.Where(f => !string.IsNullOrWhiteSpace(f.Field) && !string.IsNullOrWhiteSpace(f.Value))
+            .Select(f => new AlertFieldValue { Field = f.Field.Trim(), Value = f.Value!.Trim() }).ToList(),
     };
 
     /// <summary>How a starting phase assigns people when the action names nobody (shown in the editor).</summary>
@@ -171,7 +173,8 @@ public sealed class AlertCreateCatalog(IServiceScopeFactory scopes, ConfigCache 
         });
     }
 
-    private static string? DefaultLabel(FieldDefinition f, ConfigModel cfg)
+    /// <summary>The form default that applies to records created by an alert, for display (null when none applies).</summary>
+    public static string? DefaultLabel(FieldDefinition f, ConfigModel cfg)
     {
         var dv = AlertCreateRules.EffectiveDefault(f);
         if (dv == null) return null;

@@ -106,6 +106,19 @@
                             var req = fd != null && AlertCreateRules.IsRequired(fd, startPhase?.Phase);
                             <li><span class="k">@(fd?.Label ?? fv.Field)@if (req) { <span class="visually-hidden"> (required)</span><span class="text-danger" aria-hidden="true"> *</span> }</span><code>@fv.Value</code></li>
                         }
+                        @if (targetForm != null)
+                        {
+                            foreach (var fd in AlertCreateRules.RequiredFields(targetForm, startPhase?.Phase).Where(f => cr.Fields.All(x => x.Field != f.Key)))
+                            {
+                                var dv = AlertCreateCatalog.DefaultLabel(fd, cfg);
+                                <li>
+                                    <span class="k">@fd.Label<span class="visually-hidden"> (required)</span><span class="text-danger" aria-hidden="true"> *</span></span>
+                                    @if (dv != null) { <span class="text-body-secondary">Form default: @dv</span> }
+                                    else if (fd.VisibleWhen != null || fd.ReadOnly) { <span class="text-body-secondary">@(fd.ReadOnly ? "Computed by the form" : "Only when shown")</span> }
+                                    else { <span class="text-danger"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> Not set: runs will fail</span> }
+                                </li>
+                            }
+                        }
                     </ul>
                 </div>
             </section>
