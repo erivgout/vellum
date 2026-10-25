@@ -1,0 +1,95 @@
+@page
+@model Vellum.Areas.Admin.Pages.Pdf.QueueModel
+@using Vellum.Modules.Pdf
+@{
+    ViewData["Title"] = "PDF conversion queue";
+    var tz = Shell.TimeZone;
+    var current = Model.Status ?? "all";
+    var pages = Math.Max(1, (int)Math.Ceiling(Model.Total / (double)QueueModel.PageSize));
+}
+@section Crumbs {
+    <a href="/admin/pdf">PDF renditions</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">Conversion queue</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-ok"><i class="bi bi-hourglass-split"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">PDF conversion queue</h1>
+        <p class="vl-page-sub">Conversions run in the background as the system identity. Failures are retried with exponential backoff and then shown here; the person who triggered them is notified (NFR-025, PLT-807).</p>
+    </div>
+    <form method="post" asp-page-handler="Process" class="m-0" data-adm-busy>
+        <button class="btn btn-light" data-confirm="Process due conversions now? Office files can take a while."><i class="bi bi-play-fill"></i>Process now</button>
+    </form>
+</div>
+
+<div class="mb-3">
+    <nav class="vl-filter-pills" aria-label="Status">
+        @foreach (var (key, label) in QueueModel.Filters)
+        {
+            <a class="@(current == key ? "active" : "")" href="/admin/pdf/queue@(key == "all" ? "" : $"?status={key}")" aria-current="@(current == key ? "page" : null)">@label <span class="vl-pill-count">@Model.Counts.GetValueOrDefault(key)</span></a>
+        }
+    </nav>
+</div>
+
+<div class="vl-table-wrap">
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-inbox"></i></div><h3>Nothing here</h3><p>@(current == "failed" ? "No conversion has failed." : "Conversions appear here when files are converted to PDF.")</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead><tr><th scope="col">File</th><th scope="col">Record</th><th scope="col">Status</th><th scope="col" class="numeric">Attempts</th><th scope="col">Converter</th><th scope="col" class="numeric">Time</th><th scope="col">Queued</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        var j = row.Job;
+                        <tr>
+                            <td class="col-title">
+                                <span class="fw-medium d-block text-truncate" style="max-width:22rem">@j.FileName</span>
+                                <span class="x-small text-body-tertiary">@j.FieldKey · @j.Trigger@(j.Watermark != null ? $" · “{j.Watermark}”" : "")</span>
+                                @if (j.LastError != null && j.Status != PdfJobStatus.Done) { <div class="x-small @(j.Status == PdfJobStatus.Failed ? "text-danger" : "text-body-secondary") mt-1" style="max-width:32rem">@j.LastError</div> }
+                            </td>
+                            <td class="text-nowrap">@if (row.Record != null) { <a href="/records/@row.Record.Id">@row.Record.Number@(row.Record.Revision != null ? $" rev {row.Record.Revision}" : "")</a> } else { <span class="text-body-tertiary">Deleted</span> }</td>
+                            <td class="text-nowrap">
+                                @switch (j.Status)
+                                {
+                                    case PdfJobStatus.Queued: <span class="adm-status info"><i class="bi bi-hourglass"></i>@(j.Attempts > 0 ? $"Retry at {TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(j.NextAttemptAt, DateTimeKind.Utc), tz):HH:mm:ss}" : "Queued")</span> break;
+                                    case PdfJobStatus.Converting: <span class="adm-status info"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Converting</span> break;
+                                    case PdfJobStatus.Done: <span class="adm-status ok"><i class="bi bi-check-circle-fill"></i>Done</span> break;
+                                    case PdfJobStatus.Failed: <span class="adm-status bad"><i class="bi bi-x-octagon-fill"></i>Failed@(j.Permanent ? "" : " (gave up)")</span> break;
+                                    default: <span class="adm-status off"><i class="bi bi-dash-circle"></i>Cancelled</span> break;
+                                }
+                            </td>
+                            <td class="numeric">@j.Attempts</td>
+                            <td class="small">@(j.Converter ?? "–")</td>
+                            <td class="numeric small">@(j.DurationMs is { } ms ? (ms < 1000 ? $"{ms} ms" : $"{ms / 1000.0:0.0} s") : "–")</td>
+                            <td class="text-nowrap small">@Ui.Time(j.CreatedAt, tz)</td>
+                            <td class="text-end">
+                                @if (j.Status is PdfJobStatus.Failed or PdfJobStatus.Cancelled or PdfJobStatus.Queued)
+                                {
+                                    <form method="post" asp-page-handler="Retry" class="d-inline m-0">
+                                        <input type="hidden" name="id" value="@j.Id" />
+                                        <button class="btn btn-sm btn-light"><i class="bi bi-arrow-clockwise"></i>@(j.Status == PdfJobStatus.Queued ? "Run now" : "Retry")</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (pages > 1)
+        {
+            <div class="vl-table-foot d-flex justify-content-between align-items-center small">
+                <span>@Model.Total conversions</span>
+                <span class="d-flex gap-1">
+                    @if (Model.P > 1) { <a class="btn btn-sm btn-light" href="@Model.With("p", Model.P - 1)"><i class="bi bi-chevron-left"></i>Newer</a> }
+                    @if (Model.P < pages) { <a class="btn btn-sm btn-light" href="@Model.With("p", Model.P + 1)">Older<i class="bi bi-chevron-right"></i></a> }
+                </span>
+            </div>
+        }
+    }
+</div>

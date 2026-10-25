@@ -221,7 +221,8 @@ public sealed class DocumentControlService(
         if (!res.Ok) throw new WorkflowException("Couldn't create the new revision: " + string.Join("; ", res.Errors.Select(e => e.Message)));
         var rev = res.Record!;
 
-        foreach (var a in source.Attachments.Where(a => !a.Removed && a.RowId == null))
+        // Originals only: renditions are re-derived for the new revision (the conversion cache avoids reconverting, PLT-804).
+        foreach (var a in source.Attachments.Where(a => !a.Removed && a.RowId == null && a.RenditionOfId == null))
         {
             db.Attachments.Add(new Attachment
             {

@@ -140,10 +140,17 @@ public static class Endpoints
         });
 
         // Attachment download: read access re-checked, checksum verified (INV-053), audited (PLT-1001).
-        app.MapGet("/files/{id:long}", async (long id, bool? inline, VellumDbContext db, AccessService access, FileStore files, AuditService audit) =>
+        app.MapGet("/files/{id:long}", async (long id, bool? inline, VellumDbContext db, AccessService access, FileStore files, AuditService audit,
+            [Microsoft.AspNetCore.Mvc.FromServices] IEnumerable<IAttachmentPolicy> policies) =>
         {
             var att = await db.Attachments.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id);
             if (att == null || !await access.CanReadAsync(att.RecordId)) return Results.NotFound();
+            foreach (var policy in policies)
+            {
+                var decision = await policy.DecideAsync(att, inline == true);
+                if (decision.RedirectUrl != null) return Results.Redirect(decision.RedirectUrl);
+                if (!decision.Allowed) return Results.NotFound();
+            }
             byte[] bytes;
             try { bytes = await files.ReadVerifiedAsync(att.Sha256); }
             catch (FileIntegrityException ex)

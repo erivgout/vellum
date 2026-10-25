@@ -1,0 +1,24 @@
+@model Vellum.Modules.Pdf.PdfFileItem
+@{
+    var item = Model;
+    var pending = item.State is "queued" or "retrying" or "converting";
+}
+@if (item.RenditionOnly)
+{
+    <span class="vl-pdf-chip done" title="PDF rendition: the editable original isn't shown in this phase (DOC-023)"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>PDF</span>
+    return;
+}
+@if (item.Pdf != null)
+{
+    <a class="vl-pdf-chip done" href="/pdf/@item.Pdf.Id" target="_blank" title="View the PDF rendition @item.Pdf.FileName" aria-label="View the PDF rendition of @item.File.FileName"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>PDF</a>
+}
+@if (pending)
+{
+    <span class="vl-pdf-chip pending" data-pdf-pending="@item.File.Id" role="status" title="@(item.Pdf != null ? "A new PDF rendition is being made for this phase." : "Converting to PDF in the background (NFR-005).")">
+        <span class="spinner-border" aria-hidden="true"></span>@(item.State switch { "converting" => "Converting", "retrying" => "Retrying", _ => item.Pdf != null ? "Updating" : "Queued" })
+    </span>
+}
+else if (item.State == "failed")
+{
+    <span class="vl-pdf-chip bad" tabindex="0" data-bs-toggle="tooltip" data-bs-title="@item.Error" aria-label="PDF conversion failed: @item.Error"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>PDF failed</span>
+}

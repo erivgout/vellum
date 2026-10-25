@@ -40,6 +40,7 @@ public sealed class RecordSnapshot
     /// <summary>Keyword key of a field inside a subform row.</summary>
     public string? KeywordKey(RowBag row, string key) => Config.Keyword(row.Values.Ref(key))?.Key;
 
+    /// <summary>Uploaded files of a field. Derived PDF renditions (<see cref="Attachment.RenditionOfId"/>) are excluded.</summary>
     public IEnumerable<Attachment> AttachmentsOf(string fieldKey, Guid? rowId = null) =>
-        Attachments.Where(a => a.FieldKey == fieldKey && a.RowId == rowId && !a.Removed);
+        Attachments.Where(a => a.FieldKey == fieldKey && a.RowId == rowId && !a.Removed && a.RenditionOfId == null);
 }

@@ -17,6 +17,8 @@ namespace Vellum.Tests;
 [Collection("vellum")]
 public class DocumentControlTests(VellumFixture fx)
 {
+    internal static readonly Lazy<byte[]> SamplePdf = new(() => Vellum.Modules.Pdf.PdfLayout.Render(new Vellum.Modules.Pdf.PdfReport { Title = "Controlled content" }, "Acme"));
+
     internal static async Task<Record> NewDocAsync(IServiceScope s, string title, string type = "procedure", bool? training = false,
         Dictionary<string, object?>? extra = null)
     {
@@ -31,7 +33,8 @@ public class DocumentControlTests(VellumFixture fx)
         var res = await s.ServiceProvider.GetRequiredService<RecordService>().CreateAsync(new CreateRequest
         {
             FormKey = DocKeys.Document, Values = values,
-            Files = [("primary_file", $"{title}.pdf", "application/pdf", new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 " + title)))],
+            // A real PDF: renditions are validated, and an effective revision needs one (INV-054).
+            Files = [("primary_file", $"{title}.pdf", "application/pdf", new MemoryStream(SamplePdf.Value))],
         });
         Assert.True(res.Ok, string.Join("; ", res.Errors.Select(e => $"{e.FieldKey}: {e.Message}")));
         return res.Record!;
@@ -232,8 +235,9 @@ public class DocumentControlTests(VellumFixture fx)
             Assert.Equal(1, revB.RevisionOrdinal);
             Assert.Equal(s.UserId("pshah"), revB.CreatedById); // created by the requester (DOC-093)
             Assert.Equal(DocKeys.Draft, (await s.LoadAsync(revB.Id)).PhaseKey);
-            var shaA = await s.Db().Attachments.Where(x => x.RecordId == revA.Id).Select(x => x.Sha256).ToListAsync();
-            var shaB = await s.Db().Attachments.Where(x => x.RecordId == revB.Id).Select(x => x.Sha256).ToListAsync();
+            // Originals are copied; PDF renditions are derived again for the new revision (PLT-804, SAF-063).
+            var shaA = await s.Db().Attachments.Where(x => x.RecordId == revA.Id && x.RenditionOfId == null).Select(x => x.Sha256).ToListAsync();
+            var shaB = await s.Db().Attachments.Where(x => x.RecordId == revB.Id && x.RenditionOfId == null).Select(x => x.Sha256).ToListAsync();
             Assert.Equal(shaA, shaB);
             Assert.True(await s.Db().Links.AnyAsync(l => l.FromId == crId && l.ToId == revB.Id && l.Kind == LinkKind.Revision));
             Assert.True((await s.LoadAsync(revB.Id)).Data.Main.Link("change_request") == crId);

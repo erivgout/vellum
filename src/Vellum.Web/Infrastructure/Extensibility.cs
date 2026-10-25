@@ -5,9 +5,19 @@ using Vellum.Packaging;
 
 namespace Vellum.Infrastructure;
 
-/// <summary>Mark a class to be registered as a scoped service automatically (no Program.cs edits needed).</summary>
+/// <summary>
+/// Mark a class to be registered as a scoped service automatically (no Program.cs edits needed). Optionally list
+/// interfaces it should also be resolvable as (same instance per scope), e.g. <c>[ScopedService(typeof(IPdfService))]</c>.
+/// </summary>
 [AttributeUsage(AttributeTargets.Class)]
-public sealed class ScopedServiceAttribute : Attribute;
+public sealed class ScopedServiceAttribute(params Type[] serviceTypes) : Attribute
+{
+    public IReadOnlyList<Type> ServiceTypes { get; } = serviceTypes;
+}
+
+/// <summary>Mark a <see cref="IHostedService"/> (e.g. a <see cref="BackgroundService"/>) to be started with the application.</summary>
+[AttributeUsage(AttributeTargets.Class)]
+public sealed class BackgroundWorkerAttribute : Attribute;
 
 /// <summary>A homepage widget contributed by a module (PLT-1402).</summary>
 public interface IHomeWidget
@@ -46,7 +56,13 @@ public static class ExtensibilityRegistration
             if (typeof(IScheduledJob).IsAssignableFrom(t)) services.AddScoped(typeof(IScheduledJob), t);
             if (typeof(IHomeWidget).IsAssignableFrom(t)) services.AddScoped(typeof(IHomeWidget), t);
             if (typeof(INavContributor).IsAssignableFrom(t)) services.AddScoped(typeof(INavContributor), t);
-            if (t.GetCustomAttribute<ScopedServiceAttribute>() != null) services.AddScoped(t);
+            if (t.GetCustomAttribute<ScopedServiceAttribute>() is { } scoped)
+            {
+                services.AddScoped(t);
+                foreach (var st in scoped.ServiceTypes) services.AddScoped(st, sp => sp.GetRequiredService(t));
+            }
+            if (typeof(IHostedService).IsAssignableFrom(t) && t.GetCustomAttribute<BackgroundWorkerAttribute>() != null)
+                services.AddSingleton(typeof(IHostedService), t);
         }
         return services;
     }

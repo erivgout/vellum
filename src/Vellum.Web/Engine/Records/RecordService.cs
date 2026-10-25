@@ -404,6 +404,13 @@ public sealed class RecordService(
                 att.RemovedById = me.Id;
                 audit.Record(r.Id, "Attachment removed", $"{att.FileName} (SHA-256 {att.Sha256[..12]}…)", fieldKey: att.FieldKey,
                     fieldLabel: form.Fields.FirstOrDefault(f => f.Key == att.FieldKey)?.Label, onBehalfOfId: onBehalfOf);
+                // Derived PDF renditions go with their original (SAF-063).
+                foreach (var rendition in snap.Attachments.Where(a => a.RenditionOfId == att.Id && !a.Removed))
+                {
+                    rendition.Removed = true;
+                    rendition.RemovedAt = att.RemovedAt;
+                    rendition.RemovedById = me.Id;
+                }
                 changed = true;
             }
             if (!changed) return new SaveResult(true, [], false, "No changes to save.");
@@ -688,7 +695,8 @@ public sealed class RecordService(
             foreach (var row in rows.OrderBy(r => r.Order))
                 foreach (var key in row.Values.Keys.Order(StringComparer.Ordinal))
                     if (row.Values.Has(key)) sb.Append(section).Append('[').Append(row.Order).Append("].").Append(key).Append('=').Append(row.Values.Canonical(key)).Append('\n');
-        foreach (var a in snap.Attachments.Where(a => !a.Removed).OrderBy(a => a.FieldKey).ThenBy(a => a.Sha256))
+        // PDF renditions are derived copies (SAF-063): creating one later must not invalidate signatures.
+        foreach (var a in snap.Attachments.Where(a => !a.Removed && a.RenditionOfId == null).OrderBy(a => a.FieldKey).ThenBy(a => a.Sha256))
             sb.Append("file:").Append(a.FieldKey).Append('=').Append(a.Sha256).Append('\n');
         return AuditHashing.Sha256Hex(sb.ToString());
     }

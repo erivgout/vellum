@@ -1,0 +1,161 @@
+@page "{key}"
+@model Vellum.Areas.Admin.Pages.Pdf.FormModel
+@using Vellum.Modules.Pdf
+@{
+    ViewData["Title"] = $"PDF renditions · {Model.Form.Name}";
+    var i = Model.Input;
+    var tz = Shell.TimeZone;
+    var roles = new[] { (AppRole.Reader, "Readers"), (AppRole.Author, "Authors"), (AppRole.Manager, "Managers only") };
+    var positions = new[] { (WatermarkPosition.Diagonal, "Diagonal"), (WatermarkPosition.Header, "Header label"), (WatermarkPosition.Footer, "Footer label") };
+    var firstWm = Model.Phases.Select(p => Model.PhaseOf(p.Key)).FirstOrDefault(p => !string.IsNullOrWhiteSpace(p?.Watermark));
+}
+@section Crumbs {
+    <a href="/admin/pdf">PDF renditions</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">@Model.Form.Name</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="vl-app-tile lg" style="--app:@Model.Form.App.Color"><i class="bi @Model.Form.Icon"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">@Model.Form.Name</h1>
+        <p class="vl-page-sub">@Model.Form.App.Name · PDF rendition rules per phase and attachment field.
+            @if (Model.Profile is { } pr) { <span class="text-body-tertiary">@(pr.Origin == "default" ? "Installed with the application" : $"Last changed {Ui.Ago(pr.UpdatedAt)}").</span> }</p>
+    </div>
+    <a class="btn btn-light" href="/admin/audit/config"><i class="bi bi-file-diff"></i>Change history</a>
+</div>
+
+<partial name="_Errors" model="Model.Errors" />
+
+<form method="post" data-pdf-rules>
+    <div class="row g-4 mb-4">
+        <div class="col-xxl-8">
+            <div class="card h-100">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-sliders"></i>General</h2></div>
+                <div class="card-body adm-settings">
+                    <div class="adm-setting">
+                        <div><label class="form-label" for="p-enabled">Renditions for this form</label><div class="form-text">Off stops new conversions, PDF-only display and the required-rendition check. Existing renditions stay linked.</div></div>
+                        <div class="pt-1"><div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" role="switch" id="p-enabled" name="enabled" value="true" checked="@i.Enabled" /><label class="form-check-label" for="p-enabled">On</label></div></div>
+                    </div>
+                    <div class="adm-setting">
+                        <div><label class="form-label" for="p-mark">Automatic DRAFT / SUPERSEDED marking</label><div class="form-text">Revisions that aren't in force are shown and printed with a DRAFT, SUPERSEDED or OBSOLETE watermark (SAF-043). Applies to revision-controlled forms.</div></div>
+                        <div class="pt-1"><div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" role="switch" id="p-mark" name="autoMark" value="true" checked="@i.AutoMark" /><label class="form-check-label" for="p-mark">On</label></div></div>
+                    </div>
+                    <div class="adm-setting">
+                        <div><label class="form-label" for="p-color">Watermark style</label><div class="form-text">Colour and opacity of diagonal watermarks and markings (PLT-805). Header and footer labels are always legible.</div></div>
+                        <div class="d-flex flex-wrap align-items-center gap-3">
+                            <span class="d-inline-flex align-items-center gap-2">
+                                <input type="color" class="form-control form-control-color" id="p-color" name="color" value="@i.Color" data-pdf-color aria-label="Watermark colour" />
+                                <span class="mono small" data-pdf-color-text>@i.Color</span>
+                            </span>
+                            <label class="d-inline-flex align-items-center gap-2 small m-0" for="p-opacity">Opacity
+                                <input type="range" class="form-range" style="width:9rem" min="5" max="60" step="1" id="p-opacity" name="opacity" value="@i.Opacity" data-pdf-opacity />
+                                <span class="tabular" data-pdf-opacity-text>@i.Opacity%</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="adm-setting">
+                        <div><label class="form-label" for="p-manifest">Approval manifest</label><div class="form-text">Offer the signature page (PDF) of signed records and a controlled copy: the rendition followed by the manifest (DOC-043).</div></div>
+                        <div>
+                            <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="p-manifest" name="manifest" value="true" checked="@i.Manifest" /><label class="form-check-label" for="p-manifest">On</label></div>
+                            <label class="form-label small" for="p-note">Manifest note</label>
+                            <textarea class="form-control vl-autogrow" id="p-note" name="manifestNote" rows="2" maxlength="2000" placeholder="Printed above the signature table">@i.ManifestNote</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xxl-4">
+            <div class="card h-100">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-droplet-half"></i>Preview</h2><span class="small text-body-tertiary ms-auto" data-pdf-preview-phase>@(firstWm != null ? Model.Phases.First(p => p.Key == firstWm.PhaseKey).Name : "")</span></div>
+                <div class="card-body d-flex flex-column flex-sm-row flex-xxl-column align-items-center gap-3">
+                    <div class="pdf-preview" style="--pdf-color:@i.Color; --pdf-opacity:@(Math.Max(i.Opacity, 8) / 100.0)" data-pdf-preview aria-hidden="true">
+                        <div class="lines"></div>
+                        <div class="band top" data-pdf-band="top" hidden></div>
+                        <div class="mark" data-pdf-band="diagonal" hidden></div>
+                        <div class="band bottom" data-pdf-band="bottom" hidden></div>
+                    </div>
+                    <p class="small text-body-secondary text-center mb-0">Click a watermark below to preview it with sample values. Renditions are stamped when they're made; markings are added whenever one is shown.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="vl-table-wrap mb-3">
+        <div class="adm-table-title"><i class="bi bi-grid-3x3-gap"></i>Phases<span class="small text-body-tertiary fw-normal ms-2">@Ui.Plural(Model.Phases.Count, "phase") · @Ui.Plural(Model.Fields.Count, "attachment field")</span></div>
+        <div class="vl-table-scroll">
+            <table class="pdf-matrix">
+                <thead>
+                    <tr class="group">
+                        <th scope="col" rowspan="2">Phase</th>
+                        @foreach (var f in Model.Fields)
+                        {
+                            <th scope="colgroup" colspan="3" class="field-group"><i class="bi bi-paperclip me-1" aria-hidden="true"></i>@f.Label</th>
+                        }
+                        <th scope="col" rowspan="2" class="field-group text-start">Watermark <span class="text-body-tertiary fw-normal">(DOC-022)</span></th>
+                        <th scope="col" rowspan="2" class="roles">Download</th>
+                        <th scope="col" rowspan="2" class="roles">Print</th>
+                    </tr>
+                    <tr>
+                        @foreach (var f in Model.Fields)
+                        {
+                            <th scope="col" class="chk first" title="Convert current files on entering the phase and when files are added in it (PLT-804, DOC-021)">Convert</th>
+                            <th scope="col" class="chk" title="The record can't enter this phase without current renditions (PLT-807, INV-054)">Require</th>
+                            <th scope="col" class="chk" title="Readers see only the PDF renditions in read mode (DOC-023, PLT-806)">PDF only</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in Model.Phases)
+                    {
+                        var ps = Model.PhaseOf(p.Key);
+                        <tr class="@(p.Type != PhaseType.Normal ? "terminal" : "")">
+                            <th scope="row" class="phase"><span class="name d-block">@p.Name</span><span class="type">@FormModel.TypeLabel(p)</span></th>
+                            @foreach (var f in Model.Fields)
+                            {
+                                var fs = Model.FieldOf(f.Key, p.Key);
+                                <td class="chk first"><input class="form-check-input" type="checkbox" name="cv.@f.Key.@p.Key" value="true" checked="@(fs?.Convert == true)" aria-label="Convert @f.Label in @p.Name" /></td>
+                                <td class="chk"><input class="form-check-input" type="checkbox" name="rq.@f.Key.@p.Key" value="true" checked="@(fs?.Require == true)" aria-label="Require PDF of @f.Label to enter @p.Name" /></td>
+                                <td class="chk"><input class="form-check-input" type="checkbox" name="po.@f.Key.@p.Key" value="true" checked="@(fs?.PdfOnly == true)" aria-label="Only PDF of @f.Label in @p.Name" /></td>
+                            }
+                            <td class="wm field-group text-start">
+                                <div class="input-group input-group-sm">
+                                    <input class="form-control" name="wm.@p.Key" value="@ps?.Watermark" maxlength="300" placeholder="No watermark" aria-label="Watermark in @p.Name" data-pdf-wm data-phase="@p.Name" />
+                                    <select class="form-select" style="max-width:8.5rem" name="pos.@p.Key" aria-label="Watermark position in @p.Name" data-pdf-pos>
+                                        @foreach (var (v, l) in positions) { <option value="@v" selected="@(ps?.Position == v)">@l</option> }
+                                    </select>
+                                </div>
+                            </td>
+                            <td class="roles">
+                                <select class="form-select form-select-sm" name="dl.@p.Key" aria-label="Who may download in @p.Name">
+                                    @foreach (var (v, l) in roles) { <option value="@v" selected="@((ps?.DownloadRole ?? AppRole.Reader) == v)">@l</option> }
+                                </select>
+                            </td>
+                            <td class="roles">
+                                <select class="form-select form-select-sm" name="pr.@p.Key" aria-label="Who may print in @p.Name">
+                                    @foreach (var (v, l) in roles) { <option value="@v" selected="@((ps?.PrintRole ?? AppRole.Reader) == v)">@l</option> }
+                                </select>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="vl-table-foot small text-body-secondary">
+            <div class="mb-1"><strong class="text-body">Tokens</strong> are replaced when the rendition is made:</div>
+            <div class="pdf-tokens">
+                @foreach (var (token, meaning) in PdfRuleStore.Tokens) { <span><code>@token</code> @meaning</span> }
+            </div>
+            <div class="mt-2">Download and print apply to the PDF viewer per application role; application managers can always download and print (DOC-081). A required phase needs Convert in that phase or an earlier one.</div>
+        </div>
+    </div>
+
+    <div class="adm-savebar">
+        <div class="adm-savebar-inner justify-content-between align-items-center">
+            <div class="small text-body-secondary"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Changes apply to the next conversion and route. Existing renditions aren't changed; use PDF › Convert to PDF now on a record to remake them.</div>
+            <div class="d-flex gap-2">
+                <a class="btn btn-light" href="/admin/pdf">Cancel</a>
+                <button class="btn btn-primary"><i class="bi bi-check2"></i>Save rules</button>
+            </div>
+        </div>
+    </div>
+</form>

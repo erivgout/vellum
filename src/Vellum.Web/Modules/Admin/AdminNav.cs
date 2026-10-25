@@ -34,6 +34,7 @@ public static class AdminCatalog
             new("System preferences", "/admin/settings", "bi-sliders", "tone-brand", "Environment, sessions, passwords, labels and e-signatures.", "ADM §5.1"),
             new("Keyword lists", "/admin/keywords", "bi-tags", "tone-brand", "Shared keyword lists, their usage and orphans.", "ADM-603"),
             new("Business calendar", "/admin/calendar", "bi-calendar3", "tone-brand", "Holidays and extra working days for due dates.", "ADM-301"),
+            new("PDF renditions", "/admin/pdf", "bi-file-earmark-pdf", "tone-brand", "Conversion, watermarks, PDF-only and required renditions per form and phase.", "PLT §2.8"),
             new("Compliance posture", "/admin/compliance", "bi-shield-check", "tone-ok", "Every compliance-sensitive setting and control.", "SAF-011"),
             new("eMDR gateway", "/admin/emdr", "bi-send-check", "tone-brand", "This environment's FDA eMDR profile: account, routing IDs and certificates.", "INT-902"),
         ]),
@@ -52,6 +53,7 @@ public static class AdminCatalog
         new(5, "Operations",
         [
             new("Scheduled tasks", "/admin/tasks", "bi-stopwatch", "tone-ok", "Task profiles, schedules, run now and run history.", "ADM §5.8"),
+            new("PDF conversion queue", "/admin/pdf/queue", "bi-hourglass-split", "tone-ok", "Queued, running and failed conversions, with retry.", "NFR-025"),
         ]),
         new(6, "Integrations",
         [

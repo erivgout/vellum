@@ -16,7 +16,14 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
     <PackageReference Include="Otp.NET" Version="1.4.1" />
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Inter (SIL OFL 1.1) for generated PDFs: renditions, watermarks, approval manifests and record print views. -->
+    <EmbeddedResource Include="Modules\Pdf\Fonts\*.ttf" LogicalName="VellumPdfFont.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

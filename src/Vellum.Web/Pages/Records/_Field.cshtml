@@ -1,4 +1,5 @@
 @model Vellum.Pages.Records.FieldCtx
+@inject Vellum.Modules.Pdf.PdfFilePresenter PdfFiles
 @{
     var f = Model.F;
     var vals = Model.Values;
@@ -64,20 +65,24 @@
                 else { <a href="@vals[0].Text" target="_blank" rel="noopener noreferrer">@vals[0].Text <i class="bi bi-box-arrow-up-right small"></i></a> }
                 break;
             case FieldType.Attachment:
-                var files = Model.Vm.AttachmentsOf(f.Key).ToList();
-                if (files.Count == 0) { <span class="text-body-tertiary">No files</span> }
+                // Renditions show as "PDF" next to their original; PDF-only phases show readers just the PDF (DOC-023).
+                var pdfFiles = await PdfFiles.FilesAsync(Model.Vm.Record, Model.Vm.Attachments, f, editing: false);
+                if (pdfFiles.Items.Count == 0) { <span class="text-body-tertiary">@(pdfFiles.HiddenOriginals > 0 ? "The PDF rendition isn't available yet." : "No files")</span> }
                 else
                 {
                     <ul class="vl-files mb-0">
-                        @foreach (var a in files)
+                        @foreach (var item in pdfFiles.Items)
                         {
+                            var a = item.File;
                             <li class="vl-file">
                                 <i class="bi @Ui.FileIcon(a.FileName) ficon"></i>
-                                <span class="min-w-0 flex-grow-1"><a class="fname" href="/files/@a.Id?inline=true" target="_blank">@a.FileName</a><span class="fmeta">@Ui.FileSize(a.Size) · @Model.Vm.Dir.Name(a.UploadedById) · @Ui.Ago(a.UploadedAt) · <span class="vl-hash" title="SHA-256 @a.Sha256">@a.Sha256[..10]</span></span></span>
-                                <a class="btn btn-sm btn-ghost btn-icon" href="/files/@a.Id" title="Download" aria-label="Download @a.FileName"><i class="bi bi-download"></i></a>
+                                <span class="min-w-0 flex-grow-1"><a class="fname" href="@item.ViewUrl" target="_blank">@a.FileName</a><span class="fmeta">@Ui.FileSize(a.Size) · @(item.RenditionOnly ? "PDF rendition" : Model.Vm.Dir.Name(a.UploadedById)) · @Ui.Ago(a.UploadedAt) · <span class="vl-hash" title="SHA-256 @a.Sha256">@a.Sha256[..10]</span></span></span>
+                                <partial name="~/Modules/Pdf/Views/_FileChip.cshtml" model="item" />
+                                @if (item.DownloadUrl != null) { <a class="btn btn-sm btn-ghost btn-icon" href="@item.DownloadUrl" title="Download" aria-label="Download @a.FileName"><i class="bi bi-download"></i></a> }
                             </li>
                         }
                     </ul>
+                    @if (pdfFiles.PdfOnly) { <div class="form-text"><i class="bi bi-file-earmark-pdf me-1"></i>Only PDF renditions are shown in this phase.</div> }
                 }
                 break;
             default:
@@ -175,15 +180,17 @@
         </div>
         break;
     case FieldType.Attachment:
-        var existing = Model.Vm.AttachmentsOf(f.Key).ToList();
+        var existing = (await PdfFiles.FilesAsync(Model.Vm.Record, Model.Vm.Attachments, f, editing: true)).Items;
         if (existing.Count > 0)
         {
             <ul class="vl-files">
-                @foreach (var a in existing)
+                @foreach (var item in existing)
                 {
+                    var a = item.File;
                     <li class="vl-file">
                         <i class="bi @Ui.FileIcon(a.FileName) ficon"></i>
                         <span class="min-w-0 flex-grow-1"><a class="fname" href="/files/@a.Id?inline=true" target="_blank">@a.FileName</a><span class="fmeta">@Ui.FileSize(a.Size) · @Model.Vm.Dir.Name(a.UploadedById) · @Ui.Ago(a.UploadedAt)</span></span>
+                        <partial name="~/Modules/Pdf/Views/_FileChip.cshtml" model="item" />
                         <a class="btn btn-sm btn-ghost btn-icon" href="/files/@a.Id" title="Download" aria-label="Download @a.FileName"><i class="bi bi-download"></i></a>
                         <input type="checkbox" class="btn-check" id="rm-@a.Id" name="remove" value="@a.Id" autocomplete="off" />
                         <label class="btn btn-sm btn-ghost btn-icon text-danger" for="rm-@a.Id" title="Remove on save" aria-label="Remove @a.FileName"><i class="bi bi-trash3"></i></label>

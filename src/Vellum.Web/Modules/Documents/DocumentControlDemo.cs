@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Vellum.Domain;
 using Vellum.Engine.Behaviors;
 using Vellum.Engine.Records;
+using Vellum.Modules.Pdf;
 using Vellum.Modules.Training;
 using Vellum.Packaging;
 using S = Vellum.Modules.Documents.DemoPdf.Section;
@@ -170,6 +171,32 @@ public sealed partial class DocumentControlApp
         var lbl = await NewAsync(d, "akim", 40, "work_instruction", "Label printer setup for ST-40 tubing sets", "lgarcia", ["jlee"], "operations", ["kzo"],
             "Setup of the Zebra ZT411 label printer for ST-40 tubing set labels.", "New work instruction.", LabelSetup(), training: false, justification: "Not yet decided.");
         await d.RouteAsync(lbl, DocKeys.Voided, asUser: "akim", comment: "Not needed: the label system vendor's validated setup procedure applies instead (see CAPA-00002).");
+
+        await RestampRenditionsAsync(d);
+    }
+
+    /// <summary>
+    /// Demo-only: renditions are stamped when a revision is released, with the real (today's) effective date; the demo then
+    /// backdates effective dates. Re-stamp released revisions so their PDFs carry the dates shown on the records
+    /// (DOC-022). Conversions are cached, so this only re-applies the watermark.
+    /// </summary>
+    private static async Task RestampRenditionsAsync(DemoContext d)
+    {
+        d.As("pshah");
+        var queue = d.Services.GetRequiredService<PdfQueue>();
+        var rs = d.Services.GetRequiredService<RecordService>();
+        var formId = d.Config.Form(DocKeys.Document).Id;
+        d.Db.ChangeTracker.Clear();
+        var ids = await d.Db.Records.AsNoTracking().Where(r => r.FormId == formId && r.EffectiveDate != null && r.PhaseType == PhaseType.Completed)
+            .Select(r => r.Id).ToListAsync();
+        foreach (var id in ids)
+        {
+            d.Db.ChangeTracker.Clear();
+            var snap = await rs.LoadRequiredAsync(id);
+            var jobs = await queue.EnqueueAsync(snap, ["primary_file"], "demo");
+            await queue.ProcessInlineAsync(jobs);
+            await d.Db.SaveChangesAsync();
+        }
     }
 
     // ------------------------------------------------------------------ helpers

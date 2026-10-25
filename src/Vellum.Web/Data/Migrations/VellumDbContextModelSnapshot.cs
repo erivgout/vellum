@@ -3836,6 +3836,264 @@ namespace Vellum.Data.Migrations
                     b.ToTable("SharePointRules", (string)null);
                 });
 
+            modelBuilder.Entity("Vellum.Modules.Pdf.PdfConversion", b =>
+                {
+                    b.Property<string>("SourceSha")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("ConvertedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Converter")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("DurationMs")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Pages")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PdfSha")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("PdfSize")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("SourceSha");
+
+                    b.ToTable("PdfConversions", (string)null);
+                });
+
+            modelBuilder.Entity("Vellum.Modules.Pdf.PdfFieldSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Convert")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("FieldKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("PdfOnly")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PhaseKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ProfileId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Require")
+                        .HasColumnType("bit");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfileId", "FieldKey", "PhaseKey")
+                        .IsUnique();
+
+                    b.ToTable("PdfFieldSettings", (string)null);
+                });
+
+            modelBuilder.Entity("Vellum.Modules.Pdf.PdfJob", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AttachmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Converter")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FieldKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("LeaseUntil")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("NextAttemptAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("Permanent")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PhaseKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("RecordId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long?>("RenditionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("RequestedById")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("RowId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceSha")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Trigger")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Watermark")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttachmentId");
+
+                    b.HasIndex("RecordId");
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.ToTable("PdfJobs", (string)null);
+                });
+
+            modelBuilder.Entity("Vellum.Modules.Pdf.PdfPhaseSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DownloadRole")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PhaseKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PrintRole")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProfileId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Watermark")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProfileId", "PhaseKey")
+                        .IsUnique();
+
+                    b.ToTable("PdfPhaseSettings", (string)null);
+                });
+
+            modelBuilder.Entity("Vellum.Modules.Pdf.PdfProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AutoMark")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Color")
+                        .IsRequired()
+                        .HasMaxLength(9)
+                        .HasColumnType("nvarchar(9)");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("FormKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("Manifest")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ManifestNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("Opacity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UpdatedById")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FormKey")
+                        .IsUnique();
+
+                    b.ToTable("PdfProfiles", (string)null);
+                });
+
             modelBuilder.Entity("Vellum.Domain.AccountToken", b =>
                 {
                     b.HasOne("Vellum.Domain.User", "User")
@@ -4220,6 +4478,24 @@ namespace Vellum.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Vellum.Modules.Pdf.PdfFieldSetting", b =>
+                {
+                    b.HasOne("Vellum.Modules.Pdf.PdfProfile", null)
+                        .WithMany("Fields")
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vellum.Modules.Pdf.PdfPhaseSetting", b =>
+                {
+                    b.HasOne("Vellum.Modules.Pdf.PdfProfile", null)
+                        .WithMany("Phases")
+                        .HasForeignKey("ProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Vellum.Domain.AppDefinition", b =>
                 {
                     b.Navigation("Forms");
@@ -4275,6 +4551,13 @@ namespace Vellum.Data.Migrations
             modelBuilder.Entity("Vellum.Modules.Integrations.SharePoint.SharePointProfile", b =>
                 {
                     b.Navigation("Libraries");
+                });
+
+            modelBuilder.Entity("Vellum.Modules.Pdf.PdfProfile", b =>
+                {
+                    b.Navigation("Fields");
+
+                    b.Navigation("Phases");
                 });
 #pragma warning restore 612, 618
         }
