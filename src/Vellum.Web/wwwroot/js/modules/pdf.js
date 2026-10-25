@@ -38,6 +38,46 @@
     setTimeout(tick, 2000);
   }
 
+  // ------------------------------------------------------------------ rules editor preview (Administration › PDF renditions)
+
+  const rulesForm = document.querySelector('[data-pdf-rules]');
+  if (rulesForm) {
+    const preview = rulesForm.querySelector('[data-pdf-preview]');
+    const phaseLabel = rulesForm.querySelector('[data-pdf-preview-phase]');
+    const color = rulesForm.querySelector('[data-pdf-color]');
+    const opacity = rulesForm.querySelector('[data-pdf-opacity]');
+    const sample = { number: 'SOP-00012', revision: 'B', rev: 'B', title: 'Cleanroom gowning and entry', effective_date: '12 Mar 2026', effective: '12 Mar 2026',
+      today: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), status: 'Effective', org: 'Acme Medical Devices', form: 'Controlled Document' };
+    const show = (input) => {
+      if (!input || !preview) return;
+      const pos = input.closest('tr')?.querySelector('[data-pdf-pos]')?.value || 'Diagonal';
+      const text = input.value.trim().replace(/\{([^}]+)\}/g, (m, k) => (k === 'phase' ? input.dataset.phase : sample[k.trim().toLowerCase()]) ?? m);
+      preview.querySelectorAll('[data-pdf-band]').forEach((el) => { el.hidden = true; el.textContent = ''; });
+      const slot = preview.querySelector(`[data-pdf-band="${pos === 'Header' ? 'top' : pos === 'Footer' ? 'bottom' : 'diagonal'}"]`);
+      if (slot && text) { slot.textContent = text; slot.hidden = false; }
+      if (phaseLabel) phaseLabel.textContent = input.dataset.phase || '';
+    };
+    const style = () => {
+      if (!preview) return;
+      preview.style.setProperty('--pdf-color', color.value);
+      preview.style.setProperty('--pdf-opacity', String(Math.max(Number(opacity.value), 8) / 100));
+      const ct = rulesForm.querySelector('[data-pdf-color-text]');
+      if (ct) ct.textContent = color.value;
+      const ot = rulesForm.querySelector('[data-pdf-opacity-text]');
+      if (ot) ot.textContent = `${opacity.value}%`;
+    };
+    let last = [...rulesForm.querySelectorAll('[data-pdf-wm]')].find((i) => i.value.trim()) || null;
+    rulesForm.querySelectorAll('[data-pdf-wm]').forEach((i) => {
+      i.addEventListener('focus', () => { last = i; show(i); });
+      i.addEventListener('input', () => { last = i; show(i); });
+    });
+    rulesForm.querySelectorAll('[data-pdf-pos]').forEach((s) => s.addEventListener('change', () => show(s.closest('tr').querySelector('[data-pdf-wm]'))));
+    color?.addEventListener('input', style);
+    opacity?.addEventListener('input', style);
+    style();
+    show(last);
+  }
+
   // ------------------------------------------------------------------ viewer
 
   const root = document.querySelector('[data-pdf-viewer]');

@@ -1,0 +1,101 @@
+@page
+@model Vellum.Areas.Admin.Pages.Pdf.IndexModel
+@using Vellum.Modules.Pdf
+@{
+    ViewData["Title"] = "PDF renditions";
+    var queued = Model.Counts.GetValueOrDefault(PdfJobStatus.Queued) + Model.Counts.GetValueOrDefault(PdfJobStatus.Converting);
+    var failed = Model.Counts.GetValueOrDefault(PdfJobStatus.Failed);
+    var done = Model.Counts.GetValueOrDefault(PdfJobStatus.Done);
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-brand"><i class="bi bi-file-earmark-pdf"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">PDF renditions</h1>
+        <p class="vl-page-sub">Which attachment fields are converted to PDF in which phases, the watermark of each phase, PDF-only read mode and phases that can't be entered without renditions (PLT-804..807, DOC-021..023, INV-054). Originals are never changed (SAF-063).</p>
+    </div>
+    <a class="btn btn-light" href="/admin/pdf/queue"><i class="bi bi-hourglass-split"></i>Conversion queue</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="vl-stat">
+            <span class="vl-stat-icon @(Model.Soffice != null ? "tone-ok" : "tone-warn")"><i class="bi @(Model.Soffice != null ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill")"></i></span>
+            <div class="vl-stat-value adm-stat-text">@(Model.Soffice != null ? "Available" : "Not installed")</div>
+            <div class="vl-stat-label">LibreOffice for Office files</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <a class="vl-stat" href="/admin/pdf/queue?status=pending">
+            <span class="vl-stat-icon tone-info"><i class="bi bi-hourglass-split"></i></span>
+            <div class="vl-stat-value">@queued</div>
+            <div class="vl-stat-label">Queued or converting</div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <a class="vl-stat" href="/admin/pdf/queue?status=failed">
+            <span class="vl-stat-icon @(failed > 0 ? "tone-bad" : "tone-neutral")"><i class="bi bi-x-octagon-fill"></i></span>
+            <div class="vl-stat-value @(failed > 0 ? "text-danger" : "")">@failed</div>
+            <div class="vl-stat-label">Failed@(Model.FailedRecent > 0 ? $" · {Model.FailedRecent} in the last 7 days" : "")</div>
+        </a>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="vl-stat">
+            <span class="vl-stat-icon tone-violet"><i class="bi bi-speedometer2"></i></span>
+            <div class="vl-stat-value">@(Model.P95Ms is { } p ? $"{p / 1000.0:0.0} s" : "–")</div>
+            <div class="vl-stat-label">Office conversion p95, 30 days (target ≤ 30 s, NFR-005)</div>
+        </div>
+    </div>
+</div>
+
+@if (Model.Soffice != null)
+{
+    <div class="vl-banner vl-banner-ok"><i class="bi bi-check-circle"></i><div><div class="ttl">Office conversion is available</div><div class="small">Word, Excel, PowerPoint and OpenDocument files are converted with <span class="mono">@Model.Soffice</span> (headless, a separate profile per conversion). @Ui.Plural(done, "rendition") made so far; @Ui.Plural(Model.Cached, "file") in the conversion cache.</div></div></div>
+}
+else
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-exclamation-triangle"></i><div><div class="ttl">Office files can't be converted yet</div><div class="small">@Model.MissingMessage PDFs, JPEG/PNG/BMP images and plain text are still converted. Office conversions wait in the queue and are retried with backoff (NFR-025).</div></div></div>
+}
+
+<div class="vl-table-wrap">
+    <div class="adm-table-title"><i class="bi bi-ui-checks-grid"></i>Forms with attachment fields</div>
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-paperclip"></i></div><h3>No attachment fields</h3><p>Forms appear here once they have an attachment field.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead>
+                    <tr><th scope="col">Form</th><th scope="col">Attachment fields</th><th scope="col">Converted in</th><th scope="col">Required to enter</th><th scope="col">PDF only in</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Rows)
+                    {
+                        var r = row.Rules;
+                        <tr data-href="/admin/pdf/form/@row.Form.Key">
+                            <td class="col-title">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="vl-app-tile xs" style="--app:@row.App.Color"><i class="bi @row.Form.Icon"></i></span>
+                                    <span class="min-w-0"><a class="fw-semibold" href="/admin/pdf/form/@row.Form.Key">@row.Form.Name</a><span class="d-block small text-body-secondary">@row.App.Name</span></span>
+                                </div>
+                            </td>
+                            <td class="small">@string.Join(", ", row.Fields.Select(f => f.Label))</td>
+                            <td class="small">@(row.ConvertPhases.Count > 0 ? string.Join(", ", row.ConvertPhases) : "–")</td>
+                            <td class="small">@if (row.RequirePhases.Count > 0) { <span class="adm-status info"><i class="bi bi-shield-lock-fill"></i>@string.Join(", ", row.RequirePhases)</span> } else { <text>–</text> }</td>
+                            <td class="small">@(row.PdfOnlyPhases.Count > 0 ? string.Join(", ", row.PdfOnlyPhases) : "–")</td>
+                            <td class="text-nowrap">
+                                @if (r == null) { <span class="adm-status off"><i class="bi bi-dash-circle"></i>Not configured</span> }
+                                else if (!r.Enabled) { <span class="adm-status warn"><i class="bi bi-pause-circle"></i>Disabled</span> }
+                                else { <span class="adm-status ok"><i class="bi bi-check-circle-fill"></i>On@(row.Watermarks > 0 ? $" · {row.Watermarks} watermark{(row.Watermarks == 1 ? "" : "s")}" : "")</span> }
+                                @if (r?.Profile.Origin == "default") { <span class="adm-flag" title="Installed with the application">Default</span> }
+                            </td>
+                            <td class="text-end"><a class="btn btn-sm btn-light" href="/admin/pdf/form/@row.Form.Key"><i class="bi bi-pencil"></i>Edit rules</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
