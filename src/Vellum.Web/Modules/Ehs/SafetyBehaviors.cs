@@ -183,7 +183,7 @@ public sealed class PermitBehavior : RecordBehavior
                 if (s.DateTime("tested_at") is { } tested && DateTime.UtcNow - ModuleKit.Utc(tested) > TimeSpan.FromHours(2))
                     ctx.Error("The gas test is more than 2 hours old. Re-test the atmosphere before authorizing entry.");
             }
-            if (s.Links("jsa").FirstOrDefault() is { } jsaId)
+            if (s.Links("jsa") is [var jsaId, ..])
             {
                 var jsa = await ctx.Db.Records.AsNoTracking().Include(r => r.Phase).FirstOrDefaultAsync(r => r.Id == jsaId);
                 if (jsa?.Phase?.Key != "approved") ctx.Error($"The linked JSA {jsa?.Number} isn't approved yet.");
