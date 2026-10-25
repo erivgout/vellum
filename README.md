@@ -25,6 +25,7 @@ Sign in with any demo account; the password is `Vellum!Demo2026`:
 | `jlee` | Senior quality engineer |
 | `pshah` | Document controller |
 | `tbrooks` | Lead auditor |
+| `rnovak` | Regulatory affairs manager (MedWatch / eMDR) |
 | `mchen` | EHS coordinator |
 | `cwu` | Supplier quality engineer |
 | `kpatel` | Training coordinator |
@@ -45,14 +46,20 @@ Supplier portal contacts sign in at the same `/login` page and land in their own
 - **Applications:** Document Control, Training Management, CAPA (incl. 8D and SCAR), Action Items, Nonconformance,
   Quality Events, Planned Deviations, Customers & Feedback, Complaint Handling (with MDR/vigilance reporting clocks),
   Lab Investigations (OOS/OOT), Customer Returns (RMA), Change Management, Audits, Inspections, Supplier Quality,
-  Risk Register, FMEA, EHS (incidents with OSHA clocks, JSAs, permits, OSHA log and rates), Assets & Calibration,
-  Projects & Tasks.
+  Risk Register, FMEA, EHS (incidents with OSHA clocks, JSAs, permits, OSHA log and rates; anonymous near misses with
+  named EHS acceptance), Assets & Calibration, Projects & Tasks, and **Adverse Event Reporting** (FDA MedWatch 3500A,
+  eMDR validation and HL7 ICSR files, ACK1–ACK3 tracking, supplemental reports).
 - **Supplier portal:** invited supplier contacts answer SCARs, upload requested certificates and SDSs, complete
   questionnaires, respond to audit findings and see their scorecards, isolated to their own company's shared records.
+- **PDF output:** PDF renditions of controlled files (Office files through LibreOffice), per-phase watermarks and
+  DRAFT/SUPERSEDED marking, an in-browser viewer with download/print control, approval manifests and record PDFs.
+- **Integrations:** SharePoint publishing of effective documents (Microsoft Graph, or a local folder for development)
+  and an eMDR gateway profile (manual ESG WebTrader upload, or a simulated FDA gateway outside production).
 - **Administration Center**, a visual **Designer** (draft → validate → publish with versioning) and **Insights**
-  dashboards, a chart builder and threshold alerts.
+  dashboards, a chart builder and threshold alerts that can notify or create records (for example a CAPA).
 
 Built with ASP.NET Core (.NET 10, Razor Pages), Entity Framework Core on SQL Server, Bootstrap 5.3 and Bootstrap Icons.
+Optional: LibreOffice on the server for Office-to-PDF conversion. See [deployment notes](docs/architecture.md#deployment-notes).
 
 ## Development
 

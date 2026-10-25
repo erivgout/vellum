@@ -16,6 +16,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
     <PackageReference Include="Otp.NET" Version="1.4.1" />
+    <!-- Pinned: 6.2.4 is the last MIT-licensed PDFsharp/MigraDoc release (later versions are AGPL). Don't upgrade without a license review. -->
     <PackageReference Include="PDFsharp" Version="6.2.4" />
     <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
