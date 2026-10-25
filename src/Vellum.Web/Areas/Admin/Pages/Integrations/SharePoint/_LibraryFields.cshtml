@@ -1,0 +1,26 @@
+@model Vellum.Areas.Admin.Pages.Integrations.SharePoint.LibraryFieldsVm
+@using Vellum.Modules.Integrations.SharePoint
+@{
+    var l = Model.Lib;
+    var sfx = Model.IsNew ? "new" : l.Id.ToString();
+}
+<div class="col-md-4">
+    <label class="form-label small" for="lib-name-@sfx">Name <span class="req">*</span></label>
+    <input class="form-control form-control-sm" id="lib-name-@sfx" name="Lib.Name" value="@l.Name" required maxlength="120" placeholder="Controlled Documents" data-adm-slug-source="#lib-key-@sfx" />
+</div>
+<div class="col-md-3">
+    <label class="form-label small" for="lib-key-@sfx">Identifier</label>
+    <input class="form-control form-control-sm sp-mono" id="lib-key-@sfx" name="Lib.Key" value="@l.Key" maxlength="64" spellcheck="false" placeholder="from the name" />
+</div>
+<div class="col-md-5">
+    <label class="form-label small" for="lib-url-@sfx">Server-relative URL <span class="req">*</span></label>
+    <input class="form-control form-control-sm sp-mono" id="lib-url-@sfx" name="Lib.RelativeUrl" value="@l.RelativeUrl" required maxlength="400" spellcheck="false" placeholder="/sites/QMS/Controlled Documents" />
+</div>
+@if (Model.Connection == SpConnection.LocalFolder)
+{
+    <div class="col-12">
+        <label class="form-label small" for="lib-cols-@sfx">Simulated columns</label>
+        <textarea class="form-control form-control-sm sp-mono" id="lib-cols-@sfx" name="Lib.SimulatedColumns" rows="3" maxlength="4000" spellcheck="false" placeholder="Title, DocumentNumber, Revision, EffectiveDate:dateTime" aria-describedby="lib-cols-help-@sfx">@l.SimulatedColumns</textarea>
+        <div class="form-text" id="lib-cols-help-@sfx">Internal names standing in for the library's columns, so mapping checks behave like SharePoint. One per line or comma-separated; add :dateTime, :number or :boolean for typed columns. Empty accepts any column.</div>
+    </div>
+}
