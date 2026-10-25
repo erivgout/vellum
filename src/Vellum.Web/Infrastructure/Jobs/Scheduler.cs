@@ -94,19 +94,28 @@ public sealed class Scheduler(IServiceScopeFactory scopes, ILogger<Scheduler> lo
             run.RecordsAffected = result.RecordsAffected;
             if (result.Summary != null) ctx.Log(result.Summary);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Shutting down: record the run as cancelled and release the lease (below) so the next start isn't blocked.
+            db.ChangeTracker.Clear();
+            run = await db.TaskRuns.FirstAsync(r => r.Id == run.Id, CancellationToken.None);
+            run.Outcome = "Cancelled";
+            ctx.Log("Stopped because the application is shutting down.");
+        }
         catch (Exception ex)
         {
             log.LogError(ex, "Job {Job} failed", key);
             db.ChangeTracker.Clear();
-            run = await db.TaskRuns.FirstAsync(r => r.Id == run.Id, ct);
+            run = await db.TaskRuns.FirstAsync(r => r.Id == run.Id, CancellationToken.None);
             run.Outcome = "Failed";
             ctx.Log("ERROR: " + ex.Message);
-            var admins = await db.Users.Where(u => u.IsAdministrator && u.Status == UserStatus.Active && !u.IsSystemIdentity).Select(u => u.Id).ToListAsync(ct);
+            var admins = await db.Users.Where(u => u.IsAdministrator && u.Status == UserStatus.Active && !u.IsSystemIdentity).Select(u => u.Id).ToListAsync(CancellationToken.None);
             foreach (var a in admins)
                 db.Notifications.Add(new Notification { UserId = a, Kind = NotificationKind.Escalation, CreatedAt = DateTime.UtcNow,
                     Title = $"Scheduled task failed: {job.Name}", Body = ex.Message, Url = "/admin/tasks" });
         }
-        task = await db.Tasks.FirstAsync(t => t.Id == task.Id, ct);
+        // The bookkeeping always completes, even during shutdown, so the lease is never left behind.
+        task = await db.Tasks.FirstAsync(t => t.Id == task.Id, CancellationToken.None);
         run.EndedAt = DateTime.UtcNow;
         run.Log = ctx.Output;
         task.LastRunAt = now;
@@ -115,7 +124,7 @@ public sealed class Scheduler(IServiceScopeFactory scopes, ILogger<Scheduler> lo
         task.LeaseUntil = null;
         if (missed > 0)
             db.SecurityEvents.Add(new SecurityEvent { At = DateTime.UtcNow, Kind = "Missed task runs caught up", Success = true, Detail = $"{job.Name}: {missed} missed run(s)" });
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(CancellationToken.None);
         return true;
     }
 }

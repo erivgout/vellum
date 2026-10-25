@@ -173,6 +173,7 @@ public static class AdminText
         "Succeeded" => "<span class=\"vl-kw vl-kw-success\"><i class=\"bi bi-check2\"></i>Succeeded</span>",
         "Failed" => "<span class=\"vl-kw vl-kw-danger\"><i class=\"bi bi-x-lg\"></i>Failed</span>",
         "Running" => "<span class=\"vl-kw vl-kw-info\"><i class=\"bi bi-arrow-repeat\"></i>Running</span>",
+        "Cancelled" => "<span class=\"vl-kw vl-kw-warning\" title=\"Stopped because the application shut down; it runs again on the next start\"><i class=\"bi bi-stop-circle\"></i>Cancelled</span>",
         _ => $"<span class=\"vl-kw\">{E(outcome)}</span>",
     });
 

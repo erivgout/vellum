@@ -105,6 +105,19 @@ public class SharePointPublishingTests(VellumFixture fx)
         return await s.Db().Set<SharePointPublication>().AsNoTracking().Where(p => p.RecordId == recordId).OrderBy(p => p.Id).ToListAsync();
     }
 
+    /// <summary>A real PDF (the PDF engine rejects invalid files, and renditions must be derivable).</summary>
+    private static byte[] Pdf(string title) => Vellum.Modules.Pdf.PdfLayout.Render(new Vellum.Modules.Pdf.PdfReport { Title = title }, "Acme");
+
+    /// <summary>Bytes of the current PDF rendition of a record's primary file: what gets published (DOC-084).</summary>
+    private async Task<byte[]> RenditionBytesAsync(Guid recordId)
+    {
+        using var s = fx.Services.CreateScope();
+        var db = s.Db();
+        var original = await db.Attachments.AsNoTracking().FirstAsync(x => x.RecordId == recordId && x.FieldKey == "primary_file" && !x.Removed && x.RenditionOfId == null);
+        var rendition = await db.Attachments.AsNoTracking().Where(x => x.RenditionOfId == original.Id && !x.Removed).OrderByDescending(x => x.Id).FirstAsync();
+        return await s.ServiceProvider.GetRequiredService<FileStore>().ReadVerifiedAsync(rendition.Sha256);
+    }
+
     private static Dictionary<string, JsonElement> Sidecar(string file) =>
         JsonSerializer.Deserialize<JsonElement>(File.ReadAllText(file + LocalFolderSharePointClient.SidecarSuffix)).GetProperty("fields")
             .EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone());
@@ -188,7 +201,7 @@ public class SharePointPublishingTests(VellumFixture fx)
         // INT-304: ":" and "/" aren't allowed in SharePoint names and became underscores; the missing folder was created.
         var file = Path.Combine(cfg.Library, "Procedure", $"{doc.Number} - SP gowning_ entry_exit.pdf");
         Assert.True(File.Exists(file), file);
-        Assert.Equal("%PDF-1.4 SP gowning: entry/exit", await File.ReadAllTextAsync(file));
+        Assert.Equal(await RenditionBytesAsync(id), await File.ReadAllBytesAsync(file)); // the PDF rendition is what's published
         var meta = Sidecar(file);
         Assert.Equal(doc.Number, meta["DocumentNumber"].GetString());
         Assert.Equal("A", meta["Revision"].GetString());
@@ -313,14 +326,15 @@ public class SharePointPublishingTests(VellumFixture fx)
         var a = await ReleasedDocAsync("SP versioned");
         await RunAsync(a.Id);
         var file = Path.Combine(cfg.Library, "Procedure", $"{a.Number} - SP versioned.pdf");
+        var revisionA = await File.ReadAllBytesAsync(file);
 
-        var revB = await NewRevisionAsync(a.Id, Encoding.UTF8.GetBytes("%PDF-1.4 revision B"));
+        var revB = await NewRevisionAsync(a.Id, Pdf("SP versioned, revision B"));
         Assert.All(await RunAsync(revB, a.Id), j => Assert.True(j.Status == SpJobStatus.Succeeded, j.Error));
 
-        Assert.Equal("%PDF-1.4 revision B", await File.ReadAllTextAsync(file));
+        Assert.Equal(await RenditionBytesAsync(revB), await File.ReadAllBytesAsync(file));
         Assert.Equal("B", Sidecar(file)["Revision"].GetString());
         var versions = Path.Combine(cfg.Library, LocalFolderSharePointClient.VersionsFolder, "Procedure", Path.GetFileName(file));
-        Assert.Contains(Directory.GetFiles(versions), v => File.ReadAllText(v) == "%PDF-1.4 SP versioned");
+        Assert.Contains(Directory.GetFiles(versions), v => File.ReadAllBytes(v).SequenceEqual(revisionA));
         var pubA = Assert.Single(await PubsAsync(a.Id));
         Assert.Equal(SpPublicationStatus.Replaced, pubA.Status);
         Assert.Equal(Assert.Single(await PubsAsync(revB)).Id, pubA.ReplacedById);
@@ -480,43 +494,42 @@ public class SharePointPublishingTests(VellumFixture fx)
         Guid id;
         using (var s = fx.As("jlee"))
         {
-            var doc = await NewDocAsync(s, "SP rendition");
-            id = doc.Id;
+            // A non-PDF original (a PDF original may be published as it is); plain text converts without LibreOffice.
+            id = (await NewDocAsync(s, "SP rendition")).Id;
             var snap = await s.LoadAsync(id);
             var save = await s.ServiceProvider.GetRequiredService<RecordService>().SaveAsync(snap, new RecordData(), new SaveOptions
             {
-                Uploads = [("primary_file", "procedure.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", new MemoryStream(Encoding.UTF8.GetBytes("DOCX bytes")))],
+                Uploads = [("primary_file", "procedure.txt", "text/plain", new MemoryStream(Encoding.UTF8.GetBytes("1. Gown up.\n2. Enter the cleanroom.")))],
                 RemoveAttachmentIds = snap.AttachmentsOf("primary_file").Select(x => x.Id).ToList(),
             });
             Assert.True(save.Ok, string.Join("; ", save.Errors.Select(e => e.Message)));
         }
-        await ReleaseAsync(fx, id);
+        await ReleaseAsync(fx, id); // INV-054: Approved can't be entered without the rendition, so the PDF engine made it
+
+        // A rendition that isn't there (yet), as on a phase that converts without requiring it: publishing waits for it
+        // instead of falling back to the editable original.
+        long originalId, renditionId;
+        using (var s = fx.Services.CreateScope())
+        {
+            var db = s.Db();
+            var original = await db.Attachments.FirstAsync(x => x.RecordId == id && x.FieldKey == "primary_file" && !x.Removed && x.RenditionOfId == null);
+            var rendition = await db.Attachments.Where(x => x.RenditionOfId == original.Id && !x.Removed).OrderByDescending(x => x.Id).FirstAsync();
+            (originalId, renditionId) = (original.Id, rendition.Id);
+            // Earlier phases made renditions too; hide every one, then bring back only the current one below.
+            await db.Attachments.Where(x => x.RenditionOfId == originalId).ExecuteUpdateAsync(x => x.SetProperty(a => a.Removed, true));
+        }
         var waiting = Assert.Single(await RunAsync(id));
         Assert.Equal(SpJobStatus.Pending, waiting.Status); // retried later, the rendition may still be generating
         Assert.Equal(SpErrors.RenditionPending, waiting.ErrorCode);
 
-        long originalId, renditionId;
         using (var s = fx.Services.CreateScope())
-        {
-            s.ServiceProvider.GetRequiredService<CurrentUser>().UseSystem("Rendition test");
-            var db = s.Db();
-            var original = await db.Attachments.FirstAsync(x => x.RecordId == id && x.FieldKey == "primary_file" && !x.Removed && x.RenditionOfId == null);
-            var (sha, size) = await s.ServiceProvider.GetRequiredService<FileStore>().SaveAsync(new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.7 rendition")));
-            var rendition = new Attachment
-            {
-                RecordId = id, FieldKey = "primary_file", FileName = "procedure.pdf", ContentType = "application/pdf", Sha256 = sha, Size = size,
-                UploadedById = s.ServiceProvider.GetRequiredService<UserDirectory>().SystemUserId, UploadedAt = DateTime.UtcNow, RenditionOfId = original.Id,
-            };
-            db.Attachments.Add(rendition);
-            await db.SaveChangesAsync();
-            (originalId, renditionId) = (original.Id, rendition.Id);
-        }
+            await s.Db().Attachments.Where(x => x.Id == renditionId).ExecuteUpdateAsync(x => x.SetProperty(a => a.Removed, false));
         var done = Assert.Single(await RunAsync(id));
         Assert.True(done.Status == SpJobStatus.Succeeded, done.Error);
         Record r;
         using (var c = fx.As("pshah")) r = await c.Db().Records.AsNoTracking().FirstAsync(x => x.Id == id);
         var file = Path.Combine(cfg.Library, "Procedure", $"{r.Number} - SP rendition.pdf");
-        Assert.Equal("%PDF-1.7 rendition", await File.ReadAllTextAsync(file));
+        Assert.Equal(await RenditionBytesAsync(id), await File.ReadAllBytesAsync(file));
         var pub = Assert.Single(await PubsAsync(id));
         Assert.True(pub.IsRendition);
         Assert.Equal(renditionId, pub.AttachmentId);
