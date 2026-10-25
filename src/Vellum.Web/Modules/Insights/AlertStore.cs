@@ -29,6 +29,9 @@ public sealed class AlertInput
     public List<int> CcUsers { get; set; } = [];
     public string Subject { get; set; } = AlertEngine.DefaultSubject;
     public string Body { get; set; } = AlertEngine.DefaultBody;
+    /// <summary>notify (RPT-602) | create (RPT-603)</summary>
+    public string Action { get; set; } = "notify";
+    public AlertCreateConfig Create { get; set; } = new();
 
     public static AlertInput From(InsightsAlertTemplate t)
     {
@@ -41,6 +44,7 @@ public sealed class AlertInput
             MinMatches = t.MinMatches, LookbackDays = t.LookbackDays, WindowStart = t.WindowStart, WindowEnd = t.WindowEnd,
             IncrementDates = t.IncrementDates, FrequencyDays = t.FrequencyDays, Enabled = t.Enabled, OnlyWhenChanged = t.OnlyWhenChanged,
             Users = to.Users, Groups = to.Groups, CcUsers = AlertRecipients.Parse(t.CcJson).Users, Subject = t.Subject, Body = t.Body,
+            Action = t.Action == "create" ? "create" : "notify", Create = AlertCreateConfig.Parse(t.CreateJson),
         };
     }
 }
@@ -50,7 +54,8 @@ public sealed class AlertInput
 /// template owner, the users it notified and administrators, and its records are re-trimmed for whoever opens it.
 /// </summary>
 [ScopedService]
-public sealed class AlertStore(VellumDbContext db, CurrentUser me, AccessService access, NumberingService numbers, BuilderCatalog catalog, UserDirectory dir)
+public sealed class AlertStore(VellumDbContext db, CurrentUser me, AccessService access, NumberingService numbers, BuilderCatalog catalog, UserDirectory dir,
+    AlertCreateCatalog createCatalog)
 {
     public IQueryable<InsightsAlertTemplate> Templates => db.Set<InsightsAlertTemplate>();
     public IQueryable<InsightsAlertReport> Reports => db.Set<InsightsAlertReport>();
@@ -95,8 +100,12 @@ public sealed class AlertStore(VellumDbContext db, CurrentUser me, AccessService
         return access.IsAdmin || t.OwnerId == me.Id || Notified(r).Contains(me.Id) ? (r, t) : null;
     }
 
-    /// <summary>RPT-601/602 rules for a template.</summary>
-    public List<ChartIssue> Validate(AlertInput a)
+    /// <summary>Records created by (or attempted for) a report, in order.</summary>
+    public Task<List<InsightsAlertCreation>> CreationsAsync(long reportId) =>
+        db.Set<InsightsAlertCreation>().AsNoTracking().Where(c => c.ReportId == reportId).OrderBy(c => c.Id).ToListAsync();
+
+    /// <summary>RPT-601/602/603 rules for a template. <paramref name="ownerId"/> is the template owner (the current user for a new template).</summary>
+    public List<ChartIssue> Validate(AlertInput a, int? ownerId = null)
     {
         var issues = new List<ChartIssue>();
         void Err(string f, string m) => issues.Add(new ChartIssue(f, m));
@@ -117,6 +126,13 @@ public sealed class AlertStore(VellumDbContext db, CurrentUser me, AccessService
         if (a.LookbackDays is < 1 or > 3660) Err("LookbackDays", "Look back between 1 and 3,660 days, or leave it blank for every record in the view.");
         if (a.WindowStart is { } s && a.WindowEnd is { } e && e < s) Err("WindowEnd", "The window must end on or after its start.");
         if (a.IncrementDates && a.WindowStart == null && a.WindowEnd == null) Err("IncrementDates", "Sliding the window needs a start or end date.");
+        if (a.Action is not ("notify" or "create")) Err("Action", "Choose what the alert does: notify people or create a record.");
+        if (a.Action == "create")
+        {
+            var recordFields = cols.Where(c => c.Field != null).Select(c => c.Key).ToList();
+            issues.AddRange(createCatalog.Validate(a.Create, ownerId ?? me.Id, a.MatchColumns, recordFields));
+            return issues;
+        }
         if (a.Users.Count == 0 && a.Groups.Count == 0) Err("Users", "Choose at least one recipient (a person or a group).");
         foreach (var u in a.Users.Concat(a.CcUsers).Distinct())
             if (dir.Get(u) is not { IsActive: true }) Err("Users", $"{dir.Get(u)?.DisplayName ?? "A selected user"} isn't active and can't be chosen.");
@@ -133,7 +149,7 @@ public sealed class AlertStore(VellumDbContext db, CurrentUser me, AccessService
     public async Task<(InsightsAlertTemplate? Template, List<ChartIssue> Issues)> SaveAsync(InsightsAlertTemplate? existing, AlertInput a)
     {
         await EnsureAsync();
-        var issues = Validate(a);
+        var issues = Validate(a, existing?.OwnerId);
         if (issues.Count > 0) return (null, issues);
         var now = DateTime.UtcNow;
         var t = existing ?? new InsightsAlertTemplate { OwnerId = me.Id, CreatedAt = now };
@@ -158,8 +174,10 @@ public sealed class AlertStore(VellumDbContext db, CurrentUser me, AccessService
         t.OnlyWhenChanged = a.OnlyWhenChanged;
         t.RecipientsJson = new AlertRecipients { Users = a.Users.Distinct().ToList(), Groups = a.Groups.Distinct().ToList() }.ToJson();
         t.CcJson = new AlertRecipients { Users = a.CcUsers.Distinct().ToList() }.ToJson();
-        t.Subject = a.Subject.Trim();
-        t.Body = a.Body.Trim();
+        t.Subject = string.IsNullOrWhiteSpace(a.Subject) ? AlertEngine.DefaultSubject : a.Subject.Trim();
+        t.Body = string.IsNullOrWhiteSpace(a.Body) ? AlertEngine.DefaultBody : a.Body.Trim();
+        t.Action = a.Action;
+        t.CreateJson = a.Action == "create" ? AlertCreateCatalog.Normalize(a.Create).ToJson() : null;
         t.ModifiedAt = now;
         await db.SaveChangesAsync();
         return (t, []);

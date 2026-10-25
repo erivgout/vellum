@@ -243,7 +243,7 @@ public sealed class AlertCreateAction(IServiceScopeFactory scopes, VellumDbConte
                 db.Set<InsightsAlertCreation>().Add(Row(t, report, item, "Skipped", line, null));
                 continue;
             }
-            var row = await AttemptAsync(t, report, result, c, form, phase.Value.Workflow, phase.Value.Phase, item, dryRun, outcome.Notified);
+            var row = await AttemptAsync(t, report, result, c, form, phase.Workflow, phase.Phase, item, dryRun, outcome.Notified);
             switch (row.Status)
             {
                 case "Created":
