@@ -1,0 +1,121 @@
+@model Vellum.Modules.Portal.PortalContactsVm
+@using Vellum.Modules.Portal
+@{
+    var m = Model;
+    var tz = Shell.TimeZone;
+    var withAccess = m.Contacts.Count(c => c.Access is PortalAccess.Active or PortalAccess.Invited);
+    var open = m.Requests.Count(r => r.Share.Status is ExternalShareStatus.Open or ExternalShareStatus.Returned);
+    var toReview = m.Requests.Count(r => r.Share.Status == ExternalShareStatus.Submitted);
+    bool Can(string key) => m.CanManage && m.EnabledActions.Contains(key);
+    (string Label, string Tone, string Icon) Access(PortalAccess a) => a switch
+    {
+        PortalAccess.Active => ("Active", "vp-ok", "bi-check-circle"),
+        PortalAccess.Invited => ("Invited", "vp-info", "bi-envelope"),
+        PortalAccess.InviteExpired => ("Invitation expired", "vp-warn", "bi-envelope-exclamation"),
+        PortalAccess.Locked => ("Locked", "vp-bad", "bi-lock"),
+        PortalAccess.Disabled => ("Disabled", "vp-neutral", "bi-slash-circle"),
+        _ => ("No access", "vp-neutral", "bi-dash-circle"),
+    };
+    string Tone(string t) => t switch { "ok" => "vp-ok", "warn" => "vp-warn", "bad" => "vp-bad", "info" => "vp-info", _ => "vp-neutral" };
+}
+<div class="row g-3 mb-3">
+    <div class="col-4"><div class="vl-stat"><div class="vl-stat-value">@withAccess</div><div class="vl-stat-label"><i class="bi bi-people me-1" aria-hidden="true"></i>Contacts with portal access</div></div></div>
+    <div class="col-4"><div class="vl-stat"><div class="vl-stat-value">@open</div><div class="vl-stat-label"><i class="bi bi-hourglass-split me-1" aria-hidden="true"></i>Waiting for the supplier</div></div></div>
+    <div class="col-4"><div class="vl-stat"><div class="vl-stat-value @(toReview > 0 ? "text-primary" : "")">@toReview</div><div class="vl-stat-label"><i class="bi bi-inbox me-1" aria-hidden="true"></i>Responses to review</div></div></div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h3 class="card-title-sm"><i class="bi bi-person-badge" aria-hidden="true"></i>Portal access</h3>
+        @if (Can("portal-invite"))
+        {
+            <button type="button" class="btn btn-sm btn-primary ms-auto" data-bs-toggle="modal" data-bs-target="#action-portal-invite"><i class="bi bi-person-plus" aria-hidden="true"></i>Invite contact</button>
+        }
+    </div>
+    @if (m.Contacts.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-person-lines-fill" aria-hidden="true"></i></div><h3>No contacts yet</h3><p>Add the supplier's contacts on the General tab, then invite them to the supplier portal.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table mb-0">
+                <caption class="visually-hidden">Supplier contacts and their portal access</caption>
+                <thead><tr><th scope="col">Contact</th><th scope="col">Email</th><th scope="col">Portal access</th><th scope="col">Last sign-in</th>@if (m.CanManage) { <th scope="col" class="text-end"><span class="visually-hidden">Actions</span></th> }</tr></thead>
+                <tbody>
+                    @foreach (var c in m.Contacts)
+                    {
+                        var (label, tone, icon) = Access(c.Access);
+                        <tr>
+                            <td class="col-title"><span class="t">@c.Name</span>@if (c.Role != null) { <span class="d-block x-small text-body-tertiary">@c.Role</span> }</td>
+                            <td class="small">@(c.Email ?? "–")@if (c.Username != null && c.Username != c.Email?.ToLowerInvariant()) { <span class="d-block x-small text-body-tertiary">Username @c.Username</span> }</td>
+                            <td>
+                                <span class="vp-status @tone"><i class="bi @icon" aria-hidden="true"></i>@label</span>
+                                @if (c.Access == PortalAccess.Invited && c.InviteExpiresAt is { } exp) { <span class="d-block x-small text-body-tertiary mt-1">Link expires @Ui.Time(exp, tz)</span> }
+                            </td>
+                            <td class="small text-nowrap">@(c.LastLoginAt is { } ll ? Ui.Time(ll, tz) : new Microsoft.AspNetCore.Html.HtmlString("<span class=\"text-body-tertiary\">Never</span>"))</td>
+                            @if (m.CanManage)
+                            {
+                                <td class="text-end text-nowrap">
+                                    @if (c.UserId == null && c.ContactRowId != null && c.Email != null && Can("portal-invite"))
+                                    {
+                                        <button type="button" class="btn btn-sm btn-light" data-portal-action="portal-invite" data-portal-field="contact" data-portal-value="@c.ContactRowId"><i class="bi bi-person-plus" aria-hidden="true"></i>Invite</button>
+                                    }
+                                    @if (c.UserId != null && c.Access != PortalAccess.Disabled && Can("portal-resend"))
+                                    {
+                                        <button type="button" class="btn btn-sm btn-light" data-portal-action="portal-resend" data-portal-field="user" data-portal-value="@c.UserId" title="@(c.Access == PortalAccess.Active ? "Send a password reset link" : "Send a new invitation link")"><i class="bi bi-envelope-arrow-up" aria-hidden="true"></i>@(c.Access == PortalAccess.Active ? "Reset link" : "Resend")</button>
+                                    }
+                                    @if (c.UserId != null && c.Access is PortalAccess.Active or PortalAccess.Invited or PortalAccess.InviteExpired or PortalAccess.Locked && Can("portal-disable"))
+                                    {
+                                        <button type="button" class="btn btn-sm btn-ghost text-danger" data-portal-action="portal-disable" data-portal-field="user" data-portal-value="@c.UserId"><i class="bi bi-person-slash" aria-hidden="true"></i>Disable</button>
+                                    }
+                                    @if (c.UserId != null && c.Access is PortalAccess.Disabled or PortalAccess.Locked && Can("portal-enable"))
+                                    {
+                                        <button type="button" class="btn btn-sm btn-light" data-portal-action="portal-enable" data-portal-field="user" data-portal-value="@c.UserId"><i class="bi bi-person-check" aria-hidden="true"></i>Enable</button>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    <div class="card-body pt-2 pb-3"><p class="x-small text-body-tertiary mb-0"><i class="bi bi-shield-lock" aria-hidden="true"></i> Portal contacts sign in to a separate supplier portal. They see only what is shared with @m.SupplierName, never anything else in Vellum.</p></div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title-sm"><i class="bi bi-send-check" aria-hidden="true"></i>Shared with the supplier</h3>
+        <span class="ms-auto d-flex gap-2">
+            @if (Can("portal-request-doc")) { <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#action-portal-request-doc"><i class="bi bi-file-earmark-arrow-up" aria-hidden="true"></i>Request a document</button> }
+            @if (Can("portal-questionnaire")) { <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#action-portal-questionnaire"><i class="bi bi-ui-checks" aria-hidden="true"></i>Send a questionnaire</button> }
+        </span>
+    </div>
+    @if (m.Requests.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-send" aria-hidden="true"></i></div><h3>Nothing shared yet</h3><p>SCARs, document requests, questionnaires, audit findings and scorecards sent to the supplier portal are listed here.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table mb-0">
+                <caption class="visually-hidden">Records shared with the supplier portal</caption>
+                <thead><tr><th scope="col">Number</th><th scope="col">Request</th><th scope="col">Portal status</th><th scope="col">Due</th><th scope="col">Updated</th></tr></thead>
+                <tbody>
+                    @foreach (var (rec, share, kind) in m.Requests)
+                    {
+                        var st = PortalStatusVm.InternalState(share, kind);
+                        <tr data-href="/records/@rec.Id">
+                            <td class="col-number"><a href="/records/@rec.Id">@rec.Number</a></td>
+                            <td class="col-title"><span class="t">@rec.Title</span><span class="d-block x-small text-body-tertiary"><i class="bi @kind.Icon" aria-hidden="true"></i> @kind.Noun</span></td>
+                            <td><span class="vp-status @Tone(st.Tone)"><i class="bi @st.Icon" aria-hidden="true"></i>@st.Label</span></td>
+                            <td>@(share.DueDate is { } d ? Ui.Due(d, !st.Closed) : new Microsoft.AspNetCore.Html.HtmlString("<span class=\"text-body-tertiary\">–</span>"))</td>
+                            <td class="small text-nowrap">@Ui.Time(share.UpdatedAt, tz)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

@@ -1,0 +1,59 @@
+@model Vellum.Modules.Portal.PortalStatusVm
+@using Vellum.Modules.Portal
+@{
+    var m = Model;
+    var tz = Shell.TimeZone;
+    string Tone(string t) => t switch { "ok" => "vp-ok", "warn" => "vp-warn", "bad" => "vp-bad", "info" => "vp-info", _ => "vp-neutral" };
+}
+@if (m.Related.Count > 0 || (m.Share == null && m.Kind == PortalKinds.AuditResponseKind))
+{
+    @* Supplier audits: the finding responses sent through the portal (AUD-031). *@
+    @if (m.Related.Count == 0)
+    {
+        <p class="small text-body-secondary mb-0">@m.Hint</p>
+    }
+    else
+    {
+        <ul class="vl-list vp-related">
+            @foreach (var (rec, share) in m.Related)
+            {
+                var st = share != null ? PortalStatusVm.InternalState(share, PortalKinds.AuditResponseKind) : null;
+                <li>
+                    <a class="vl-list-item py-2" href="/records/@rec.Id">
+                        <span class="min-w-0 flex-grow-1">
+                            <span class="d-block fw-semibold small">@rec.Number</span>
+                            @if (st != null) { <span class="vp-status @Tone(st.Tone)"><i class="bi @st.Icon" aria-hidden="true"></i>@st.Label</span> }
+                            else { <span class="small text-body-tertiary">@Shell.Config.Phase(rec.PhaseId)?.Name</span> }
+                        </span>
+                        <i class="bi bi-chevron-right text-body-tertiary" aria-hidden="true"></i>
+                    </a>
+                </li>
+            }
+        </ul>
+    }
+}
+else if (m.Share is { } s && m.State is { } state)
+{
+    <div class="vp-status @Tone(state.Tone) mb-2"><i class="bi @state.Icon" aria-hidden="true"></i>@state.Label</div>
+    <dl class="vl-kv">
+        <dt>Supplier</dt><dd>@m.SupplierName</dd>
+        <dt>Shared by</dt><dd>@m.SharedBy</dd>
+        <dt>Shared</dt><dd>@Ui.Time(s.SharedAt, tz)</dd>
+        @if (s.DueDate is { } due) { <dt>Due</dt><dd>@Ui.Due(due, !state.Closed)</dd> }
+        @if (s.SubmittedAt is { } sa) { <dt>Submitted</dt><dd>@Ui.Time(sa, tz)</dd><dt>By</dt><dd>@m.SubmittedBy</dd> }
+        <dt>Portal contacts</dt><dd>@m.ContactCount</dd>
+    </dl>
+    @if (s.Feedback is { Length: > 0 } fb && s.Status == ExternalShareStatus.Returned)
+    {
+        <div class="vp-quote mt-2"><div class="x-small fw-semibold text-body-tertiary">Feedback sent to the supplier</div>@fb</div>
+    }
+    <p class="x-small text-body-tertiary mt-2 mb-0"><i class="bi bi-shield-lock" aria-hidden="true"></i> The supplier sees only the parts of this record meant for them, never internal notes, reviews or the audit trail.</p>
+}
+else
+{
+    <p class="small text-body-secondary mb-2">@(m.Hint ?? "Not shared with the supplier portal.")</p>
+}
+@if (m.PrimaryAction != null)
+{
+    <button type="button" class="btn btn-sm btn-light w-100 mt-2" data-bs-toggle="modal" data-bs-target="#action-@m.PrimaryAction"><i class="bi bi-globe2" aria-hidden="true"></i>@m.PrimaryLabel</button>
+}

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Vellum.Data;
 using Vellum.Domain;
+// Note: user-directory refreshes (dir.Invalidate) always happen after commits here; see InviteAsync.
 using Vellum.Engine.Audit;
 using Vellum.Engine.Behaviors;
 using Vellum.Engine.Security;
@@ -77,9 +78,14 @@ public sealed class PortalAccounts(VellumDbContext db, CurrentUser me, UserDirec
 
     // ------------------------------------------------------------------ invite / resend / disable / enable
 
-    /// <summary>Create the external account and email the one-time set-password link. The caller checks the inviter's rights.</summary>
+    /// <summary>
+    /// Create the external account and email the one-time set-password link. The caller checks the inviter's rights.
+    /// Runs (and commits) its own transaction and refreshes the user directory afterwards, so it must not be called inside an
+    /// open transaction: reloading the directory there would wait on the uncommitted new user row.
+    /// </summary>
     public async Task<ActionOutcome> InviteAsync(Guid supplierId, string displayName, string email, string? role, string? username = null)
     {
+        if (db.Database.CurrentTransaction != null) throw new InvalidOperationException("PortalAccounts.InviteAsync must not run inside a transaction.");
         if (me.IsExternal || !me.IsAuthenticated) return ActionOutcome.Fail("Only internal users can invite supplier contacts.");
         displayName = displayName.Trim();
         email = email.Trim();
@@ -105,14 +111,17 @@ public sealed class PortalAccounts(VellumDbContext db, CurrentUser me, UserDirec
             IsExternal = true, ExternalOrgId = supplierId, License = LicenseType.External, IsAdministrator = false,
             Status = UserStatus.Active, PasswordHash = null, CreatedAt = now, TimeZone = "UTC",
         };
+        var inviter = me.Name;
+        // Committed step by step (as the administration center does) so no directory reload ever waits on an uncommitted user.
+        // An account without a link (if sending failed) is harmless: it can't sign in, and Resend invitation fixes it.
         db.Users.Add(user);
         await db.SaveChangesAsync();
-        audit.Security("Account created", true, user.Id, user.Username, $"Supplier portal contact for {supplierName}, invited by {me.Name}");
+        audit.Security("Account created", true, user.Id, user.Username, $"Supplier portal contact for {supplierName}, invited by {inviter}");
         audit.Record(supplierId, "Portal contact invited", $"{displayName} ({email}) was invited to the supplier portal");
         audit.Config("User", user.Username, "Created", null, JsonSerializer.Serialize(new { user.Username, user.DisplayName, user.Email, external = true, supplier = supplierName }));
         await db.SaveChangesAsync();
-        dir.Invalidate();
         await SendLinkAsync(user, "invite", supplierName);
+        dir.Invalidate();
         return ActionOutcome.Ok($"Invitation sent to {displayName} ({email}). The link works once and expires in {InviteLifetime.Days} days.");
     }
 
