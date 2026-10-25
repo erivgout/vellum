@@ -125,6 +125,7 @@ public sealed class UserAdminService(
             }
         }
         if (!Enum.IsDefined(i.License)) errors.Add("Choose a license type.");
+        if (i.IsExternal && i.IsAdministrator) errors.Add("External users can't be administrators (SEC-804).");
 
         if (existing != null && existing.IsAdministrator && !i.IsAdministrator)
         {

@@ -732,7 +732,6 @@ public sealed class PortalSupplierBehavior : RecordBehavior
     public override async Task<IEnumerable<RecordPanel>> PanelsAsync(RecordContext ctx)
     {
         var s = ctx.Snapshot;
-        var portal = ctx.Portal();
         var contacts = await ctx.Get<PortalAccounts>().ContactsAsync(s.Record.Id, s.Rows("contacts"));
         var shares = await ctx.Db.Set<ExternalShare>().AsNoTracking().Where(x => x.OrgId == s.Record.Id).OrderByDescending(x => x.UpdatedAt).Take(50).ToListAsync();
         var ids = shares.Select(x => x.RecordId).ToList();
