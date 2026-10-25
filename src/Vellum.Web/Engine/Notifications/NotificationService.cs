@@ -31,6 +31,8 @@ public sealed class NotificationService(VellumDbContext db, UserDirectory dir, C
         var u = dir.Get(userId);
         if (u == null || u.Status == UserStatus.Inactive || u.IsSystem) return;
         url ??= recordId is { } rid ? $"/records/{rid}" : null;
+        // SEC-804: external (supplier portal) users only ever get portal links; internal links would be refused anyway.
+        if (u.IsExternal && url != null && !url.StartsWith("/portal", StringComparison.OrdinalIgnoreCase)) url = "/portal";
         db.Notifications.Add(new Notification
         {
             UserId = userId, Kind = kind, Title = title, Body = body, RecordId = recordId, Url = url, CreatedAt = DateTime.UtcNow,

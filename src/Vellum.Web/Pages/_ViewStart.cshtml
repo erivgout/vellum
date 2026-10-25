@@ -1,3 +1,4 @@
 @{
-    Layout = "_Layout";
+    // SEC-804: external (supplier portal) users never see the internal shell, even on the error page.
+    Layout = Shell.Me.IsExternal ? "/Areas/Portal/Pages/Shared/_PortalLayout.cshtml" : "_Layout";
 }

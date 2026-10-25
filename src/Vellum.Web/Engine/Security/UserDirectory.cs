@@ -6,11 +6,15 @@ namespace Vellum.Engine.Security;
 
 /// <summary>Lightweight, cached view of a user for display (names, avatars, pickers).</summary>
 public sealed record UserInfo(int Id, string Username, string DisplayName, string Initials, string Email, string? JobTitle,
-    string? Department, UserStatus Status, bool IsSystem, bool IsAdmin, int? ReportsToId, int? LocationId, string TimeZone)
+    string? Department, UserStatus Status, bool IsSystem, bool IsAdmin, int? ReportsToId, int? LocationId, string TimeZone,
+    bool IsExternal = false, Guid? ExternalOrgId = null)
 {
     public bool IsActive => Status == UserStatus.Active && !IsSystem;
-    /// <summary>INV-073: only active (or disabled-with-warning) users may get new assignments.</summary>
-    public bool Assignable => Status != UserStatus.Inactive && !IsSystem;
+    /// <summary>
+    /// INV-073: only active (or disabled-with-warning) users may get new assignments.
+    /// SEC-804: external (supplier portal) users are never offered as assignees; they work through the portal.
+    /// </summary>
+    public bool Assignable => Status != UserStatus.Inactive && !IsSystem && !IsExternal;
     public string Hue => $"{(Id * 47) % 360}";
 }
 
@@ -44,7 +48,8 @@ public sealed class UserDirectory(IServiceScopeFactory scopes)
                 using var scope = scopes.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<VellumDbContext>();
                 var users = db.Users.AsNoTracking().ToList().Select(u => new UserInfo(u.Id, u.Username, u.DisplayName, u.Initials, u.Email,
-                    u.JobTitle, u.Department, u.Status, u.IsSystemIdentity, u.IsAdministrator, u.ReportsToId, u.PrimaryLocationId, u.TimeZone)).ToList();
+                    u.JobTitle, u.Department, u.Status, u.IsSystemIdentity, u.IsAdministrator && !u.IsExternal, u.ReportsToId, u.PrimaryLocationId, u.TimeZone,
+                    u.IsExternal, u.IsExternal ? u.ExternalOrgId : null)).ToList();
                 var members = db.GroupMembers.AsNoTracking().ToList();
                 var groups = db.Groups.AsNoTracking().ToList().Select(g => new GroupInfo(g.Id, g.Key, g.Name, g.Inactive,
                     members.Where(m => m.GroupId == g.Id).Select(m => m.UserId).ToList())).ToList();
@@ -65,7 +70,14 @@ public sealed class UserDirectory(IServiceScopeFactory scopes)
     public UserInfo? Get(string username) => S.ByUsername.TryGetValue(username, out var u) ? u : null;
     public string Name(int? id) => Get(id)?.DisplayName ?? "Unknown user";
     public string Name(int id) => Get(id)?.DisplayName ?? "Unknown user";
-    public IEnumerable<UserInfo> All => S.Users.Values.Where(u => !u.IsSystem).OrderBy(u => u.DisplayName);
+    /// <summary>
+    /// Internal people (pickers, group editors, training applicability, alert recipients…). External portal users are left
+    /// out on purpose (SEC-804): nothing internal ever offers them as a person to pick. Use <see cref="Externals"/> to list them.
+    /// </summary>
+    public IEnumerable<UserInfo> All => S.Users.Values.Where(u => !u.IsSystem && !u.IsExternal).OrderBy(u => u.DisplayName);
+    /// <summary>External (supplier portal) users, optionally of one organization.</summary>
+    public IEnumerable<UserInfo> Externals(Guid? orgId = null) =>
+        S.Users.Values.Where(u => u.IsExternal && (orgId == null || u.ExternalOrgId == orgId)).OrderBy(u => u.DisplayName);
     public IEnumerable<UserInfo> Assignable => All.Where(u => u.Assignable);
     public int SystemUserId => S.SystemUserId;
 

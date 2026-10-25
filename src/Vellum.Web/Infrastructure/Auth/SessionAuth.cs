@@ -14,6 +14,10 @@ public static class SessionDefaults
 {
     public const string Scheme = "Vellum";
     public const string Cookie = "vellum.sid";
+    /// <summary>Claim present (value "1") on every request of an external (supplier portal) user (SEC-804).</summary>
+    public const string ExternalClaim = "vellum:external";
+    /// <summary>Authorization policy for the supplier portal pages: authenticated external users only.</summary>
+    public const string PortalPolicy = "Portal";
 
     /// <summary>
     /// Browsers share cookies across ports of the same host, so instances on non-standard ports (several local checkouts,
@@ -102,13 +106,17 @@ public sealed class SessionAuthenticationHandler(
             await db.SaveChangesAsync();
         }
 
-        me.SignIn(session.UserId, sid, Context.Connection.RemoteIpAddress?.ToString());
+        var external = session.User.IsExternal;
+        me.SignIn(session.UserId, sid, Context.Connection.RemoteIpAddress?.ToString(), external);
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, session.UserId.ToString()),
             new(ClaimTypes.Name, session.User.DisplayName),
         };
-        if (session.User.IsAdministrator) claims.Add(new Claim(ClaimTypes.Role, "admin"));
+        // SEC-804: external users carry the external claim (read by ExternalUserBoundary and the "Portal" policy) and never
+        // the administrator role, whatever their profile says.
+        if (external) claims.Add(new Claim(SessionDefaults.ExternalClaim, "1"));
+        else if (session.User.IsAdministrator) claims.Add(new Claim(ClaimTypes.Role, "admin"));
         if (session.User.MustChangePassword) claims.Add(new Claim("must_change_password", "1"));
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SessionDefaults.Scheme));
         return AuthenticateResult.Success(new AuthenticationTicket(principal, SessionDefaults.Scheme));
