@@ -1,0 +1,113 @@
+@model Vellum.Pages.Records.RecordVm
+@{
+    var vm = Model;
+    var tabs = vm.Tabs.ToList();
+    var extraTabs = vm.Panels.Where(p => p.Placement == "tab").ToList();
+    var children = vm.Linked.Where(l => l.Relation == "Activity").ToList();
+    var showActivities = !vm.IsNew && (children.Count > 0 || vm.ActivityForms.Count > 0);
+    var showHistory = !vm.IsNew;
+    var sigCount = vm.Signatures.Count;
+    string TabId(string t) => "tab-" + string.Concat(t.Where(char.IsLetterOrDigit)).ToLowerInvariant();
+}
+@foreach (var p in vm.Panels.Where(p => p.Placement == "top"))
+{
+    <partial name="@p.Partial" model="p.Model" />
+}
+<ul class="nav vl-tabs" role="tablist">
+    @for (var i = 0; i < tabs.Count; i++)
+    {
+        var t = tabs[i];
+        <li class="nav-item" role="presentation">
+            <button type="button" class="nav-link @(i == 0 ? "active" : "") @(vm.TabHasError(t) ? "has-error" : "")" data-bs-toggle="tab" data-bs-target="#@TabId(t)" role="tab">
+                @if (vm.TabHasError(t)) { <i class="bi bi-exclamation-circle-fill"></i> }@t
+            </button>
+        </li>
+    }
+    @foreach (var p in extraTabs)
+    {
+        <li class="nav-item" role="presentation"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#panel-@p.Key" role="tab"><i class="bi @p.Icon"></i>@p.Title @if (p.Count != null) { <span class="vl-pill-count">@p.Count</span> }</button></li>
+    }
+    @if (showActivities)
+    {
+        <li class="nav-item" role="presentation"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-activities" role="tab"><i class="bi bi-diagram-2"></i>Activities <span class="vl-pill-count @(children.Any(c => c.Record.PhaseType == PhaseType.Normal && c.Record.DueDate < BusinessCalendar.Today) ? "hot" : "")">@children.Count</span></button></li>
+    }
+    @if (!vm.IsNew)
+    {
+        <li class="nav-item" role="presentation"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-signatures" role="tab"><i class="bi bi-pen"></i>Signatures <span class="vl-pill-count">@sigCount</span></button></li>
+    }
+    @if (showHistory)
+    {
+        <li class="nav-item" role="presentation"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-history" role="tab"><i class="bi bi-clock-history"></i>History</button></li>
+    }
+</ul>
+
+<div class="tab-content">
+    @for (var i = 0; i < tabs.Count; i++)
+    {
+        var t = tabs[i];
+        <div class="tab-pane fade @(i == 0 ? "show active" : "")" id="@TabId(t)" role="tabpanel">
+            @foreach (var s in vm.Form.Sections.Where(s => s.Tab == t && vm.StateOf(s) != SectionState.Hidden))
+            {
+                <partial name="_Section" model="(vm, s)" />
+            }
+        </div>
+    }
+    @foreach (var p in extraTabs)
+    {
+        <div class="tab-pane fade" id="panel-@p.Key" role="tabpanel"><partial name="@p.Partial" model="p.Model" /></div>
+    }
+    @if (showActivities)
+    {
+        <div class="tab-pane fade" id="tab-activities" role="tabpanel">
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                <div class="small text-body-secondary">Activities travel with this record. @(vm.Phase?.MustCompleteForms.Count > 0 ? $"Open {string.Join(", ", vm.Phase.MustCompleteForms.Select(k => vm.Config.FormsByKey.GetValueOrDefault(k)?.Name.ToLowerInvariant() + "s"))} must be completed before leaving {vm.Phase.Name}." : "")</div>
+                @if (vm.ActivityForms.Count > 0)
+                {
+                    <div class="dropdown">
+                        <button type="button" class="btn btn-sm btn-light" data-bs-toggle="dropdown"><i class="bi bi-plus-lg"></i>New activity</button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            @foreach (var af in vm.ActivityForms)
+                            {
+                                <a class="dropdown-item" href="/records/new?form=@af.Key&parent=@vm.Record!.Id"><span class="vl-app-tile xs" style="--app:@af.App.Color"><i class="bi @af.Icon"></i></span>@af.Name</a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            @if (children.Count == 0)
+            {
+                <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-diagram-2"></i></div><h3>No activities yet</h3><p>Create action items and other activities from here. They're linked to this record both ways.</p></div></div>
+            }
+            else
+            {
+                <div class="vl-table-wrap"><div class="vl-table-scroll">
+                    <table class="table vl-table">
+                        <thead><tr><th>Number</th><th>Title</th><th>Type</th><th>Phase</th><th>Due</th></tr></thead>
+                        <tbody>
+                            @foreach (var c in children)
+                            {
+                                <tr data-href="/records/@c.Record.Id">
+                                    <td class="col-number"><a href="/records/@c.Record.Id">@c.Record.Number</a></td>
+                                    <td class="col-title"><span class="t">@c.Record.Title</span></td>
+                                    <td class="text-nowrap"><span class="vl-person"><span class="vl-app-tile xs" style="--app:@c.Form.App.Color"><i class="bi @c.Form.Icon"></i></span>@c.Form.Name</span></td>
+                                    <td>@Ui.Phase(c.Phase?.Name, c.Record.PhaseType, c.Record.DueDate)</td>
+                                    <td>@Ui.Due(c.Record.DueDate, c.Record.PhaseType == PhaseType.Normal)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div></div>
+            }
+        </div>
+    }
+    @if (!vm.IsNew)
+    {
+        <div class="tab-pane fade" id="tab-signatures" role="tabpanel"><partial name="_Signatures" model="vm" /></div>
+    }
+    @if (showHistory)
+    {
+        <div class="tab-pane fade" id="tab-history" role="tabpanel"><partial name="_History" model="vm" /></div>
+    }
+</div>
+
+<script type="application/json" id="vl-directory">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(vm.Dir.Assignable.Select(u => new { id = u.Id, name = u.DisplayName, initials = u.Initials, title = u.JobTitle, hue = u.Hue })))</script>

@@ -1,0 +1,107 @@
+@page "/login"
+@model Vellum.Pages.Account.LoginModel
+@{
+    Layout = "_AuthLayout";
+    ViewData["Title"] = "Sign in";
+}
+<div class="vl-login">
+    <section class="vl-login-art d-flex" aria-hidden="true">
+        <div class="d-flex align-items-center gap-2">
+            <img src="~/img/icon.svg" width="34" height="34" alt="" style="border-radius:9px;box-shadow:0 8px 20px -8px rgba(225,29,72,.8)" />
+            <span style="font-weight:700;font-size:1.15rem;letter-spacing:-.02em;color:#fff">Vellum</span>
+        </div>
+        <div>
+            <h2>Every procedure, decision and signature, on the record.</h2>
+            <p>One place for controlled documents, CAPA, nonconformances, change control, audits, training, risk, suppliers and EHS, with a tamper-evident audit trail behind every change.</p>
+            <div class="vl-login-doc">
+                <div class="row1"><i class="bi bi-file-earmark-text"></i>SOP-00042 · Rev C<span class="ms-auto vl-chip vl-chip-effective" style="font-size:.7rem"><i class="bi bi-patch-check-fill"></i>Effective</span></div>
+                <div class="ttl">Cleanroom gowning and entry procedure</div>
+                <div class="sig"><i class="bi bi-pen-fill"></i><span><strong style="color:#fff">Priya Shah</strong> · Reviewed</span><span class="ms-auto">12 Oct 2026 09:41</span></div>
+                <div class="sig"><i class="bi bi-pen-fill"></i><span><strong style="color:#fff">Sam Ortiz</strong> · Approved</span><span class="ms-auto">14 Oct 2026 16:02</span></div>
+                <div class="sig"><i class="bi bi-shield-check" style="color:#4ade80"></i><span>Content hash verified</span><span class="ms-auto" style="font-family:ui-monospace,monospace;font-size:.7rem">3f9a…c21e</span></div>
+            </div>
+        </div>
+        <div class="vl-login-badges">
+            <span>21 CFR Part 11</span><span>EU GMP Annex 11</span><span>ISO 9001</span><span>ISO 13485</span><span>ISO 45001</span>
+        </div>
+    </section>
+
+    <section class="vl-login-form">
+        <div class="vl-login-card">
+            <div class="d-flex d-lg-none align-items-center gap-2 mb-4">
+                <img src="~/img/icon.svg" width="30" height="30" alt="" style="border-radius:8px" /><span class="fw-bold fs-5">Vellum</span>
+            </div>
+            <div class="small fw-semibold text-body-tertiary text-uppercase" style="letter-spacing:.08em">@Model.Settings.OrganizationName</div>
+            <h1 class="mt-1 mb-1">@(Model.Step == "mfa" ? "Two-step verification" : Model.Step == "password" ? "Welcome back" : "Sign in")</h1>
+            <p class="text-body-secondary mb-4">
+                @(Model.Step == "mfa" ? "Enter the 6-digit code from your authenticator app." : Model.Step == "password" ? "Enter your password to continue." : "Use your work username to continue.")
+            </p>
+
+            @if (Model.Settings.EnvironmentType != EnvironmentType.Production)
+            {
+                <div class="vl-banner vl-banner-warn py-2"><i class="bi bi-exclamation-triangle-fill"></i><div class="small"><strong>@Model.Settings.EnvironmentName environment.</strong> Not for production use.</div></div>
+            }
+            @if (Model.Info != null)
+            {
+                <div class="vl-banner vl-banner-info py-2"><i class="bi bi-info-circle"></i><div class="small">@Model.Info</div></div>
+            }
+            @if (Model.Error != null)
+            {
+                <div class="vl-banner vl-banner-bad py-2" role="alert"><i class="bi bi-exclamation-circle"></i><div class="small">@Model.Error</div></div>
+            }
+
+            @if (Model.Step == "identify")
+            {
+                <form method="post" asp-page-handler="Identify" novalidate>
+                    <input type="hidden" asp-for="ReturnUrl" />
+                    <label class="form-label" for="username">Username</label>
+                    <input class="form-control mb-3" id="username" name="Username" value="@Model.Username" autocomplete="username" autofocus required spellcheck="false" />
+                    <button class="btn btn-primary btn-lg w-100"><span>Continue</span><i class="bi bi-arrow-right"></i></button>
+                </form>
+            }
+            else if (Model.Step == "password")
+            {
+                <form method="post" asp-page-handler="Password" novalidate>
+                    <input type="hidden" asp-for="ReturnUrl" />
+                    <input type="hidden" name="Username" value="@Model.Username" />
+                    <div class="d-flex align-items-center justify-content-between p-2 ps-3 mb-3 rounded-3 border bg-surface">
+                        <span class="d-flex align-items-center gap-2 min-w-0"><i class="bi bi-person-circle text-body-tertiary"></i><span class="fw-medium text-truncate">@Model.Username</span></span>
+                        <a class="btn btn-sm btn-ghost" href="/login@(Model.ReturnUrl != null ? "?returnUrl=" + Uri.EscapeDataString(Model.ReturnUrl) : "")">Change</a>
+                    </div>
+                    <label class="form-label" for="password">Password</label>
+                    <div class="input-group mb-3">
+                        <input type="password" class="form-control" id="password" name="Password" autocomplete="current-password" autofocus required />
+                        <button type="button" class="btn btn-light" data-toggle-password="#password" aria-label="Show password"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <button class="btn btn-primary btn-lg w-100"><i class="bi bi-box-arrow-in-right"></i><span>Sign in</span></button>
+                    <p class="small text-body-tertiary mt-3 mb-0">Forgot your password? Ask your administrator to reset it. Repeated failed attempts lock the account.</p>
+                </form>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="Mfa" novalidate>
+                    <input type="hidden" asp-for="ReturnUrl" />
+                    <input type="hidden" name="Ticket" value="@Model.Ticket" />
+                    <label class="form-label" for="code">Verification code</label>
+                    <input class="form-control mb-3 text-center tabular" style="font-size:1.4rem;letter-spacing:.4em" id="code" name="Code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" autofocus required />
+                    <button class="btn btn-primary btn-lg w-100"><i class="bi bi-shield-check"></i><span>Verify</span></button>
+                </form>
+            }
+
+            @if (Model.ShowDemo && Model.Step != "mfa")
+            {
+                <div class="vl-divider my-4"></div>
+                <div class="small fw-semibold mb-2 d-flex align-items-center gap-2"><i class="bi bi-people text-body-tertiary"></i>Demo accounts <span class="text-body-tertiary fw-normal">· password <code>@Vellum.Packaging.DemoContext.Password</code></span></div>
+                <div class="vl-demo-users">
+                    @foreach (var p in Vellum.Data.CoreSeed.People.Take(12))
+                    {
+                        <button type="button" data-demo-user="@p.Username" title="@p.Title">
+                            <span class="vl-avatar vl-avatar-xs" style="--h:@((Vellum.Data.CoreSeed.People.ToList().IndexOf(p) + 2) * 47 % 360)">@(p.First[0])@(p.Last[0])</span>@p.First <span class="text-body-tertiary">· @p.Title.Split(' ').Last()</span>
+                        </button>
+                    }
+                </div>
+            }
+            <p class="x-small text-body-tertiary mt-4 mb-0">@(Model.Settings.LoginMessage ?? "Authorized use only.")</p>
+        </div>
+    </section>
+</div>

@@ -1,0 +1,12 @@
+@page "/forbidden"
+@{
+    ViewData["Title"] = "No access";
+}
+<div class="d-flex align-items-center justify-content-center" style="min-height:60vh">
+    <div class="text-center" style="max-width:460px">
+        <div class="vl-empty-icon tone-warn" style="width:64px;height:64px;font-size:1.7rem"><i class="bi bi-lock"></i></div>
+        <h1 class="h3 fw-bold mt-3">You don't have access</h1>
+        <p class="text-body-secondary">This area needs a role you don't have. Access is granted per application by an administrator or application manager.</p>
+        <a class="btn btn-primary mt-2" href="/"><i class="bi bi-house"></i>Go home</a>
+    </div>
+</div>

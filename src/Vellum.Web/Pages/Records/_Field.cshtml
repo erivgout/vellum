@@ -1,0 +1,210 @@
+@model Vellum.Pages.Records.FieldCtx
+@{
+    var f = Model.F;
+    var vals = Model.Values;
+    var err = Model.Error;
+    var inv = err != null ? " is-invalid" : "";
+    var tz = Model.Vm.Tz;
+    var cfg = Model.Vm.Config;
+    var label = f.Label;
+    string V(int i = 0) => vals.Count > i ? FieldCodec.InputValue(f, vals[i], tz) : "";
+}
+@if (f.Type == FieldType.Prompt)
+{
+    <div class="vl-prompt"><i class="bi bi-info-circle-fill"></i><div>@f.Help</div></div>
+    return;
+}
+@if (!Model.Compact)
+{
+    <label class="form-label" for="@Model.Id">
+        @label
+        @if (Model.IsRequired && Model.Editable) { <span class="req" aria-hidden="true">*</span><span class="visually-hidden">(required)</span> }
+        @if (f.Sensitive) { <i class="bi bi-shield-lock text-body-tertiary" title="Sensitive field: visible to authorized readers only (SEC-520)"></i> }
+        @if (!string.IsNullOrEmpty(f.Help) && f.Type != FieldType.Prompt) { <i class="bi bi-question-circle vl-help" data-bs-toggle="tooltip" data-bs-title="@f.Help" tabindex="0" aria-label="@f.Help"></i> }
+    </label>
+}
+@if (Model.Hidden)
+{
+    <div class="vl-value empty"><i class="bi bi-lock"></i> Restricted</div>
+    return;
+}
+@if (!Model.Editable)
+{
+    <div class="vl-value @(vals.Count == 0 && f.Type != FieldType.Attachment ? "empty" : "")" id="@Model.Id" data-ro-field="@(Model.RowId == null ? f.Key : null)"
+         data-ro-value="@(string.Join("|", vals.Select(v => f.Type is FieldType.Keyword or FieldType.KeywordMulti ? cfg.Keyword(v.RefId)?.Key : f.Type == FieldType.YesNo ? (v.RefId == 1 ? "yes" : "no") : v.Canonical)))">
+        @switch (f.Type)
+        {
+            case FieldType.Keyword or FieldType.KeywordMulti:
+                if (vals.Count == 0) { <text>–</text> }
+                else { <span class="d-inline-flex flex-wrap gap-1">@foreach (var v in vals) { @Ui.Keyword(cfg.Keyword(v.RefId)) }</span> }
+                break;
+            case FieldType.User or FieldType.UserMulti:
+                if (vals.Count == 0) { <text>–</text> }
+                else { <span class="d-inline-flex flex-wrap gap-2">@foreach (var v in vals) { @Ui.Avatar(Model.Vm.Dir.Get(v.RefId), "sm", showName: true) }</span> }
+                break;
+            case FieldType.YesNo:
+                if (vals.Count == 0) { <text>–</text> }
+                else if (vals[0].RefId == 1) { <span><i class="bi bi-check-circle-fill text-success me-1"></i>Yes</span> }
+                else { <span><i class="bi bi-dash-circle text-body-tertiary me-1"></i>No</span> }
+                break;
+            case FieldType.Link:
+                if (vals.Count == 0) { <text>–</text> }
+                else
+                {
+                    <span class="d-flex flex-column gap-1">
+                        @foreach (var v in vals)
+                        {
+                            <a href="/records/@v.RefGuid" class="d-inline-flex align-items-center gap-1"><i class="bi bi-link-45deg"></i>@(Model.Vm.LinkLabels.TryGetValue(v.RefGuid!.Value, out var ll) ? ll : "Linked record")</a>
+                        }
+                    </span>
+                }
+                break;
+            case FieldType.Url:
+                if (vals.Count == 0) { <text>–</text> }
+                else { <a href="@vals[0].Text" target="_blank" rel="noopener noreferrer">@vals[0].Text <i class="bi bi-box-arrow-up-right small"></i></a> }
+                break;
+            case FieldType.Attachment:
+                var files = Model.Vm.AttachmentsOf(f.Key).ToList();
+                if (files.Count == 0) { <span class="text-body-tertiary">No files</span> }
+                else
+                {
+                    <ul class="vl-files mb-0">
+                        @foreach (var a in files)
+                        {
+                            <li class="vl-file">
+                                <i class="bi @Ui.FileIcon(a.FileName) ficon"></i>
+                                <span class="min-w-0 flex-grow-1"><a class="fname" href="/files/@a.Id?inline=true" target="_blank">@a.FileName</a><span class="fmeta">@Ui.FileSize(a.Size) · @Model.Vm.Dir.Name(a.UploadedById) · @Ui.Ago(a.UploadedAt) · <span class="vl-hash" title="SHA-256 @a.Sha256">@a.Sha256[..10]</span></span></span>
+                                <a class="btn btn-sm btn-ghost btn-icon" href="/files/@a.Id" title="Download" aria-label="Download @a.FileName"><i class="bi bi-download"></i></a>
+                            </li>
+                        }
+                    </ul>
+                }
+                break;
+            default:
+                <span class="vl-pre">@(vals.Count == 0 ? "–" : Model.Display)</span>
+                break;
+        }
+    </div>
+    return;
+}
+
+@switch (f.Type)
+{
+    case FieldType.Text:
+        <input class="form-control@(inv)" id="@Model.Id" name="@Model.Name" value="@V()" maxlength="@(f.MaxLength ?? 400)" placeholder="@f.Placeholder" aria-describedby="@(err != null ? Model.Id + "-err" : null)" autocomplete="off" />
+        break;
+    case FieldType.TextArea:
+        <textarea class="form-control vl-autogrow@(inv)" id="@Model.Id" name="@Model.Name" rows="@(Model.Compact ? 1 : 3)" maxlength="@f.MaxLength" placeholder="@f.Placeholder">@V()</textarea>
+        break;
+    case FieldType.Number:
+        <input class="form-control tabular@(inv)" type="number" step="@(f.Decimals is 0 ? "1" : "any")" id="@Model.Id" name="@Model.Name" value="@V()" min="@f.Min" max="@f.Max" placeholder="@f.Placeholder" />
+        break;
+    case FieldType.Currency:
+        <div class="input-group">
+            <span class="input-group-text">@(f.CurrencyCode ?? "USD")</span>
+            <input class="form-control tabular@(inv)" type="number" step="0.01" id="@Model.Id" name="@Model.Name" value="@V()" min="@f.Min" max="@f.Max" />
+        </div>
+        break;
+    case FieldType.Date:
+        <input class="form-control tabular@(inv)" type="date" id="@Model.Id" name="@Model.Name" value="@V()" />
+        break;
+    case FieldType.DateTime:
+        <input class="form-control tabular@(inv)" type="datetime-local" id="@Model.Id" name="@Model.Name" value="@V()" />
+        <div class="form-text">Your time zone: @tz.Id</div>
+        break;
+    case FieldType.Url:
+        <input class="form-control@(inv)" type="url" id="@Model.Id" name="@Model.Name" value="@V()" placeholder="https://" />
+        break;
+    case FieldType.Keyword:
+        var current = vals.Count > 0 ? vals[0].RefId : null;
+        <select class="form-select@(inv)" id="@Model.Id" name="@Model.Name">
+            <option value="">Choose…</option>
+            @foreach (var k in cfg.Options(f.KeywordList))
+            {
+                <option value="@k.Id" data-key="@k.Key" selected="@(k.Id == current)">@k.Label</option>
+            }
+            @if (current is { } cid && cfg.Keyword(cid) is { Disabled: true } dk)
+            {
+                <option value="@dk.Id" data-key="@dk.Key" selected>@dk.Label (disabled)</option>
+            }
+        </select>
+        break;
+    case FieldType.KeywordMulti:
+        var chosen = vals.Select(v => v.RefId).ToHashSet();
+        <div class="d-flex flex-wrap gap-1 pt-1@(inv)" id="@Model.Id" role="group" aria-label="@f.Label">
+            @foreach (var k in cfg.Options(f.KeywordList))
+            {
+                var cid2 = $"{Model.Id}-{k.Id}";
+                <input type="checkbox" class="btn-check" id="@cid2" name="@Model.Name" value="@k.Id" data-key="@k.Key" checked="@chosen.Contains(k.Id)" autocomplete="off" />
+                <label class="btn btn-sm btn-light" for="@cid2">@k.Label</label>
+            }
+        </div>
+        break;
+    case FieldType.YesNo:
+        var yn = vals.Count > 0 ? (vals[0].RefId == 1 ? "yes" : "no") : "";
+        <div class="vl-seg@(inv)" id="@Model.Id" role="radiogroup" aria-label="@f.Label">
+            <input type="radio" class="btn-check" name="@Model.Name" id="@Model.Id-yes" value="yes" data-key="yes" checked="@(yn == "yes")" autocomplete="off" /><label for="@Model.Id-yes">Yes</label>
+            <input type="radio" class="btn-check" name="@Model.Name" id="@Model.Id-no" value="no" data-key="no" checked="@(yn == "no")" autocomplete="off" /><label for="@Model.Id-no">No</label>
+        </div>
+        break;
+    case FieldType.User or FieldType.UserMulti:
+        var multi = f.Type == FieldType.UserMulti;
+        <div class="vl-picker@(inv)" id="@Model.Id" data-picker="users" data-name="@Model.Name" data-multi="@(multi ? "true" : "false")">
+            <div class="vl-picker-box">
+                @foreach (var v in vals)
+                {
+                    var u = Model.Vm.Dir.Get(v.RefId);
+                    if (u == null) { continue; }
+                    <span class="vl-token">@Ui.Avatar(u, "xs")<span class="t">@u.DisplayName</span><button type="button" class="x" aria-label="Remove @u.DisplayName">×</button><input type="hidden" name="@Model.Name" value="@u.Id" /></span>
+                }
+                <input type="text" placeholder="@(vals.Count > 0 && !multi ? "" : f.Placeholder ?? (multi ? "Add people…" : "Search people…"))" aria-label="@f.Label" autocomplete="off" />
+            </div>
+            <div class="vl-picker-menu" role="listbox"></div>
+        </div>
+        break;
+    case FieldType.Link:
+        <div class="vl-picker@(inv)" id="@Model.Id" data-picker="records" data-name="@Model.Name" data-multi="true" data-forms="@string.Join(",", f.LinkForms)">
+            <div class="vl-picker-box">
+                @foreach (var v in vals)
+                {
+                    <span class="vl-token record"><i class="bi bi-link-45deg"></i><span class="t">@(Model.Vm.LinkLabels.TryGetValue(v.RefGuid!.Value, out var ll2) ? ll2 : "Linked record")</span><button type="button" class="x" aria-label="Remove link">×</button><input type="hidden" name="@Model.Name" value="@v.RefGuid" /></span>
+                }
+                <input type="text" placeholder="Search by number or title…" aria-label="@f.Label" autocomplete="off" />
+            </div>
+            <div class="vl-picker-menu" role="listbox"></div>
+        </div>
+        break;
+    case FieldType.Attachment:
+        var existing = Model.Vm.AttachmentsOf(f.Key).ToList();
+        if (existing.Count > 0)
+        {
+            <ul class="vl-files">
+                @foreach (var a in existing)
+                {
+                    <li class="vl-file">
+                        <i class="bi @Ui.FileIcon(a.FileName) ficon"></i>
+                        <span class="min-w-0 flex-grow-1"><a class="fname" href="/files/@a.Id?inline=true" target="_blank">@a.FileName</a><span class="fmeta">@Ui.FileSize(a.Size) · @Model.Vm.Dir.Name(a.UploadedById) · @Ui.Ago(a.UploadedAt)</span></span>
+                        <a class="btn btn-sm btn-ghost btn-icon" href="/files/@a.Id" title="Download" aria-label="Download @a.FileName"><i class="bi bi-download"></i></a>
+                        <input type="checkbox" class="btn-check" id="rm-@a.Id" name="remove" value="@a.Id" autocomplete="off" />
+                        <label class="btn btn-sm btn-ghost btn-icon text-danger" for="rm-@a.Id" title="Remove on save" aria-label="Remove @a.FileName"><i class="bi bi-trash3"></i></label>
+                    </li>
+                }
+            </ul>
+        }
+        <ul class="vl-files" data-pending></ul>
+        <div class="vl-drop@(inv)" data-dropzone tabindex="0" role="button" aria-label="Add files to @f.Label">
+            <i class="bi bi-cloud-arrow-up"></i>
+            <span><strong>Drop files here</strong> or click to browse</span>
+            <div class="form-text mt-1">Stored with a SHA-256 checksum. Uploaded when you save.</div>
+        </div>
+        <input type="file" name="file.@f.Key" id="@Model.Id" multiple hidden />
+        break;
+}
+@if (err != null)
+{
+    <div class="invalid-feedback d-block" id="@Model.Id-err"><i class="bi bi-exclamation-circle me-1"></i>@err</div>
+}
+else if (!string.IsNullOrEmpty(f.Help) && !Model.Compact && f.Type is FieldType.Link or FieldType.Attachment)
+{
+    <div class="form-text">@f.Help</div>
+}

@@ -1,0 +1,199 @@
+@page "/apps/{key}"
+@model Vellum.Pages.Apps.AppModel
+@{
+    var app = Model.App;
+    ViewData["Title"] = Model.Current != null ? $"{Model.Current.Name} · {app.Name}" : app.Name;
+    ViewData["ActiveApp"] = app.Key;
+    var res = Model.Result;
+    var sort = Model.Sort ?? Model.Current?.SortBy;
+    var desc = Model.Desc ?? Model.Current?.SortDesc ?? true;
+    var fav = Shell.IsFavorite("app", app.Key);
+    var dir = Shell.Directory;
+    var first = res == null || res.Total == 0 ? 0 : (res.Page - 1) * res.PageSize + 1;
+    var last = res == null ? 0 : Math.Min(res.Total, res.Page * res.PageSize);
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">@app.Name</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="vl-app-tile lg" style="--app:@app.Color"><i class="bi @app.Icon"></i></span>
+    <div class="min-w-0 flex-grow-1">
+        <h1 class="vl-page-title">@app.Name</h1>
+        <p class="vl-page-sub text-truncate">@app.Description</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-light btn-icon vl-star @(fav ? "on" : "")" data-fav-kind="app" data-fav-key="@app.Key" data-fav-label="@app.Name" aria-label="Favorite"><i class="bi @(fav ? "bi-star-fill" : "bi-star")"></i></button>
+        @if (Model.Creatable.Count == 1)
+        {
+            <a class="btn btn-primary" href="/records/new?form=@Model.Creatable[0].Key"><i class="bi bi-plus-lg"></i>New @Model.Creatable[0].Name</a>
+        }
+        else if (Model.Creatable.Count > 1)
+        {
+            <div class="dropdown">
+                <button class="btn btn-primary" data-bs-toggle="dropdown"><i class="bi bi-plus-lg"></i>New</button>
+                <div class="dropdown-menu dropdown-menu-end">
+                    @foreach (var f in Model.Creatable)
+                    {
+                        <a class="dropdown-item" href="/records/new?form=@f.Key"><i class="bi @f.Icon"></i><span>@f.Name @if (f.Description != null) { <span class="dropdown-item-desc">@f.Description</span> }</span></a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-3 col-xxl-2">
+        <nav class="vl-viewnav" aria-label="Views">
+            @foreach (var g in Model.Navigator)
+            {
+                <div class="vl-nav-label">@Vellum.Pages.Apps.AppModel.CategoryLabel(g.Key)</div>
+                @foreach (var v in g)
+                {
+                    <a class="@(v.Key == Model.Current?.Key ? "active" : "")" href="@Model.Link(view: v.Key)">
+                        <i class="bi @(v.AssignedToMe ? "bi-person-check" : v.OverdueOnly ? "bi-alarm" : v.Status is "completed" or "closed" ? "bi-check2-square" : v.Status == "voided" ? "bi-slash-circle" : v.Status == "effective" ? "bi-patch-check" : v.Status == "archived" ? "bi-archive" : "bi-list-ul")"></i>
+                        <span class="text-truncate">@v.Name</span>
+                        @if (Model.Counts.TryGetValue(v.Key, out var n)) { <span class="ms-auto vl-pill-count @(v.OverdueOnly && n > 0 ? "hot" : "")">@n</span> }
+                    </a>
+                }
+            }
+        </nav>
+    </div>
+
+    <div class="col-lg-9 col-xxl-10 min-w-0">
+        @if (Model.Current == null || res == null)
+        {
+            <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-table"></i></div><h3>No views</h3><p>This application has no views you can see.</p></div></div>
+        }
+        else
+        {
+            <form class="vl-toolbar" method="get" action="/apps/@app.Key" role="search">
+                <input type="hidden" name="view" value="@Model.Current.Key" />
+                <h2 class="h6 m-0 me-2 fw-semibold">@Model.Current.Name</h2>
+                <div class="vl-search-input flex-grow-1" style="max-width:320px">
+                    <i class="bi bi-search"></i>
+                    <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Filter by number or title" aria-label="Filter by number or title" />
+                </div>
+                @foreach (var f in Model.FilterFields)
+                {
+                    Model.Filters.TryGetValue(f.Key, out var cur);
+                    <select class="form-select form-select-sm w-auto" name="f.@f.Key" aria-label="Filter by @f.Label" data-autosubmit>
+                        <option value="">@f.Label: any</option>
+                        @if (f.Type == FieldType.YesNo)
+                        {
+                            <option value="yes" selected="@(cur == "yes")">@f.Label: Yes</option>
+                            <option value="no" selected="@(cur == "no")">@f.Label: No</option>
+                        }
+                        else
+                        {
+                            @foreach (var k in Shell.Config.Options(f.KeywordList))
+                            {
+                                <option value="@k.Key" selected="@(cur == k.Key)">@f.Label: @k.Label</option>
+                            }
+                        }
+                    </select>
+                }
+                <button class="btn btn-sm btn-light" type="submit">Apply</button>
+                @if (!string.IsNullOrEmpty(Model.Q) || Model.Filters.Count > 0)
+                {
+                    <a class="btn btn-sm btn-ghost" href="@Model.Link(view: Model.Current.Key)"><i class="bi bi-x"></i>Clear</a>
+                }
+                <span class="ms-auto"></span>
+                <a class="btn btn-sm btn-light" href="/apps/@app.Key/export.csv?view=@Model.Current.Key@(Model.Q != null ? "&q=" + Uri.EscapeDataString(Model.Q) : "")@string.Concat(Model.Filters.Select(kv => $"&f.{kv.Key}={Uri.EscapeDataString(kv.Value)}"))"><i class="bi bi-download"></i>Export</a>
+                <button type="button" class="btn btn-sm btn-ghost btn-icon vl-star @(Shell.IsFavorite("view", Model.Link(view: Model.Current.Key)) ? "on" : "")" data-fav-kind="view" data-fav-key="@Model.Link(view: Model.Current.Key)" data-fav-label="@app.Name › @Model.Current.Name" title="Favorite this view" aria-label="Favorite this view"><i class="bi @(Shell.IsFavorite("view", Model.Link(view: Model.Current.Key)) ? "bi-star-fill" : "bi-star")"></i></button>
+            </form>
+
+            <div class="vl-table-wrap">
+                @if (res.Total == 0)
+                {
+                    <div class="vl-empty">
+                        <div class="vl-empty-icon"><i class="bi bi-inbox"></i></div>
+                        <h3>@(string.IsNullOrEmpty(Model.Q) && Model.Filters.Count == 0 ? "Nothing in this view yet" : "No records match")</h3>
+                        <p>@(string.IsNullOrEmpty(Model.Q) && Model.Filters.Count == 0 ? "Records appear here as they're created and routed." : "Try a different filter.")</p>
+                        @if (Model.Creatable.Count > 0 && string.IsNullOrEmpty(Model.Q)) { <a class="btn btn-primary mt-3" href="/records/new?form=@Model.Creatable[0].Key"><i class="bi bi-plus-lg"></i>New @Model.Creatable[0].Name</a> }
+                    </div>
+                }
+                else
+                {
+                    <div class="vl-table-scroll">
+                        <table class="table vl-table">
+                            <thead>
+                                <tr>
+                                    @foreach (var c in res.Columns)
+                                    {
+                                        <th scope="col" class="@(c.Field?.Type is FieldType.Number or FieldType.Currency ? "numeric" : "")" aria-sort="@(sort == c.Key ? (desc ? "descending" : "ascending") : null)">
+                                            @if (c.Sortable)
+                                            {
+                                                <a href="@Model.Link(sort: c.Key, desc: sort == c.Key ? !desc : c.Key is "number" or "created" or "modified")">@c.Label @if (sort == c.Key) { <i class="bi @(desc ? "bi-arrow-down" : "bi-arrow-up")"></i> }</a>
+                                            }
+                                            else { @c.Label }
+                                        </th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in res.Rows)
+                                {
+                                    var href = $"/records/{row.Record.Id}";
+                                    <tr data-href="@href">
+                                        @foreach (var c in res.Columns)
+                                        {
+                                            var cell = row.Cells[c.Key];
+                                            switch (c.Key)
+                                            {
+                                                case "number":
+                                                    <td class="col-number"><a href="@href">@cell.Text</a>@if (row.Record.Revision != null && !res.Columns.Any(x => x.Key == "revision")) { <span class="text-body-tertiary fw-normal ms-1">rev @row.Record.Revision</span> }</td>
+                                                    break;
+                                                case "title":
+                                                    <td class="col-title"><span class="t">@cell.Text</span></td>
+                                                    break;
+                                                case "phase":
+                                                case "status":
+                                                    <td>@Ui.Phase(cell.Text, row.Record.PhaseType, row.Record.DueDate, row.Record.IsArchived, row.Record.IsEffective && c.Key == "status")</td>
+                                                    break;
+                                                case "due":
+                                                    <td>@Ui.Due(cell.Date, row.Record.PhaseType == PhaseType.Normal)</td>
+                                                    break;
+                                                default:
+                                                    <td class="@(cell.Kind == "numeric" ? "numeric" : "") @(cell.Kind is "date" or "users" ? "text-nowrap" : "")">
+                                                        @switch (cell.Kind)
+                                                        {
+                                                            case "keyword": @Ui.KeywordBadge(cell.Text, cell.Color) break;
+                                                            case "users": @Ui.Avatars(cell.UserIds.Select(id => dir.Get(id)), 3) break;
+                                                            case "bool": if (cell.Text == "Yes") { <i class="bi bi-check-circle-fill text-success"></i> } else { <span class="text-body-tertiary">No</span> } break;
+                                                            case "restricted": <span class="text-body-tertiary"><i class="bi bi-lock"></i> Restricted</span> break;
+                                                            case "date": <span class="text-body-secondary">@cell.Text</span> break;
+                                                            default: @(string.IsNullOrEmpty(cell.Text) ? "–" : cell.Text) break;
+                                                        }
+                                                    </td>
+                                                    break;
+                                            }
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="vl-table-foot">
+                        <span class="tabular">@first–@last of @res.Total</span>
+                        @if (res.Pages > 1)
+                        {
+                            <nav aria-label="Pages">
+                                <ul class="pagination pagination-sm">
+                                    <li class="page-item @(res.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@Model.Link(page: res.Page - 1)" aria-label="Previous"><i class="bi bi-chevron-left"></i></a></li>
+                                    @for (var i = Math.Max(1, res.Page - 2); i <= Math.Min(res.Pages, res.Page + 2); i++)
+                                    {
+                                        <li class="page-item @(i == res.Page ? "active" : "")"><a class="page-link" href="@Model.Link(page: i)">@i</a></li>
+                                    }
+                                    <li class="page-item @(res.Page >= res.Pages ? "disabled" : "")"><a class="page-link" href="@Model.Link(page: res.Page + 1)" aria-label="Next"><i class="bi bi-chevron-right"></i></a></li>
+                                </ul>
+                            </nav>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>

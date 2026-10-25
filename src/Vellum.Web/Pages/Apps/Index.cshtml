@@ -1,0 +1,42 @@
+@page "/apps"
+@{
+    ViewData["Title"] = "All applications";
+    var suites = Shell.Suites;
+}
+@section Crumbs { <span class="current">All applications</span> }
+
+<div class="vl-page-head">
+    <div>
+        <h1 class="vl-page-title">All applications</h1>
+        <p class="vl-page-sub">The applications you have access to. Star one to pin it to your sidebar.</p>
+    </div>
+</div>
+
+@if (suites.Count == 0)
+{
+    <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-grid"></i></div><h3>No applications yet</h3><p>Ask your administrator for access to an application.</p></div></div>
+}
+@foreach (var s in suites)
+{
+    <div class="vl-suite-head"><i class="bi @s.Icon"></i>@s.Name</div>
+    <div class="row g-3">
+        @foreach (var a in s.Apps)
+        {
+            var fav = Shell.IsFavorite("app", a.App.Key);
+            <div class="col-sm-6 col-lg-4 col-xxl-3 position-relative">
+                <a class="vl-app-card" href="/apps/@a.App.Key">
+                    <div class="d-flex align-items-start gap-3">
+                        <span class="vl-app-tile" style="--app:@a.App.Color"><i class="bi @a.App.Icon"></i></span>
+                        <div class="min-w-0 flex-grow-1"><div class="nm">@a.App.Name</div><div class="ds mt-1">@a.App.Description</div></div>
+                    </div>
+                    <div class="ft">
+                        <span><i class="bi bi-ui-checks-grid"></i> @Ui.Plural(a.App.Forms.Count(f => !f.IsActivity), "form")</span>
+                        <span><i class="bi bi-table"></i> @Ui.Plural(a.App.Views.Count(v => !v.Hidden), "view")</span>
+                        @if (a.OpenAssignments > 0) { <span class="ms-auto vl-kw vl-kw-info">@a.OpenAssignments for you</span> }
+                    </div>
+                </a>
+                <button class="btn btn-sm btn-ghost btn-icon vl-star @(fav ? "on" : "") position-absolute" style="top:.55rem;right:1.25rem" data-fav-kind="app" data-fav-key="@a.App.Key" data-fav-label="@a.App.Name" aria-pressed="@(fav ? "true" : "false")" aria-label="Favorite @a.App.Name"><i class="bi @(fav ? "bi-star-fill" : "bi-star")"></i></button>
+            </div>
+        }
+    </div>
+}

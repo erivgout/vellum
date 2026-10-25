@@ -1,0 +1,98 @@
+@page "/search"
+@inject Vellum.Engine.Search.SearchService SearchService
+@{
+    ViewData["Title"] = "Search";
+    var q = Request.Query["q"].ToString();
+    var appKey = Request.Query["app"].ToString();
+    int? days = int.TryParse(Request.Query["days"], out var dd) ? dd : null;
+    var archive = Request.Query["archive"] == "1";
+    var cfg = Shell.Config;
+    int? appId = cfg.AppsByKey.TryGetValue(appKey, out var fa) ? fa.Id : null;
+    var groups = string.IsNullOrWhiteSpace(q) ? [] : await SearchService.SearchAsync(q, appId, days, archive);
+    var total = groups.Sum(g => g.Total);
+    string Q(string? app = null, int? d = null, bool? arch = null) =>
+        $"/search?q={Uri.EscapeDataString(q)}" + ((app ?? appKey) is { Length: > 0 } a ? "&app=" + a : "") + ((d ?? days) is { } x && x > 0 ? "&days=" + x : "") + ((arch ?? archive) ? "&archive=1" : "");
+    string Mark(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        var enc = System.Net.WebUtility.HtmlEncode(text);
+        var term = System.Net.WebUtility.HtmlEncode(q);
+        return term.Length < 2 ? enc : System.Text.RegularExpressions.Regex.Replace(enc, System.Text.RegularExpressions.Regex.Escape(term), m => $"<mark>{m.Value}</mark>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+}
+@section Crumbs { <span class="current">Search</span> }
+
+<div class="vl-page-head">
+    <div class="flex-grow-1">
+        <h1 class="vl-page-title">Search</h1>
+        <p class="vl-page-sub">Searches numbers, titles, text fields and comments. Results only include records you're allowed to open.</p>
+    </div>
+</div>
+
+<form method="get" action="/search" class="mb-4" role="search">
+    <div class="vl-search-input">
+        <i class="bi bi-search"></i>
+        <input class="form-control form-control-lg" style="padding-left:2.2rem" name="q" value="@q" placeholder="Search everything…" autofocus aria-label="Search" />
+    </div>
+    @if (appKey.Length > 0) { <input type="hidden" name="app" value="@appKey" /> }
+</form>
+
+@if (!string.IsNullOrWhiteSpace(q))
+{
+    <div class="row g-4">
+        <div class="col-lg-3">
+            <nav class="vl-viewnav" aria-label="Filter results">
+                <div class="vl-nav-label">Application</div>
+                <a class="@(appId == null ? "active" : "")" href="@Q(app: "")"><i class="bi bi-grid"></i>All<span class="ms-auto vl-pill-count">@total</span></a>
+                @foreach (var g in groups)
+                {
+                    <a class="@(appId == g.App.Id ? "active" : "")" href="@Q(app: g.App.Key)"><span class="vl-app-tile xs" style="--app:@g.App.Color"><i class="bi @g.App.Icon"></i></span><span class="text-truncate">@g.App.Name</span><span class="ms-auto vl-pill-count">@g.Total</span></a>
+                }
+                <div class="vl-nav-label">Modified</div>
+                @foreach (var (label, d) in new[] { ("Any time", 0), ("Last 30 days", 30), ("Last 90 days", 90), ("Last 12 months", 365) })
+                {
+                    <a class="@((days ?? 0) == d ? "active" : "")" href="@Q(d: d)"><i class="bi bi-calendar3"></i>@label</a>
+                }
+                <div class="vl-nav-label">Include</div>
+                <a class="@(archive ? "active" : "")" href="@Q(arch: !archive)"><i class="bi @(archive ? "bi-check-square" : "bi-square")"></i>Archived revisions</a>
+            </nav>
+        </div>
+        <div class="col-lg-9 min-w-0">
+            @if (total == 0)
+            {
+                <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-search"></i></div><h3>No results for “@q”</h3><p>Check the spelling or try fewer words. You'll only see records you have access to.</p></div></div>
+            }
+            @foreach (var g in groups)
+            {
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <span class="vl-app-tile sm" style="--app:@g.App.Color"><i class="bi @g.App.Icon"></i></span>
+                        <h2 class="card-title-sm">@g.App.Name</h2>
+                        <span class="vl-pill-count ms-auto">@g.Total</span>
+                    </div>
+                    <div class="vl-list">
+                        @foreach (var h in g.Hits.Take(appId == null ? 10 : 100))
+                        {
+                            <a class="vl-list-item" href="/records/@h.Id">
+                                <span class="main">
+                                    <span class="line1"><span class="num">@Html.Raw(Mark(h.Number))</span><span class="ttl">@Html.Raw(Mark(h.Title))</span></span>
+                                    @if (h.Snippet != null && !h.Title.Contains(q, StringComparison.OrdinalIgnoreCase)) { <span class="d-block small text-body-secondary mt-1 text-truncate-2">@Html.Raw(Mark(h.Snippet))</span> }
+                                    <span class="line2 d-block">@cfg.FormsById[h.FormId].Name@(h.Revision != null ? $" · rev {h.Revision}" : "") · modified @Ui.Ago(h.ModifiedAt)</span>
+                                </span>
+                                <span class="aside">@Ui.Phase(cfg.Phase(h.PhaseId)?.Name, h.PhaseType, null, h.IsArchived, h.IsEffective)</span>
+                            </a>
+                        }
+                    </div>
+                    @if (appId == null && g.Total > 10)
+                    {
+                        <div class="card-footer text-center"><a href="@Q(app: g.App.Key)">Show all @g.Total in @g.App.Name</a></div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-search"></i></div><h3>Search across every application</h3><p>Tip: press <span class="vl-kbd">/</span> or <span class="vl-kbd">Ctrl K</span> anywhere to jump straight to a record.</p></div></div>
+}

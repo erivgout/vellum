@@ -1,0 +1,100 @@
+@model Vellum.Pages.Records.RecordVm
+@{
+    var vm = Model;
+    var r = vm.Record;
+    var headerFields = vm.Form.Fields.Where(f => f.ShowInHeader && (vm.Data.Main.Has(f.Key) || vm.IsNew)).Take(5).ToList();
+}
+<div class="card mb-0">
+    <div class="vl-record-head">
+        <div class="d-flex align-items-start gap-3">
+            <span class="vl-app-tile lg d-none d-sm-grid" style="--app:@vm.App.Color"><i class="bi @vm.Form.Icon"></i></span>
+            <div class="min-w-0 flex-grow-1">
+                <div class="vl-record-id">
+                    <a href="/apps/@vm.App.Key" class="text-body-secondary">@vm.Form.Name</a>
+                    @if (r != null)
+                    {
+                        <span class="text-body-tertiary">/</span>
+                        <span class="num">@r.Number</span>
+                        @if (r.Revision != null) { <span class="vl-kw">Rev @r.Revision</span> }
+                        @Ui.Phase(vm.Phase?.Name, r.PhaseType, r.DueDate, r.IsArchived, r.IsEffective)
+                        @if (r.PhaseType == PhaseType.Normal && r.DueDate != null) { @Ui.Due(r.DueDate) }
+                        @if (vm.ActiveSignatures > 0) { <span class="vl-sig-badge" title="Electronic signatures on this record"><i class="bi bi-pen"></i>@vm.ActiveSignatures signed</span> }
+                        @if (r.LegalHold) { <span class="vl-kw vl-kw-danger"><i class="bi bi-lock-fill"></i>Legal hold</span> }
+                    }
+                    else
+                    {
+                        <span class="vl-chip vl-chip-draft"><i class="bi bi-pencil"></i>New</span>
+                    }
+                </div>
+                <h1 class="vl-record-title">@(r?.Title ?? $"New {vm.Form.Name}")</h1>
+                @if (vm.Parent != null)
+                {
+                    <div class="small text-body-secondary mt-1"><i class="bi bi-diagram-2 me-1"></i>Activity of <a href="/records/@vm.Parent.Id">@vm.Parent.Number · @vm.Parent.Title</a></div>
+                }
+            </div>
+            @if (r != null)
+            {
+                <div class="d-flex align-items-center gap-1 no-print">
+                    <button class="btn btn-ghost btn-icon vl-star @(Shell.IsFavorite("record", r.Id.ToString()) ? "on" : "")" data-fav-kind="record" data-fav-key="@r.Id" data-fav-label="@r.Number · @r.Title" title="Favorite" aria-label="Add to favorites"><i class="bi @(Shell.IsFavorite("record", r.Id.ToString()) ? "bi-star-fill" : "bi-star")"></i></button>
+                    <a class="btn btn-ghost btn-icon" href="/records/@r.Id/print" target="_blank" title="Print / PDF with signature manifest" aria-label="Print"><i class="bi bi-printer"></i></a>
+                    <div class="dropdown">
+                        <button class="btn btn-ghost btn-icon" data-bs-toggle="dropdown" aria-label="More actions"><i class="bi bi-three-dots"></i></button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a class="dropdown-item" href="/records/@r.Id/audit.csv"><i class="bi bi-filetype-csv"></i>Export audit trail (CSV)</a>
+                            <a class="dropdown-item" href="/records/@r.Id/audit.json"><i class="bi bi-filetype-json"></i>Export audit trail (JSON)</a>
+                            <button class="dropdown-item" data-copy="@($"{Context.Request.Scheme}://{Context.Request.Host}/records/{r.Id}")"><i class="bi bi-link-45deg"></i>Copy link</button>
+                            @if (vm.IsManager && !r.IsArchived)
+                            {
+                                <div class="dropdown-divider"></div>
+                                <h6 class="dropdown-header">Application manager</h6>
+                                <a class="dropdown-item" href="/records/@r.Id?mode=override"><i class="bi bi-pencil-square"></i>Edit all fields…</a>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (r != null)
+        {
+            <div class="vl-meta">
+                @foreach (var f in headerFields)
+                {
+                    <div class="vl-meta-item">
+                        <div class="vl-meta-label">@f.Label</div>
+                        <div class="vl-meta-value">
+                            @switch (f.Type)
+                            {
+                                case FieldType.Keyword: @Ui.Keyword(vm.Config.Keyword(vm.Data.Main.Ref(f.Key))) break;
+                                case FieldType.User or FieldType.UserMulti: @Ui.Avatars(vm.Data.Main.Refs(f.Key).Select(id => vm.Dir.Get(id))) break;
+                                case FieldType.Date: @Ui.Due(vm.Data.Main.Date(f.Key), open: false) break;
+                                default: @FieldCodec.Display(f, vm.Data.Main[f.Key], vm.Config, vm.Dir, vm.Tz) break;
+                            }
+                        </div>
+                    </div>
+                }
+                <div class="vl-meta-item">
+                    <div class="vl-meta-label">Created</div>
+                    <div class="vl-meta-value">@Ui.Avatar(vm.Dir.Get(r.CreatedById), "xs") <span class="text-body-secondary">@Ui.Time(r.CreatedAt, vm.Tz)</span></div>
+                </div>
+                @if (r.IsEffective && r.EffectiveDate != null)
+                {
+                    <div class="vl-meta-item"><div class="vl-meta-label">Effective</div><div class="vl-meta-value"><i class="bi bi-patch-check-fill text-success"></i>@r.EffectiveDate.Value.ToString("dd MMM yyyy")</div></div>
+                }
+            </div>
+        }
+    </div>
+    @if (vm.Tracker.Count > 0)
+    {
+        <div class="vl-tracker" aria-label="Workflow progress">
+            @foreach (var step in vm.Tracker)
+            {
+                <div class="vl-step @step.State" aria-current="@(step.State.StartsWith("current") ? "step" : null)">
+                    <div class="node">@if (step.State == "done") { <i class="bi bi-check-lg"></i> } else if (step.State.StartsWith("terminal")) { <i class="bi bi-slash-lg"></i> }</div>
+                    <div class="lbl">@step.Phase.Name</div>
+                    @if (step.Sub != null) { <div class="sub">@step.Sub</div> }
+                </div>
+            }
+        </div>
+    }
+</div>

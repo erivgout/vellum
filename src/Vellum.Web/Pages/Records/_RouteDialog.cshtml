@@ -1,0 +1,150 @@
+@model Vellum.Pages.Records.RecordVm
+@using Vellum.Engine.Workflow
+@{
+    var vm = Model;
+    var r = vm.Record!;
+    var me = Shell.User!;
+    var certified = vm.MeCertified;
+    string Icon(RouteOption o) => o.Kind switch
+    {
+        RouteKind.Void => "void",
+        RouteKind.Back => "back",
+        _ => o.To.Type == PhaseType.Completed ? "done" : "fwd",
+    };
+    string IconBi(RouteOption o) => o.Kind switch
+    {
+        RouteKind.Void => "bi-slash-circle",
+        RouteKind.Back => "bi-arrow-return-left",
+        _ => o.To.Type == PhaseType.Completed ? "bi-check2-circle" : o.StaysInPhase ? "bi-hand-thumbs-up" : "bi-arrow-right",
+    };
+}
+<div class="modal fade" id="route-dialog" tabindex="-1" aria-labelledby="route-dialog-title" data-route-dialog data-autoshow="@(vm.OpenRouteId != null ? "true" : "false")" data-selected="@vm.OpenRouteId">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title" id="route-dialog-title">Send @r.Number</h2>
+                    <div class="small text-body-secondary">Currently in <strong>@vm.Phase?.Name</strong>@if (vm.Phase?.Purpose != null) { <span> · @vm.Phase.Purpose</span> }</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="routeId" value="@(vm.OpenRouteId ?? vm.Routes.FirstOrDefault()?.Route.Id)" />
+                @if (vm.RouteErrors.Count > 0)
+                {
+                    <div class="vl-banner vl-banner-bad" role="alert"><i class="bi bi-exclamation-octagon"></i><div><div class="ttl">The record wasn't routed</div><ul>@foreach (var e in vm.RouteErrors) { <li>@e</li> }</ul></div></div>
+                }
+                <div class="row g-4">
+                    <div class="col-md-5">
+                        <div class="small fw-semibold text-body-secondary mb-2">Choose an action</div>
+                        <div role="radiogroup" aria-label="Route">
+                            @foreach (var o in vm.Routes)
+                            {
+                                <button type="button" class="vl-route-opt" role="radio" aria-checked="false" data-route-option="@o.Route.Id" data-kind="@o.Kind"
+                                        data-sign="@(o.SignatureMeaning != null ? "1" : null)" data-confirm="@(o.SignatureMeaning != null ? $"Sign & {o.Label.ToLowerInvariant()}" : o.Label)">
+                                    <span class="ico @Icon(o)"><i class="bi @IconBi(o)"></i></span>
+                                    <span class="min-w-0">
+                                        <span class="nm d-block">@o.Label</span>
+                                        <span class="ds d-block">@(o.StaysInPhase ? "Stays in " + vm.Phase?.Name : o.Kind == RouteKind.Void ? "Ends the record. A reason is required." : $"→ {o.To.Name}")</span>
+                                        <span class="d-flex flex-wrap gap-1 mt-1">
+                                            @if (o.SignatureMeaning != null) { <span class="vl-sig-badge"><i class="bi bi-pen"></i>E-signature</span> }
+                                            @if (o.Blockers.Count > 0) { <span class="vl-kw vl-kw-warning">@o.Blockers.Count to fix</span> }
+                                        </span>
+                                    </span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        @foreach (var o in vm.Routes)
+                        {
+                            <div data-route-panel="@o.Route.Id" hidden>
+                                @if (o.Blockers.Count > 0)
+                                {
+                                    <div class="vl-banner vl-banner-warn"><i class="bi bi-exclamation-triangle"></i>
+                                        <div><div class="ttl">Fix these before you send</div><ul>@foreach (var b in o.Blockers) { <li>@b</li> }</ul>
+                                            <div class="small text-body-secondary mt-1">Changes you've made on the page are saved as part of this step.</div></div>
+                                    </div>
+                                }
+                                @if (o.Note != null)
+                                {
+                                    <div class="vl-banner vl-banner-info"><i class="bi bi-people"></i><div>@o.Note</div></div>
+                                }
+                                @if (!o.StaysInPhase && o.To.Type == PhaseType.Normal)
+                                {
+                                    <div class="mb-3">
+                                        <label class="form-label" for="assign-@o.Route.Id">Assign @o.To.Name to @if (o.AssigneesEditable) { <span class="req">*</span> }</label>
+                                        @if (o.AssigneesEditable)
+                                        {
+                                            <div class="vl-picker" id="assign-@o.Route.Id" data-picker="users" data-name="assignees" data-multi="true" data-allowed="@string.Join(",", o.Candidates.Select(c => c.Id))">
+                                                <div class="vl-picker-box">
+                                                    @foreach (var id in o.Defaults)
+                                                    {
+                                                        var u = vm.Dir.Get(id);
+                                                        if (u == null) { continue; }
+                                                        <span class="vl-token">@Ui.Avatar(u, "xs")<span class="t">@u.DisplayName</span><button type="button" class="x" aria-label="Remove">×</button><input type="hidden" name="assignees" value="@u.Id" /></span>
+                                                    }
+                                                    <input type="text" placeholder="Search @o.Candidates.Count eligible people…" autocomplete="off" aria-label="Assignees" />
+                                                </div>
+                                                <div class="vl-picker-menu"></div>
+                                            </div>
+                                            <div class="form-text">Only people who can open this record are offered.</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="vl-picker-ro">
+                                                @foreach (var id in o.Defaults) { @Ui.Avatar(vm.Dir.Get(id), "sm", showName: true) }
+                                                @if (o.Defaults.Count == 0) { <span class="text-danger small"><i class="bi bi-exclamation-circle"></i> Nobody can be assigned. Check the record's people fields.</span> }
+                                            </div>
+                                            <div class="form-text">Assigned by the phase's rule (@(o.To.Assignment == AssignmentMode.Group ? "group" : "from the record")).</div>
+                                        }
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="due-@o.Route.Id">Due date</label>
+                                        <input type="date" class="form-control" id="due-@o.Route.Id" name="due" value="@o.DefaultDue?.ToString("yyyy-MM-dd")" min="@BusinessCalendar.Today.ToString("yyyy-MM-dd")" readonly="@(!o.DueEditable)" />
+                                        <div class="form-text">Calculated from the business calendar (weekends and holidays skipped).</div>
+                                    </div>
+                                }
+                                else if (!o.StaysInPhase)
+                                {
+                                    <div class="vl-banner @(o.Kind == RouteKind.Void ? "vl-banner-bad" : "vl-banner-ok")"><i class="bi @(o.Kind == RouteKind.Void ? "bi-slash-circle" : "bi-check-circle")"></i>
+                                        <div>@(o.Kind == RouteKind.Void ? "Voided records become read-only and can't be reopened." : $"{vm.Form.Name} moves to {o.To.Name} and becomes read-only.")</div></div>
+                                }
+                                <div class="mb-3">
+                                    <label class="form-label" for="comment-@o.Route.Id">@(o.Kind == RouteKind.Void ? "Reason for voiding" : "Comment") @if (o.RequireComment) { <span class="req">*</span> }</label>
+                                    <textarea class="form-control vl-autogrow" id="comment-@o.Route.Id" name="comment" rows="2" required="@o.RequireComment" placeholder="@(o.RequireComment ? "Required" : "Optional: visible in the comment history")"></textarea>
+                                </div>
+                                @if (o.SignatureMeaning != null)
+                                {
+                                    <div class="vl-sign-block">
+                                        <div class="head"><i class="bi bi-pen-fill"></i>Electronic signature required</div>
+                                        <div class="mt-2 small text-body-secondary">You are signing <strong class="text-body">@vm.Form.Name @r.Number</strong> with the meaning</div>
+                                        <div class="vl-sign-meaning my-1">“@o.SignatureMeaning”</div>
+                                        <div class="d-flex align-items-center gap-2 small mb-3">@Ui.Avatar(me, "sm") <span><strong>@me.DisplayName</strong> <span class="text-body-tertiary">(@me.Username)</span></span></div>
+                                        <label class="form-label" for="pw-@o.Route.Id">Password</label>
+                                        <input type="password" class="form-control" id="pw-@o.Route.Id" name="password" autocomplete="current-password" required />
+                                        <div class="form-text">Re-enter your password to sign. Your signature is linked to this exact version of the record (21 CFR 11.70).</div>
+                                        @if (!certified)
+                                        {
+                                            <div class="vl-sign-cert mt-3">
+                                                <div class="form-check m-0">
+                                                    <input class="form-check-input" type="checkbox" value="true" id="cert-@o.Route.Id" name="certify" />
+                                                    <label class="form-check-label" for="cert-@o.Route.Id">@Shell.Settings.ESignatureCertification</label>
+                                                </div>
+                                                <div class="form-text">Needed once, before your first electronic signature (SEC-612).</div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" form="record-form" formaction="/records/@r.Id?handler=Route" data-route-submit data-no-busy-x><i class="bi bi-send"></i>Send</button>
+            </div>
+        </div>
+    </div>
+</div>

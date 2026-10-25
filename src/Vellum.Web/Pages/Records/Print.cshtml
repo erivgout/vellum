@@ -1,0 +1,71 @@
+@page "/records/{id:guid}/print"
+@model Vellum.Pages.Records.PrintModel
+@{
+    Layout = "_PrintLayout";
+    var vm = Model.Vm;
+    var r = vm.Record!;
+    ViewData["Title"] = $"{r.Number} · {r.Title}";
+    var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, vm.Tz);
+    var controlled = r.IsEffective ? "Effective revision" : r.IsArchived ? "SUPERSEDED: not for use" : r.PhaseType == PhaseType.Normal ? "DRAFT: not approved" : vm.Phase?.Name;
+}
+<div class="vl-print-bar no-print">
+    <a href="/records/@r.Id" class="btn btn-light btn-sm"><i class="bi bi-arrow-left"></i>Back to record</a>
+    <span class="text-body-secondary small">Use your browser's print dialog to save as PDF.</span>
+    <button class="btn btn-primary btn-sm" data-print><i class="bi bi-printer"></i>Print</button>
+</div>
+<article class="vl-print-page @(r.IsEffective ? "" : "vl-watermark")" data-watermark="@(r.IsEffective ? null : r.IsArchived ? "SUPERSEDED" : r.PhaseType == PhaseType.Normal ? "DRAFT" : null)">
+    <header class="vl-print-head">
+        <div class="d-flex align-items-center gap-2"><img src="~/img/icon.svg" width="26" height="26" alt="" /><strong>@Shell.Settings.OrganizationName</strong></div>
+        <div class="text-end small">@vm.App.Name<br />@vm.Form.Name</div>
+    </header>
+    <div class="mt-3">
+        <div class="small text-body-secondary">@r.Number @(r.Revision != null ? $"· Revision {r.Revision}" : "") · @controlled</div>
+        <h1 class="h3 mt-1 mb-1">@r.Title</h1>
+        <div class="small text-body-secondary">Phase: <strong class="text-body">@vm.Phase?.Name</strong> · Created @r.CreatedAt.ToString("dd MMM yyyy") by @vm.Dir.Name(r.CreatedById) @if (r.EffectiveDate != null) { <span>· Effective @r.EffectiveDate.Value.ToString("dd MMM yyyy")</span> }</div>
+    </div>
+
+    @foreach (var s in vm.Form.Sections.Where(s => vm.StateOf(s) != Vellum.Engine.Records.SectionState.Hidden))
+    {
+        <partial name="_Section" model="(vm, s)" />
+    }
+
+    <h2 class="h5 mt-4">Electronic signatures</h2>
+    @if (vm.Signatures.Count == 0)
+    {
+        <p class="text-body-secondary small">No electronic signatures.</p>
+    }
+    else
+    {
+        <table class="table table-sm small">
+            <thead><tr><th>Signer</th><th>Meaning</th><th>Phase / action</th><th>Date and time</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var s in vm.Signatures)
+                {
+                    <tr>
+                        <td><strong>@s.SignerName</strong><br /><span class="text-body-tertiary">@s.SignerUsername@(s.OnBehalfOfName != null ? $" · on behalf of {s.OnBehalfOfName}" : "")</span></td>
+                        <td><em>@s.Meaning</em></td>
+                        <td>@s.PhaseName<br /><span class="text-body-tertiary">@s.Action</span></td>
+                        <td>@s.SignedAt.ToString("dd MMM yyyy HH:mm:ss") UTC</td>
+                        <td>@(s.Superseded ? "Superseded" : s.RecordHash == vm.CurrentHash ? "Valid" : "Content changed after signing")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <h2 class="h5 mt-4">Phase history</h2>
+    <table class="table table-sm small">
+        <thead><tr><th>Phase</th><th>Entered</th><th>Due</th><th>Completed</th><th>By</th><th>Comment</th></tr></thead>
+        <tbody>
+            @foreach (var e in vm.PhaseEntries)
+            {
+                <tr><td>@e.PhaseName</td><td>@e.EnteredAt.ToString("dd MMM yyyy")</td><td>@e.DueDate?.ToString("dd MMM yyyy")</td><td>@e.ExitedAt?.ToString("dd MMM yyyy")</td><td>@(e.ExitedById != null ? vm.Dir.Name(e.ExitedById) : "")</td><td>@e.Comment</td></tr>
+            }
+        </tbody>
+    </table>
+
+    <footer class="vl-print-foot">
+        Printed by @Shell.User?.DisplayName on @now.ToString("dd MMM yyyy HH:mm") @Ui.Abbrev(vm.Tz, now) · Record version @r.Version · Content SHA-256 @vm.CurrentHash
+        <br />Printed copies are uncontrolled. Always check the electronic system for the effective revision.
+    </footer>
+</article>

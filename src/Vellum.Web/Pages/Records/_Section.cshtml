@@ -1,0 +1,130 @@
+@model (Vellum.Pages.Records.RecordVm Vm, SectionDefinition Section)
+@using Vellum.Pages.Records
+@{
+    var vm = Model.Vm;
+    var s = Model.Section;
+    var state = vm.StateOf(s);
+    var editable = state == SectionState.Editable;
+    var fields = vm.Form.Fields.Where(f => f.SectionKey == s.Key).ToList();
+    var sectionError = vm.Errors.FirstOrDefault(e => e.FieldKey == s.Key)?.Message;
+}
+<section class="card vl-section" id="sec-@s.Key" aria-labelledby="sec-@s.Key-title">
+    <div class="card-header">
+        <span class="vl-section-icon"><i class="bi @(s.Icon ?? (s.IsSubform ? "bi-table" : "bi-card-text"))"></i></span>
+        <div class="min-w-0">
+            <h3 class="card-title-sm" id="sec-@s.Key-title">@s.Name</h3>
+            @if (!string.IsNullOrEmpty(s.Description)) { <p class="vl-section-desc">@s.Description</p> }
+        </div>
+        @if (!editable && !vm.IsNew)
+        {
+            <span class="vl-section-state"><i class="bi bi-lock"></i>Read-only</span>
+        }
+        else if (vm.Override)
+        {
+            <span class="vl-section-state text-warning"><i class="bi bi-shield-exclamation"></i>Override</span>
+        }
+    </div>
+    <div class="card-body">
+        @if (sectionError != null)
+        {
+            <div class="vl-banner vl-banner-bad py-2"><i class="bi bi-exclamation-circle"></i><div>@sectionError</div></div>
+        }
+        @if (!s.IsSubform)
+        {
+            <div class="row g-3">
+                @foreach (var f in fields)
+                {
+                    var id = $"fld-{f.Key}";
+                    var fieldEditable = editable && (!f.ReadOnly || vm.Override) && !(vm.Override && f.ProtectFromAdminUpdate);
+                    var mainCtx = new FieldCtx(vm, f, vm.Data.Main, "f." + f.Key, id, fieldEditable);
+                    <div class="col-12 @(f.Width < 12 ? $"col-md-{Math.Clamp(f.Width + (f.Width <= 4 ? 2 : 0), 1, 12)} col-xl-{f.Width}" : "") vl-field @(fieldEditable ? "" : "vl-field-ro")" data-visible-when="@f.VisibleWhen">
+                        <partial name="_Field" model="mainCtx" />
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            var rows = vm.Data.RowsOf(s.Key);
+            var cols = fields.Where(f => f.Type != FieldType.Prompt).ToList();
+            <div class="vl-subform" data-subform="@s.Key" data-max="@s.MaxRows">
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th class="row-num">#</th>
+                                @foreach (var f in cols)
+                                {
+                                    <th style="@(f.Width > 0 ? $"width:{f.Width * 8}%" : "")">@f.Label@if (f.Required && editable) { <span class="text-danger"> *</span> }</th>
+                                }
+                                @if (editable) { <th class="row-tools"><span class="visually-hidden">Actions</span></th> }
+                                else if (rows.Any(r => r.CreatedRecordId != null)) { <th>Record</th> }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var i = 0; i < rows.Count; i++)
+                            {
+                                var row = rows[i];
+                                <tr data-row>
+                                    <td class="row-num">@(i + 1)</td>
+                                    @foreach (var f in cols)
+                                    {
+                                        var fe = editable && !f.ReadOnly;
+                                        var rowCtx = new FieldCtx(vm, f, row.Values, "r." + s.Key + "." + i + "." + f.Key, "fld-" + s.Key + "-" + i + "-" + f.Key, fe, row.IsNew ? null : row.Id, Compact: true);
+                                        <td class="@(fe ? "" : "vl-field-ro")">
+                                            <partial name="_Field" model="rowCtx" />
+                                        </td>
+                                    }
+                                    @if (editable)
+                                    {
+                                        <td class="row-tools">
+                                            <input type="hidden" name="@("r." + s.Key + "." + i + ".__id")" value="@(row.IsNew ? "" : row.Id.ToString())" />
+                                            @if (row.CreatedRecordId != null)
+                                            {
+                                                <a class="btn btn-sm btn-ghost btn-icon" href="/records/@row.CreatedRecordId" title="Open the record created from this row"><i class="bi bi-box-arrow-up-right"></i></a>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="btn btn-sm btn-ghost btn-icon text-danger" data-remove-row title="Remove @(s.RowNoun ?? "row")" aria-label="Remove row @(i + 1)"><i class="bi bi-x-lg"></i></button>
+                                            }
+                                        </td>
+                                    }
+                                    else if (rows.Any(r => r.CreatedRecordId != null))
+                                    {
+                                        <td>@if (row.CreatedRecordId != null) { <a class="vl-row-link" href="/records/@row.CreatedRecordId"><i class="bi bi-box-arrow-up-right"></i> @(vm.Linked.FirstOrDefault(l => l.Record.Id == row.CreatedRecordId)?.Record.Number ?? "Open")</a> }</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="vl-subform-empty" @(rows.Count > 0 ? "hidden" : "")>
+                    <i class="bi bi-inbox me-1"></i>No @(s.RowNoun ?? "row")s yet.
+                </div>
+                @if (editable)
+                {
+                    <template data-row-template>
+                        <tr data-row>
+                            <td class="row-num"></td>
+                            @foreach (var f in cols)
+                            {
+                                var tplCtx = new FieldCtx(vm, f, new ValueBag(), "r." + s.Key + ".__INDEX__." + f.Key, "fld-" + s.Key + "-__INDEX__-" + f.Key, !f.ReadOnly, null, Compact: true);
+                                <td>
+                                    <partial name="_Field" model="tplCtx" />
+                                </td>
+                            }
+                            <td class="row-tools">
+                                <input type="hidden" name="@("r." + s.Key + ".__INDEX__.__id")" value="" />
+                                <button type="button" class="btn btn-sm btn-ghost btn-icon text-danger" data-remove-row aria-label="Remove row"><i class="bi bi-x-lg"></i></button>
+                            </td>
+                        </tr>
+                    </template>
+                    <div class="border-top p-2 bg-surface-2">
+                        <button type="button" class="btn btn-sm btn-light" data-add-row><i class="bi bi-plus-lg"></i>Add @(s.RowNoun ?? "row")</button>
+                        @if (s.MaxRows is { } mx) { <span class="vl-sr-hint ms-2">Up to @mx</span> }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</section>

@@ -1,0 +1,58 @@
+@page "/records/new"
+@model Vellum.Pages.Records.NewModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    var vm = Model.Vm;
+    ViewData["Title"] = $"New {vm.Form.Name}";
+    ViewData["ActiveApp"] = vm.App.Key;
+    var token = Antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/@vm.App.Key">@vm.App.Name</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">New @vm.Form.Name</span>
+}
+
+<partial name="_RecordHeader" model="vm" />
+
+<div class="vl-actionbar">
+    <button type="submit" form="record-form" class="btn btn-primary" data-save-button title="Create (Ctrl+S)"><i class="bi bi-check2"></i>Create @vm.Form.Name</button>
+    <a class="btn btn-light" href="@(vm.Parent != null ? $"/records/{vm.Parent.Id}" : $"/apps/{vm.App.Key}")">Cancel</a>
+    <span class="grow"></span>
+    <span class="vl-lockstate"><i class="bi bi-info-circle"></i>A number is assigned when you create the record</span>
+</div>
+
+@if (vm.Errors.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert">
+        <i class="bi bi-exclamation-octagon"></i>
+        <div><div class="ttl">The @vm.Form.Name.ToLowerInvariant() wasn't created</div>
+            <ul>@foreach (var e in vm.Errors) { <li>@if (e.FieldKey != null) { <a href="#" data-goto-field="fld-@e.FieldKey">@e.Message</a> } else { @e.Message }</li> }</ul>
+        </div>
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-xl-8 min-w-0">
+        <form id="record-form" method="post" action="/records/new?form=@vm.Form.Key@(vm.Parent != null ? $"&parent={vm.Parent.Id}" : "")" enctype="multipart/form-data" data-record-form data-editing="true" novalidate>
+            <input type="hidden" name="__RequestVerificationToken" value="@token" />
+            <partial name="_FormBody" model="vm" />
+        </form>
+    </div>
+    <div class="col-xl-4">
+        <div class="card vl-current">
+            <div class="card-body">
+                <div class="vl-meta-label">First step</div>
+                <div class="fw-semibold" style="font-size:1.02rem">@(vm.Phase?.Name ?? "Profile")</div>
+                @if (vm.Phase?.Purpose != null) { <p class="small text-body-secondary mt-1 mb-0">@vm.Phase.Purpose</p> }
+                <div class="vl-divider my-3"></div>
+                <div class="d-flex align-items-center gap-2">@Ui.Avatar(Shell.User, "md")<div><div class="fw-medium">@Shell.User?.DisplayName</div><div class="x-small text-body-tertiary">Assigned to you as the creator</div></div></div>
+            </div>
+        </div>
+        <div class="card mt-3">
+            <div class="card-body small text-body-secondary">
+                <div class="d-flex gap-2"><i class="bi bi-shield-check text-success"></i><div>Every value you enter is recorded in the record's audit trail with your name and the time, as required for 21 CFR Part 11.</div></div>
+            </div>
+        </div>
+    </div>
+</div>

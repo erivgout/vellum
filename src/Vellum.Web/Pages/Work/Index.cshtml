@@ -1,0 +1,53 @@
+@page "/work"
+@using Vellum.Pages.Work
+@inject WorkService WorkService
+@{
+    ViewData["Title"] = "My work";
+    var all = await WorkService.MyAssignmentsAsync();
+    var filter = Request.Query["filter"].ToString();
+    var app = Request.Query["app"].ToString();
+    var items = all.Where(w => filter switch { "overdue" => w.Overdue, "week" => w.DueSoon || w.Overdue, "delegated" => w.Delegated, _ => true })
+        .Where(w => string.IsNullOrEmpty(app) || w.App.Key == app).ToList();
+    var byApp = all.GroupBy(w => w.App).OrderByDescending(g => g.Count()).ToList();
+    string Q(string? f = null, string? a = null) => "/work?" + string.Join("&", new[] { (f ?? filter) is { Length: > 0 } ff ? "filter=" + ff : null, (a ?? app) is { Length: > 0 } aa ? "app=" + aa : null }.Where(x => x != null));
+}
+@section Crumbs { <span class="current">My work</span> }
+
+<div class="vl-page-head">
+    <div>
+        <h1 class="vl-page-title">My work</h1>
+        <p class="vl-page-sub">Everything assigned to you (and to people who delegated to you), across every application, soonest due first.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-3">
+        <nav class="vl-viewnav" aria-label="Filter assignments">
+            <div class="vl-nav-label">Show</div>
+            <a class="@(string.IsNullOrEmpty(filter) ? "active" : "")" href="@Q("", null)"><i class="bi bi-inbox"></i>All<span class="ms-auto vl-pill-count">@all.Count</span></a>
+            <a class="@(filter == "overdue" ? "active" : "")" href="@Q("overdue", null)"><i class="bi bi-exclamation-octagon"></i>Overdue<span class="ms-auto vl-pill-count @(all.Any(w => w.Overdue) ? "hot" : "")">@all.Count(w => w.Overdue)</span></a>
+            <a class="@(filter == "week" ? "active" : "")" href="@Q("week", null)"><i class="bi bi-calendar-week"></i>Due this week<span class="ms-auto vl-pill-count">@all.Count(w => w.DueSoon || w.Overdue)</span></a>
+            <a class="@(filter == "delegated" ? "active" : "")" href="@Q("delegated", null)"><i class="bi bi-people"></i>Delegated to me<span class="ms-auto vl-pill-count">@all.Count(w => w.Delegated)</span></a>
+            <div class="vl-nav-label">Applications</div>
+            <a class="@(string.IsNullOrEmpty(app) ? "active" : "")" href="@Q(null, "")"><i class="bi bi-grid"></i>All applications</a>
+            @foreach (var g in byApp)
+            {
+                <a class="@(app == g.Key.Key ? "active" : "")" href="@Q(null, g.Key.Key)"><span class="vl-app-tile xs" style="--app:@g.Key.Color"><i class="bi @g.Key.Icon"></i></span><span class="text-truncate">@g.Key.Name</span><span class="ms-auto vl-pill-count">@g.Count()</span></a>
+            }
+        </nav>
+    </div>
+    <div class="col-lg-9 min-w-0">
+        <div class="card">
+            @if (items.Count == 0)
+            {
+                <div class="vl-empty"><div class="vl-empty-icon tone-ok"><i class="bi bi-check2-all"></i></div><h3>Nothing to do here</h3><p>No assignments match this filter.</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var w in items) { <partial name="_WorkItem" model="w" /> }
+                </div>
+            }
+        </div>
+    </div>
+</div>

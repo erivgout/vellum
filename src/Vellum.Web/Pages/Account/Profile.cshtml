@@ -1,0 +1,141 @@
+@page "/account/profile"
+@model Vellum.Pages.Account.ProfileModel
+@{
+    ViewData["Title"] = "Profile & preferences";
+    var u = Model.Me;
+    var info = Shell.Directory.Get(u.Id);
+}
+@section Crumbs { <span class="current">Profile &amp; preferences</span> }
+
+<div class="vl-page-head align-items-center">
+    @Ui.Avatar(info, "xl")
+    <div>
+        <h1 class="vl-page-title">@u.DisplayName</h1>
+        <p class="vl-page-sub">@u.JobTitle · @u.Department · <span class="text-body-tertiary">@u.Username</span></p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-sliders"></i>Preferences</h2></div>
+            <form method="post" asp-page-handler="Preferences" class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="tz">Time zone</label>
+                        <select class="form-select" id="tz" name="timeZone">
+                            @foreach (var tz in Vellum.Pages.Account.ProfileModel.TimeZones) { <option value="@tz" selected="@(u.TimeZone == tz)">@tz.Replace('_', ' ')</option> }
+                        </select>
+                        <div class="form-text">Dates and times are stored in UTC and shown in this zone.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="theme">Theme</label>
+                        <select class="form-select" id="theme" name="theme">
+                            <option value="auto" selected="@(u.Theme == "auto")">Match my system</option>
+                            <option value="light" selected="@(u.Theme == "light")">Light</option>
+                            <option value="dark" selected="@(u.Theme == "dark")">Dark</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="app">Default application</label>
+                        <select class="form-select" id="app" name="defaultApp">
+                            <option value="">Home page</option>
+                            @foreach (var a in Shell.Suites.SelectMany(s => s.Apps)) { <option value="@a.App.Key" selected="@(u.DefaultAppKey == a.App.Key)">@a.App.Name</option> }
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-primary mt-3"><i class="bi bi-check2"></i>Save preferences</button>
+            </form>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-pen"></i>Electronic signature</h2>
+                @if (u.ESignatureCertifiedAt != null) { <span class="vl-kw vl-kw-success ms-auto">Certified @u.ESignatureCertifiedAt.Value.ToString("dd MMM yyyy")</span> } else { <span class="vl-kw vl-kw-warning ms-auto">Not certified</span> }
+            </div>
+            <div class="card-body">
+                <p class="small text-body-secondary">Before your first electronic signature you must acknowledge that it is the legally binding equivalent of your handwritten signature (21 CFR 11.100).</p>
+                <blockquote class="vl-sign-cert mb-3">@Model.Settings.ESignatureCertification</blockquote>
+                @if (u.ESignatureCertifiedAt == null)
+                {
+                    <form method="post" asp-page-handler="Certify" class="d-flex align-items-center gap-3 flex-wrap">
+                        <div class="form-check m-0"><input class="form-check-input" type="checkbox" value="true" name="agree" id="agree" /><label class="form-check-label" for="agree">I acknowledge this certification</label></div>
+                        <button class="btn btn-ink btn-sm"><i class="bi bi-check2"></i>Record acknowledgment</button>
+                    </form>
+                }
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-shield-lock"></i>Two-step verification</h2>
+                @if (u.MfaEnrolled) { <span class="vl-kw vl-kw-success ms-auto">On</span> } else { <span class="vl-kw ms-auto">Off</span> }
+            </div>
+            <div class="card-body">
+                @if (Model.PendingSecret != null)
+                {
+                    @if (Model.Error != null) { <div class="vl-banner vl-banner-bad py-2"><i class="bi bi-exclamation-circle"></i><div class="small">@Model.Error</div></div> }
+                    <ol class="small ps-3">
+                        <li>Open your authenticator app (Microsoft Authenticator, Google Authenticator, 1Password…).</li>
+                        <li>Add an account with this setup key:</li>
+                    </ol>
+                    <div class="p-3 rounded-3 border bg-surface-2 text-center mb-2"><code class="fs-5 tabular" style="letter-spacing:.12em">@string.Join(" ", Enumerable.Range(0, (Model.PendingSecret.Length + 3) / 4).Select(i => Model.PendingSecret.Substring(i * 4, Math.Min(4, Model.PendingSecret.Length - i * 4))))</code></div>
+                    <div class="x-small text-body-tertiary mb-3 text-break">@Model.OtpUri(Model.PendingSecret)</div>
+                    <form method="post" asp-page-handler="MfaConfirm" class="d-flex gap-2 align-items-end flex-wrap">
+                        <input type="hidden" name="secret" value="@Model.PendingSecret" />
+                        <div><label class="form-label" for="code">6-digit code</label><input class="form-control tabular" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required style="width:160px" /></div>
+                        <button class="btn btn-primary"><i class="bi bi-shield-check"></i>Turn on</button>
+                    </form>
+                }
+                else if (u.MfaEnrolled)
+                {
+                    <p class="small text-body-secondary mb-0">You'll be asked for a code from your authenticator app when you sign in. Ask an administrator if you lose your device.</p>
+                }
+                else
+                {
+                    <p class="small text-body-secondary">Protect your account with a code from an authenticator app in addition to your password.</p>
+                    <form method="post" asp-page-handler="MfaStart"><button class="btn btn-light"><i class="bi bi-phone"></i>Set up an authenticator app</button></form>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-person-vcard"></i>Profile</h2></div>
+            <div class="card-body">
+                <dl class="vl-kv">
+                    <dt>Email</dt><dd>@u.Email</dd>
+                    <dt>Location</dt><dd>@(Model.Location ?? "–")</dd>
+                    <dt>Reports to</dt><dd>@(Model.Manager ?? "–")</dd>
+                    <dt>License</dt><dd>@u.License</dd>
+                    <dt>Last sign-in</dt><dd>@if (u.LastLoginAt is { } l) { @Ui.Time(l, Shell.TimeZone, false) } else { <text>–</text> }</dd>
+                    <dt>Password changed</dt><dd>@(u.PasswordChangedAt?.ToString("dd MMM yyyy") ?? "–")</dd>
+                </dl>
+                <div class="vl-divider"></div>
+                <div class="vl-meta-label">Groups</div>
+                <div class="d-flex flex-wrap gap-1">@foreach (var g in Model.Groups) { <span class="vl-kw">@g</span> }</div>
+                <a class="btn btn-light btn-sm mt-3" href="/account/password"><i class="bi bi-key"></i>Change password</a>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-laptop"></i>Active sessions</h2><span class="vl-pill-count ms-auto">@Model.Sessions.Count</span></div>
+            <div class="vl-list">
+                @foreach (var s in Model.Sessions)
+                {
+                    var current = s.Id == Shell.Me.SessionId;
+                    <div class="vl-list-item">
+                        <i class="bi @(s.UserAgent?.Contains("Mobile") == true ? "bi-phone" : "bi-laptop") fs-5 text-body-tertiary"></i>
+                        <span class="main">
+                            <span class="d-block fw-medium">@(current ? "This session" : "Signed in") <span class="text-body-tertiary fw-normal small">· @s.Ip</span></span>
+                            <span class="line2 d-block">Started @Ui.Ago(s.CreatedAt) · last active @Ui.Ago(s.LastSeenAt)</span>
+                        </span>
+                        @if (!current)
+                        {
+                            <form method="post" asp-page-handler="EndSession" class="m-0"><input type="hidden" name="id" value="@s.Id" /><button class="btn btn-sm btn-light">Sign out</button></form>
+                        }
+                        else { <span class="vl-kw vl-kw-success">Current</span> }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,262 @@
+@page "/records/{id:guid}"
+@model Vellum.Pages.Records.RecordModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@using Vellum.Engine.Workflow
+@{
+    var vm = Model.Vm;
+    var r = vm.Record!;
+    ViewData["Title"] = $"{r.Number} · {r.Title}";
+    ViewData["ActiveApp"] = vm.App.Key;
+    var token = Antiforgery.GetAndStoreTokens(HttpContext).RequestToken;
+    ViewData["Token"] = token;
+    var forward = vm.Routes.Where(o => o.Kind is RouteKind.Forward or RouteKind.SpecialForward).ToList();
+    var other = vm.Routes.Where(o => o.Kind is RouteKind.Back or RouteKind.Void).ToList();
+    var primary = forward.FirstOrDefault();
+    var actionGroups = vm.Actions.GroupBy(a => a.Group).ToList();
+    var watermark = r.IsArchived ? "SUPERSEDED" : vm.Form.RevisionControlled && !r.IsEffective && r.PhaseType == PhaseType.Normal ? "DRAFT" : null;
+    var mode = vm.Override ? "override" : null;
+    var errorFields = vm.Errors.Where(e => e.FieldKey != null).ToList();
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/@vm.App.Key">@vm.App.Name</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">@r.Number</span>
+}
+
+<partial name="_RecordHeader" model="vm" />
+
+<div class="vl-actionbar no-print">
+    @if (vm.Editing)
+    {
+        <button type="submit" form="record-form" formaction="/records/@r.Id?handler=Save@(mode != null ? "&mode=override" : "")" class="btn @(primary == null ? "btn-primary" : "btn-light")" data-save-button title="Save (Ctrl+S)"><i class="bi bi-floppy"></i>Save</button>
+        <button type="submit" form="record-form" formaction="/records/@r.Id?handler=Save@(mode != null ? "&mode=override" : "")" name="close" value="1" class="btn btn-light d-none d-md-inline-flex"><i class="bi bi-box-arrow-left"></i>Save &amp; close</button>
+    }
+    @if (vm.Routes.Count > 0 && !vm.Override)
+    {
+        <div class="btn-group">
+            @if (primary != null)
+            {
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#route-dialog" data-route="@primary.Route.Id">
+                    <i class="bi @(primary.SignatureMeaning != null ? "bi-pen" : primary.To.Type == PhaseType.Completed ? "bi-check2-circle" : "bi-send")"></i>@primary.Label
+                </button>
+            }
+            @if (vm.Routes.Count > 1 || primary == null)
+            {
+                <button type="button" class="btn btn-primary dropdown-toggle @(primary != null ? "dropdown-toggle-split" : "")" data-bs-toggle="dropdown" aria-expanded="false">
+                    @if (primary == null) { <i class="bi bi-send"></i><span>@Shell.Settings.LabelForward</span> } else { <span class="visually-hidden">More routes</span> }
+                </button>
+                <div class="dropdown-menu">
+                    @foreach (var o in forward.Skip(primary != null ? 1 : 0))
+                    {
+                        <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#route-dialog" data-route="@o.Route.Id"><i class="bi @(o.To.Type == PhaseType.Completed ? "bi-check2-circle" : "bi-arrow-right")"></i>@o.Label @if (o.SignatureMeaning != null) { <i class="bi bi-pen ms-auto text-body-tertiary"></i> }</button>
+                    }
+                    @if (other.Count > 0 && forward.Count > (primary != null ? 1 : 0)) { <div class="dropdown-divider"></div> }
+                    @foreach (var o in other)
+                    {
+                        <button type="button" class="dropdown-item @(o.Kind == RouteKind.Void ? "text-danger" : "")" data-bs-toggle="modal" data-bs-target="#route-dialog" data-route="@o.Route.Id"><i class="bi @(o.Kind == RouteKind.Void ? "bi-slash-circle" : "bi-arrow-return-left")"></i>@o.Label</button>
+                    }
+                </div>
+            }
+        </div>
+    }
+    @if (vm.ActivityForms.Count > 0)
+    {
+        <div class="dropdown">
+            <button type="button" class="btn btn-light" data-bs-toggle="dropdown"><i class="bi bi-plus-square"></i>Create</button>
+            <div class="dropdown-menu">
+                <h6 class="dropdown-header">New activity</h6>
+                @foreach (var af in vm.ActivityForms)
+                {
+                    <a class="dropdown-item" href="/records/new?form=@af.Key&parent=@r.Id"><span class="vl-app-tile xs" style="--app:@af.App.Color"><i class="bi @af.Icon"></i></span>@af.Name</a>
+                }
+            </div>
+        </div>
+    }
+    @foreach (var g in actionGroups)
+    {
+        <div class="dropdown">
+            <button type="button" class="btn btn-light" data-bs-toggle="dropdown"><i class="bi bi-lightning-charge"></i>@g.Key</button>
+            <div class="dropdown-menu" style="min-width:280px">
+                @foreach (var a in g)
+                {
+                    if (a.DisabledReason != null)
+                    {
+                        <span class="dropdown-item disabled" title="@a.DisabledReason"><i class="bi @a.Icon"></i><span>@a.Label<span class="dropdown-item-desc">@a.DisabledReason</span></span></span>
+                    }
+                    else
+                    {
+                        <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#action-@a.Key"><i class="bi @a.Icon"></i><span>@a.Label @if (a.Description != null) { <span class="dropdown-item-desc">@a.Description</span> }</span></button>
+                    }
+                }
+            </div>
+        </div>
+    }
+    <span class="grow"></span>
+    @if (vm.Override)
+    {
+        <span class="vl-lockstate locked"><i class="bi bi-shield-exclamation"></i>Administrative override</span>
+        <a class="btn btn-sm btn-ghost" href="/records/@r.Id">Cancel</a>
+    }
+    else if (vm.Editing)
+    {
+        <span class="vl-lockstate" id="vl-lockstate"><span class="spinner-border spinner-border-sm" style="width:.7rem;height:.7rem"></span>Checking lock…</span>
+    }
+    else if (vm.Lock is { HolderId: not null, Mine: false, Expired: false } lk)
+    {
+        <span class="vl-lockstate locked"><i class="bi bi-lock-fill"></i>@lk.HolderName is editing</span>
+        <form method="post" action="/records/@r.Id?handler=BreakLock" class="m-0"><input type="hidden" name="__RequestVerificationToken" value="@token" /><button class="btn btn-sm btn-ghost" data-confirm="Unlock this record? The other editor's unsaved changes will be lost.">Unlock</button></form>
+    }
+    else
+    {
+        <span class="vl-lockstate"><i class="bi bi-eye"></i>@(vm.ReadOnlyReason ?? "Read-only")</span>
+    }
+</div>
+
+@if (vm.Errors.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert">
+        <i class="bi bi-exclamation-octagon"></i>
+        <div>
+            <div class="ttl">@(vm.RouteErrors.Count > 0 || vm.Errors.Any() ? "Please fix the following" : "")</div>
+            <ul>
+                @foreach (var e in vm.Errors)
+                {
+                    var target = e.FieldKey == null ? null : vm.Form.Sections.Any(s => s.Key == e.FieldKey) ? $"sec-{e.FieldKey}" : $"fld-{e.FieldKey}";
+                    <li>@if (target != null) { <a href="#" data-goto-field="@target">@e.Message</a> } else { @e.Message }</li>
+                }
+                @foreach (var e in vm.RouteErrors) { <li>@e</li> }
+            </ul>
+        </div>
+    </div>
+}
+@if (vm.Override)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-shield-exclamation"></i><div><div class="ttl">Edit all fields (administrative override)</div><div class="small">Every section is editable. Your reason and every change are recorded as an override in the audit trail (PLT-1901). Protected fields and signatures can't be changed.</div></div></div>
+}
+@if (r.IsArchived)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-archive"></i><div><div class="ttl">@(r.ArchiveReason == "obsolete" ? "Obsolete" : "Superseded revision")</div><div class="small">This revision is archived and can't be used for operational purposes (SAF-043).</div></div></div>
+}
+
+<div class="row g-4">
+    <div class="col-xl-8 min-w-0">
+        <form id="record-form" method="post" enctype="multipart/form-data" data-record-form data-record-id="@r.Id" data-editing="@(vm.Editing ? "true" : "false")" novalidate
+              class="@(watermark != null ? "vl-watermark" : "")" data-watermark="@watermark">
+            <input type="hidden" name="__RequestVerificationToken" value="@token" />
+            <input type="hidden" name="version" value="@r.Version" />
+            @if (vm.Override)
+            {
+                <div class="card mb-3"><div class="card-body">
+                    <label class="form-label" for="override-reason">Reason for the override <span class="req">*</span></label>
+                    <input class="form-control" id="override-reason" name="overrideReason" required placeholder="For example: correct the lot number entered in error (ticket QS-1182)" />
+                </div></div>
+            }
+            <partial name="_FormBody" model="vm" />
+            @if (vm.Routes.Count > 0 && !vm.Override)
+            {
+                <partial name="_RouteDialog" model="vm" />
+            }
+        </form>
+    </div>
+    <div class="col-xl-4">
+        <partial name="_Rail" model="vm" />
+    </div>
+</div>
+
+@foreach (var a in vm.Actions.Where(a => a.DisabledReason == null))
+{
+    var open = vm.OpenActionKey == a.Key;
+    <div class="modal fade" id="action-@a.Key" tabindex="-1" aria-labelledby="action-@a.Key-title" data-autoshow="@(open ? "true" : "false")">
+        <div class="modal-dialog modal-dialog-centered @(a.Inputs.Count > 3 ? "modal-lg" : "")">
+            <form class="modal-content" method="post" action="/records/@r.Id?handler=Action">
+                <input type="hidden" name="__RequestVerificationToken" value="@token" />
+                <input type="hidden" name="actionKey" value="@a.Key" />
+                <div class="modal-header">
+                    <div class="d-flex align-items-center gap-2"><span class="vl-section-icon"><i class="bi @a.Icon"></i></span><h2 class="modal-title" id="action-@a.Key-title">@a.Label</h2></div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (open && vm.ActionErrors.Count > 0)
+                    {
+                        <div class="vl-banner vl-banner-bad"><i class="bi bi-exclamation-octagon"></i><div><ul class="mt-0">@foreach (var e in vm.ActionErrors) { <li>@e</li> }</ul></div></div>
+                    }
+                    @if (a.Description != null) { <p class="text-body-secondary">@a.Description</p> }
+                    @if (a.Confirm != null) { <div class="vl-banner vl-banner-warn"><i class="bi bi-exclamation-triangle"></i><div>@a.Confirm</div></div> }
+                    <div class="row g-3">
+                        @foreach (var input in a.Inputs)
+                        {
+                            var iid = $"ai-{a.Key}-{input.Key}";
+                            <div class="@(input.Type is "textarea" or "users" ? "col-12" : "col-md-6")">
+                                <label class="form-label" for="@iid">@input.Label @if (input.Required) { <span class="req">*</span> }</label>
+                                @switch (input.Type)
+                                {
+                                    case "textarea": <textarea class="form-control vl-autogrow" id="@iid" name="a.@input.Key" rows="3" required="@input.Required">@input.Default</textarea> break;
+                                    case "date": <input type="date" class="form-control" id="@iid" name="a.@input.Key" value="@input.Default" required="@input.Required" /> break;
+                                    case "number": <input type="number" step="any" class="form-control" id="@iid" name="a.@input.Key" value="@input.Default" required="@input.Required" /> break;
+                                    case "select":
+                                        <select class="form-select" id="@iid" name="a.@input.Key" required="@input.Required">
+                                            <option value="">Choose…</option>
+                                            @foreach (var (val, lbl) in input.Options ?? []) { <option value="@val" selected="@(val == input.Default)">@lbl</option> }
+                                        </select>
+                                        break;
+                                    case "yesno":
+                                        <div class="vl-seg"><input type="radio" class="btn-check" name="a.@input.Key" id="@iid-y" value="yes" checked="@(input.Default == "yes")" /><label for="@iid-y">Yes</label><input type="radio" class="btn-check" name="a.@input.Key" id="@iid-n" value="no" checked="@(input.Default == "no")" /><label for="@iid-n">No</label></div>
+                                        break;
+                                    case "user" or "users":
+                                        <div class="vl-picker" id="@iid" data-picker="users" data-name="a.@input.Key" data-multi="@(input.Type == "users" ? "true" : "false")">
+                                            <div class="vl-picker-box">
+                                                @if (input.Default != null)
+                                                {
+                                                    foreach (var uid in input.Default.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                                                    {
+                                                        var du = vm.Dir.Get(int.Parse(uid));
+                                                        if (du == null) { continue; }
+                                                        <span class="vl-token">@Ui.Avatar(du, "xs")<span class="t">@du.DisplayName</span><button type="button" class="x">×</button><input type="hidden" name="a.@input.Key" value="@du.Id" /></span>
+                                                    }
+                                                }
+                                                <input type="text" placeholder="Search people…" autocomplete="off" />
+                                            </div>
+                                            <div class="vl-picker-menu"></div>
+                                        </div>
+                                        break;
+                                    case "record":
+                                        <div class="vl-picker" id="@iid" data-picker="records" data-name="a.@input.Key" data-multi="true" data-forms="@input.Default">
+                                            <div class="vl-picker-box"><input type="text" placeholder="Search by number or title…" autocomplete="off" /></div>
+                                            <div class="vl-picker-menu"></div>
+                                        </div>
+                                        break;
+                                    default: <input class="form-control" id="@iid" name="a.@input.Key" value="@input.Default" required="@input.Required" /> break;
+                                }
+                                @if (input.Help != null) { <div class="form-text">@input.Help</div> }
+                            </div>
+                        }
+                        @if (a.RequiresComment)
+                        {
+                            <div class="col-12">
+                                <label class="form-label" for="ai-@a.Key-comment">@(a.CommentLabel ?? "Comment") <span class="req">*</span></label>
+                                <textarea class="form-control vl-autogrow" id="ai-@a.Key-comment" name="comment" rows="2" required></textarea>
+                            </div>
+                        }
+                    </div>
+                    @if (a.SignatureMeaning != null)
+                    {
+                        <div class="vl-sign-block mt-3">
+                            <div class="head"><i class="bi bi-pen-fill"></i>Electronic signature required</div>
+                            <div class="vl-sign-meaning my-1">“@a.SignatureMeaning”</div>
+                            <div class="d-flex align-items-center gap-2 small mb-2">@Ui.Avatar(Shell.User, "sm") <strong>@Shell.User?.DisplayName</strong> <span class="text-body-tertiary">(@Shell.User?.Username)</span></div>
+                            <input type="password" class="form-control" name="password" autocomplete="current-password" placeholder="Password" required aria-label="Password" />
+                            @if (!vm.MeCertified)
+                            {
+                                <div class="vl-sign-cert mt-2"><div class="form-check m-0"><input class="form-check-input" type="checkbox" value="true" id="cert-a-@a.Key" name="certify" /><label class="form-check-label" for="cert-a-@a.Key">@Shell.Settings.ESignatureCertification</label></div></div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-@a.Variant"><i class="bi @(a.SignatureMeaning != null ? "bi-pen" : a.Icon)"></i>@(a.SignatureMeaning != null ? "Sign & " + a.Label.ToLowerInvariant() : a.Label)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}

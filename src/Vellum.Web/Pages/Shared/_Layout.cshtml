@@ -1,0 +1,265 @@
+@inject IWebHostEnvironment Env
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@using System.Text.Json
+@{
+    var settings = Shell.Settings;
+    var showBanner = !Shell.IsProduction;
+    var path = (Context.Request.Path.Value ?? "/").ToLowerInvariant();
+    var me = Shell.User;
+    var token = Antiforgery.GetAndStoreTokens(Context).RequestToken;
+    var activeApp = ViewData["ActiveApp"] as string;
+    var creatable = Shell.Creatable().ToList();
+    var paletteActions = creatable.SelectMany(c => c.Forms.Select(f => new { kind = "action", label = $"New {f.Name}", sub = c.App.Name, href = $"/records/new?form={f.Key}", icon = "bi-plus-lg", color = c.App.Color }))
+        .Concat(new[] {
+            new { kind = "action", label = "Go to My work", sub = "Assignments across all applications", href = "/work", icon = "bi-inbox", color = "#57524c" },
+            new { kind = "action", label = "Search everything", sub = "Full-text, security-trimmed search", href = "/search", icon = "bi-search", color = "#57524c" },
+            new { kind = "action", label = "All applications", sub = "Browse every application you can access", href = "/apps", icon = "bi-grid", color = "#57524c" },
+        })
+        .Concat(Shell.ExtraNav.Select(n => new { kind = "action", label = n.Label, sub = n.Section, href = n.Href, icon = n.Icon, color = "#57524c" }));
+    bool IsActive(string href, string? prefix = null) => path == href || (href != "/" && path.StartsWith((prefix ?? href).ToLowerInvariant()));
+    var toast = TempData["Toast"] as string;
+    var toastKind = TempData["ToastKind"] as string ?? "ok";
+}
+<!DOCTYPE html>
+<html lang="en" data-theme-pref="@Shell.Theme">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="@token" />
+    <meta name="color-scheme" content="light dark" />
+    <title>@(ViewData["Title"] is string t ? t + " · " : "")Vellum</title>
+    <script src="~/js/theme.js" asp-append-version="true"></script>
+    <link rel="icon" href="~/img/icon.svg" type="image/svg+xml" />
+    <link rel="preload" href="~/lib/inter/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @foreach (var css in ModuleAssets.Css(Env))
+    {
+        <link rel="stylesheet" href="@css" asp-append-version="true" />
+    }
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body class="@(showBanner ? "has-env-banner" : "")">
+    <a class="visually-hidden-focusable" href="#main">Skip to content</a>
+    @if (showBanner)
+    {
+        <div class="vl-env-banner" role="note">
+            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            <span>@settings.EnvironmentName environment</span><span aria-hidden="true">·</span><span>@(settings.BannerText ?? "Not for production use")</span>
+        </div>
+    }
+
+    <div class="vl-shell">
+        <aside class="vl-sidebar offcanvas-lg offcanvas-start" id="vl-sidebar" tabindex="-1" aria-label="Main navigation">
+            <div class="offcanvas-body">
+                <a class="vl-brand" href="/">
+                    <img src="~/img/icon.svg" class="vl-brand-mark" alt="" />
+                    <span>
+                        <span class="vl-brand-name d-block">Vellum</span>
+                        <span class="vl-brand-org d-block text-truncate" style="max-width:170px">@settings.OrganizationName</span>
+                    </span>
+                    <button type="button" class="btn btn-sm btn-ghost text-white ms-auto d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#vl-sidebar" aria-label="Close menu"><i class="bi bi-x-lg"></i></button>
+                </a>
+
+                <nav class="vl-side-scroll">
+                    <a class="vl-side-link @(path == "/" ? "active" : "")" href="/"><i class="bi bi-house"></i><span class="vl-side-text">Home</span></a>
+                    <a class="vl-side-link @(IsActive("/work") ? "active" : "")" href="/work"><i class="bi bi-inbox"></i><span class="vl-side-text">My work</span>
+                        @if (Shell.MyOpenAssignments > 0) { <span class="vl-side-badge hot">@Shell.MyOpenAssignments</span> }</a>
+                    <a class="vl-side-link @(IsActive("/search") ? "active" : "")" href="/search"><i class="bi bi-search"></i><span class="vl-side-text">Search</span></a>
+                    <a class="vl-side-link @(IsActive("/apps") && activeApp == null ? "active" : "")" href="/apps"><i class="bi bi-grid"></i><span class="vl-side-text">All applications</span></a>
+
+                    @if (Shell.Favorites.Count > 0)
+                    {
+                        <div class="vl-side-label">Favorites</div>
+                        @foreach (var f in Shell.Favorites.Take(8))
+                        {
+                            var href = f.Kind switch { "record" => $"/records/{f.RefKey}", "app" => $"/apps/{f.RefKey}", _ => f.RefKey };
+                            <a class="vl-side-link" href="@href"><i class="bi @(f.Kind == "record" ? "bi-file-earmark-text" : f.Kind == "app" ? "bi-grid-1x2" : "bi-table")"></i><span class="vl-side-text">@f.Label</span></a>
+                        }
+                    }
+
+                    @foreach (var suite in Shell.Suites)
+                    {
+                        <div class="vl-side-label">@suite.Name</div>
+                        @foreach (var a in suite.Apps)
+                        {
+                            <a class="vl-side-link @(activeApp == a.App.Key ? "active" : "")" href="/apps/@a.App.Key" title="@a.App.Description">
+                                <span class="vl-app-dot" style="--app:@a.App.Color"><i class="bi @a.App.Icon"></i></span>
+                                <span class="vl-side-text">@a.App.Name</span>
+                                @if (a.OpenAssignments > 0) { <span class="vl-side-badge" title="@a.OpenAssignments assigned to you">@a.OpenAssignments</span> }
+                            </a>
+                        }
+                    }
+
+                    @foreach (var navGroup in Shell.ExtraNav.GroupBy(n => n.Section))
+                    {
+                        <div class="vl-side-label">@navGroup.Key</div>
+                        @foreach (var n in navGroup)
+                        {
+                            <a class="vl-side-link @(IsActive(n.Href, n.ActivePrefix) ? "active" : "")" href="@n.Href"><i class="bi @n.Icon"></i><span class="vl-side-text">@n.Label</span>
+                                @if (n.Badge != null) { <span class="vl-side-badge">@n.Badge</span> }</a>
+                        }
+                    }
+                </nav>
+
+                @if (me != null)
+                {
+                    <div class="vl-side-footer">
+                        <a class="vl-side-user" href="/account/profile">
+                            @Ui.Avatar(me, "md")
+                            <span class="min-w-0 flex-grow-1">
+                                <span class="d-block fw-semibold text-truncate" style="font-size:.82rem">@me.DisplayName</span>
+                                <span class="d-block text-truncate" style="font-size:.72rem;color:var(--vl-side-muted)">@(me.JobTitle ?? me.Username)</span>
+                            </span>
+                            <i class="bi bi-gear" style="color:var(--vl-side-muted)"></i>
+                        </a>
+                    </div>
+                }
+            </div>
+        </aside>
+
+        <div class="vl-main">
+            <header class="vl-topbar">
+                <button class="vl-icon-btn d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#vl-sidebar" aria-controls="vl-sidebar" aria-label="Open menu"><i class="bi bi-list"></i></button>
+                <nav class="vl-crumbs min-w-0" aria-label="Breadcrumb">
+                    @if (IsSectionDefined("Crumbs"))
+                    {
+                        @await RenderSectionAsync("Crumbs")
+                    }
+                    else
+                    {
+                        <span class="current">@ViewData["Title"]</span>
+                    }
+                </nav>
+
+                <div class="ms-auto d-flex align-items-center gap-1 gap-md-2">
+                    <button type="button" class="vl-search-trigger d-none d-md-flex" data-open-palette aria-label="Search or jump to (Ctrl+K)">
+                        <i class="bi bi-search"></i><span>Search or jump to…</span><span class="ms-auto vl-kbd">Ctrl K</span>
+                    </button>
+                    <button type="button" class="vl-icon-btn d-md-none" data-open-palette aria-label="Search"><i class="bi bi-search"></i></button>
+
+                    @if (creatable.Count > 0)
+                    {
+                        <div class="dropdown">
+                            <button class="btn btn-primary btn-sm ms-1" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-plus-lg"></i><span class="d-none d-sm-inline">New</span></button>
+                            <div class="dropdown-menu dropdown-menu-end" style="min-width:300px;max-height:70vh;overflow-y:auto">
+                                @foreach (var (app, forms) in creatable)
+                                {
+                                    <h6 class="dropdown-header">@app.Name</h6>
+                                    @foreach (var f in forms)
+                                    {
+                                        <a class="dropdown-item" href="/records/new?form=@f.Key">
+                                            <span class="vl-app-tile xs" style="--app:@app.Color"><i class="bi @f.Icon"></i></span>
+                                            <span class="min-w-0"><span class="d-block">@f.Name</span></span>
+                                        </a>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (Shell.OpenSafetyAlerts > 0)
+                    {
+                        <a class="btn btn-sm btn-danger ms-1 d-none d-xl-inline-flex" href="/notifications?filter=safety" title="Open safety-critical alerts need acknowledgment">
+                            <i class="bi bi-exclamation-octagon-fill"></i>@Shell.OpenSafetyAlerts alert@(Shell.OpenSafetyAlerts == 1 ? "" : "s")
+                        </a>
+                    }
+
+                    <div class="dropdown">
+                        <button class="vl-icon-btn" id="vl-notif-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Notifications">
+                            <i class="bi bi-bell"></i>
+                            <span class="vl-dot-count" id="vl-notif-count" @(Shell.UnreadNotifications == 0 ? "hidden" : "")>@(Shell.UnreadNotifications > 99 ? "99+" : Shell.UnreadNotifications.ToString())</span>
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-end vl-notif-menu">
+                            <div class="vl-notif-head">
+                                <span class="fw-semibold">Notifications</span>
+                                <span class="d-flex gap-2"><a href="#" id="vl-notif-readall" class="small">Mark all read</a><a href="/notifications" class="small">View all</a></span>
+                            </div>
+                            <div class="vl-notif-list" id="vl-notif-list"><div class="vl-picker-none py-4"><span class="spinner-border spinner-border-sm"></span></div></div>
+                        </div>
+                    </div>
+
+                    <div class="dropdown">
+                        <button class="vl-icon-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Theme"><i class="bi bi-circle-half"></i></button>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <button class="dropdown-item" data-theme-set="light"><i class="bi bi-sun"></i>Light</button>
+                            <button class="dropdown-item" data-theme-set="dark"><i class="bi bi-moon-stars"></i>Dark</button>
+                            <button class="dropdown-item" data-theme-set="auto"><i class="bi bi-display"></i>Match system</button>
+                        </div>
+                    </div>
+
+                    @if (me != null)
+                    {
+                        <div class="dropdown">
+                            <button class="btn btn-ghost btn-sm p-1 rounded-circle" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu">@Ui.Avatar(me, "md")</button>
+                            <div class="dropdown-menu dropdown-menu-end" style="min-width:240px">
+                                <div class="px-3 py-2 d-flex align-items-center gap-2">
+                                    @Ui.Avatar(me, "lg")
+                                    <div class="min-w-0"><div class="fw-semibold text-truncate">@me.DisplayName</div><div class="small text-body-tertiary text-truncate">@me.Email</div></div>
+                                </div>
+                                <div class="dropdown-divider"></div>
+                                <a class="dropdown-item" href="/account/profile"><i class="bi bi-person"></i>Profile &amp; preferences</a>
+                                <a class="dropdown-item" href="/account/delegations"><i class="bi bi-people"></i>Delegations</a>
+                                <a class="dropdown-item" href="/account/password"><i class="bi bi-key"></i>Change password</a>
+                                <a class="dropdown-item" href="/notifications"><i class="bi bi-bell"></i>Notifications</a>
+                                <div class="dropdown-divider"></div>
+                                <form method="post" action="/logout" class="m-0">
+                                    <input type="hidden" name="__RequestVerificationToken" value="@token" />
+                                    <button class="dropdown-item"><i class="bi bi-box-arrow-right"></i>Sign out</button>
+                                </form>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </header>
+
+            <main id="main" class="vl-content @ViewData["ContentClass"]" tabindex="-1">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+
+    <div class="modal fade vl-palette" id="vl-palette" tabindex="-1" aria-label="Search or jump to">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="vl-palette-input"><i class="bi bi-search"></i><input type="text" placeholder="Search records, applications and actions…" autocomplete="off" aria-label="Search" /><span class="vl-kbd">Esc</span></div>
+                <div class="vl-palette-results"></div>
+                <div class="vl-palette-foot"><span><span class="vl-kbd">↑</span> <span class="vl-kbd">↓</span> navigate</span><span><span class="vl-kbd">↵</span> open</span><span><span class="vl-kbd">/</span> or <span class="vl-kbd">Ctrl K</span> anywhere</span></div>
+            </div>
+        </div>
+    </div>
+    <script type="application/json" id="vl-palette-actions">@Html.Raw(JsonSerializer.Serialize(paletteActions))</script>
+
+    <div class="modal fade" id="vl-timeout" tabindex="-1" aria-labelledby="vl-timeout-title">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+            <div class="modal-content">
+                <div class="modal-body text-center p-4">
+                    <div class="vl-empty-icon tone-warn mb-3"><i class="bi bi-hourglass-split"></i></div>
+                    <h2 class="h5" id="vl-timeout-title">Your session is about to end</h2>
+                    <p class="text-body-secondary mb-1">For security, you'll be signed out after a period of inactivity.</p>
+                    <div class="display-6 fw-bold my-2 tabular" data-countdown>2:00</div>
+                    <p class="small text-body-tertiary">Unsaved changes on this page will be lost.</p>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <form method="post" action="/logout" class="m-0"><input type="hidden" name="__RequestVerificationToken" value="@token" /><button class="btn btn-light">Sign out now</button></form>
+                    <button type="button" class="btn btn-primary" data-stay><i class="bi bi-arrow-repeat"></i>Stay signed in</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (toast != null)
+    {
+        <span hidden data-toast="@toast" data-kind="@toastKind"></span>
+    }
+
+    <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @foreach (var js in ModuleAssets.Js(Env))
+    {
+        <script src="@js" asp-append-version="true"></script>
+    }
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

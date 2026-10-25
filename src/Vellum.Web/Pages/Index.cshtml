@@ -1,0 +1,205 @@
+@page "/"
+@model Vellum.Pages.IndexModel
+@{
+    ViewData["Title"] = "Home";
+    var me = Shell.User!;
+    var tz = Shell.TimeZone;
+    var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+    var items = Model.Filtered.ToList();
+    var shown = items.Take(10).ToList();
+    var quick = Shell.Creatable().SelectMany(c => c.Forms.Select(f => (c.App, f))).Take(3).ToList();
+
+    // Calendar
+    var first = Model.Month;
+    var startOffset = ((int)first.DayOfWeek + 6) % 7; // Monday first
+    var gridStart = first.AddDays(-startOffset);
+    var dueByDay = Model.Work.Where(w => w.Record.DueDate != null).GroupBy(w => w.Record.DueDate!.Value).ToDictionary(g => g.Key, g => g.ToList());
+    var today = DateOnly.FromDateTime(nowLocal);
+}
+@section Crumbs { <span class="current">Home</span> }
+
+<div class="vl-hero">
+    <div>
+        <div class="vl-hero-date">@nowLocal.ToString("dddd, d MMMM yyyy")</div>
+        <h1>@Model.Greeting, @me.DisplayName.Split(' ')[0]</h1>
+        <p>
+            @if (Model.Work.Count == 0) { <text>You have no open assignments. Nice work.</text> }
+            else
+            {
+                <text>You have <strong>@Ui.Plural(Model.Work.Count, "open assignment")</strong></text>
+                @if (Model.Overdue > 0) { <text>, and <strong class="text-danger">@Model.Overdue overdue</strong></text> }
+                <text>.</text>
+            }
+        </p>
+    </div>
+    @if (quick.Count > 0)
+    {
+        <div class="d-flex flex-wrap gap-2">
+            @foreach (var (app, f) in quick)
+            {
+                <a class="btn btn-light" href="/records/new?form=@f.Key"><span class="vl-app-tile xs" style="--app:@app.Color"><i class="bi @f.Icon"></i></span>New @f.Name</a>
+            }
+        </div>
+    }
+</div>
+
+@if (Model.SafetyAlerts.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <div class="flex-grow-1">
+            <div class="ttl">@Ui.Plural(Model.SafetyAlerts.Count, "safety-critical alert") need your acknowledgment</div>
+            <ul class="mb-0">@foreach (var n in Model.SafetyAlerts) { <li><a href="@(n.Url ?? "/notifications?filter=safety")">@n.Title</a> <span class="text-body-tertiary small">· @Ui.Ago(n.CreatedAt)</span></li> }</ul>
+        </div>
+        <a class="btn btn-sm btn-danger" href="/notifications?filter=safety">Review alerts</a>
+    </div>
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3">
+        <a class="vl-stat" href="/work">
+            <span class="vl-stat-icon tone-info"><i class="bi bi-inbox-fill"></i></span>
+            <div class="vl-stat-value">@Model.Work.Count</div>
+            <div class="vl-stat-label">Assigned to me</div>
+        </a>
+    </div>
+    <div class="col-6 col-xl-3">
+        <a class="vl-stat" href="/work?filter=overdue">
+            <span class="vl-stat-icon @(Model.Overdue > 0 ? "tone-bad" : "tone-ok")"><i class="bi @(Model.Overdue > 0 ? "bi-exclamation-octagon-fill" : "bi-check-circle-fill")"></i></span>
+            <div class="vl-stat-value @(Model.Overdue > 0 ? "text-danger" : "")">@Model.Overdue</div>
+            <div class="vl-stat-label">Overdue</div>
+        </a>
+    </div>
+    <div class="col-6 col-xl-3">
+        <a class="vl-stat" href="/work?filter=week">
+            <span class="vl-stat-icon tone-warn"><i class="bi bi-calendar-week-fill"></i></span>
+            <div class="vl-stat-value">@Model.DueWeek</div>
+            <div class="vl-stat-label">Due in the next 7 days</div>
+        </a>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="vl-stat">
+            <span class="vl-stat-icon tone-violet"><i class="bi bi-pen-fill"></i></span>
+            <div class="vl-stat-value">@Model.SignedThisMonth</div>
+            <div class="vl-stat-label">Signatures this month · @Model.OpenCreated open records I raised</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-8 min-w-0">
+        <div class="card mb-4">
+            <div class="card-header flex-wrap">
+                <h2 class="card-title-sm"><i class="bi bi-inbox"></i>My assignments</h2>
+                <div class="vl-filter-pills ms-auto" role="tablist">
+                    <a class="@(Model.Filter == "all" ? "active" : "")" href="/?filter=all">All <span class="vl-pill-count">@Model.Work.Count</span></a>
+                    <a class="@(Model.Filter == "overdue" ? "active" : "")" href="/?filter=overdue">Overdue <span class="vl-pill-count @(Model.Overdue > 0 ? "hot" : "")">@Model.Overdue</span></a>
+                    <a class="@(Model.Filter == "week" ? "active" : "")" href="/?filter=week">This week</a>
+                </div>
+            </div>
+            @if (shown.Count == 0)
+            {
+                <div class="vl-empty">
+                    <div class="vl-empty-icon tone-ok"><i class="bi bi-check2-all"></i></div>
+                    <h3>@(Model.Filter == "all" ? "Inbox zero" : "Nothing here")</h3>
+                    <p>@(Model.Filter == "all" ? "When something is assigned to you, it shows up here with its due date." : "No assignments match this filter.")</p>
+                </div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var w in shown) { <partial name="_WorkItem" model="w" /> }
+                </div>
+                @if (items.Count > shown.Count)
+                {
+                    <div class="card-footer text-center"><a href="/work@(Model.Filter != "all" ? "?filter=" + Model.Filter : "")" class="fw-medium">View all @items.Count assignments <i class="bi bi-arrow-right"></i></a></div>
+                }
+            }
+        </div>
+
+        @foreach (var w in Model.MainWidgets)
+        {
+            <partial name="@w.Partial" model="w.Model" />
+        }
+
+        @if (Model.Recent.Count > 0)
+        {
+            <div class="card mb-4">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-clock-history"></i>Recently worked on</h2></div>
+                <div class="vl-list">
+                    @foreach (var (r, f, at, action) in Model.Recent)
+                    {
+                        <a class="vl-list-item" href="/records/@r.Id">
+                            <span class="vl-app-tile sm" style="--app:@f.App.Color"><i class="bi @f.Icon"></i></span>
+                            <span class="main">
+                                <span class="line1"><span class="num">@r.Number</span><span class="ttl">@r.Title</span></span>
+                                <span class="line2 d-block">You @action.ToLowerInvariant() · @Ui.Ago(at)</span>
+                            </span>
+                            <span class="aside">@Ui.Phase(Shell.Config.Phase(r.PhaseId)?.Name, r.PhaseType, r.DueDate, r.IsArchived, r.IsEffective)</span>
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="col-xl-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="card-title-sm"><i class="bi bi-calendar3"></i>@first.ToString("MMMM yyyy")</h2>
+                <div class="ms-auto d-flex gap-1">
+                    <a class="btn btn-sm btn-ghost btn-icon" href="/?month=@first.AddMonths(-1).ToString("yyyy-MM")" aria-label="Previous month"><i class="bi bi-chevron-left"></i></a>
+                    <a class="btn btn-sm btn-ghost btn-icon" href="/?month=@first.AddMonths(1).ToString("yyyy-MM")" aria-label="Next month"><i class="bi bi-chevron-right"></i></a>
+                </div>
+            </div>
+            <div class="card-body pt-2">
+                <table class="vl-cal" aria-label="Due dates this month">
+                    <thead><tr>@foreach (var d in new[] { "Mo", "Tu", "We", "Th", "Fr", "Sa", "Su" }) { <th scope="col">@d</th> }</tr></thead>
+                    <tbody>
+                        @for (var wk = 0; wk < 6; wk++)
+                        {
+                            <tr>
+                                @for (var dd = 0; dd < 7; dd++)
+                                {
+                                    var day = gridStart.AddDays(wk * 7 + dd);
+                                    var has = dueByDay.TryGetValue(day, out var list);
+                                    var tip = has ? string.Join("\n", list!.Select(x => $"{x.Record.Number} · {x.Record.Title}")) : null;
+                                    <td><span class="d @(day.Month != first.Month ? "out" : "") @(day == today ? "today" : "") @(has ? "has" : "") @(has && day < today ? "overdue" : "")" title="@tip">@day.Day</span></td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <div class="d-flex gap-3 mt-2 x-small text-body-tertiary"><span><span class="d-inline-block rounded-circle me-1" style="width:6px;height:6px;background:var(--vl-info)"></span>Due</span><span><span class="d-inline-block rounded-circle me-1" style="width:6px;height:6px;background:var(--vl-bad)"></span>Overdue</span></div>
+            </div>
+        </div>
+
+        @foreach (var w in Model.SideWidgets)
+        {
+            <partial name="@w.Partial" model="w.Model" />
+        }
+
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-people"></i>Delegations</h2><a class="ms-auto small" href="/account/delegations">Manage</a></div>
+            @if (Model.Delegations.Count == 0)
+            {
+                <div class="card-body small text-body-secondary">No active delegations. Going on leave? <a href="/account/delegations">Delegate your assignments</a>.</div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var d in Model.Delegations)
+                    {
+                        var toMe = d.DelegateId == Shell.Me.Id;
+                        <a class="vl-list-item" href="/account/delegations">
+                            @Ui.Avatar(Shell.Directory.Get(toMe ? d.RequesterId : d.DelegateId), "md")
+                            <span class="main"><span class="line1"><span class="ttl">@(toMe ? $"{d.Requester.DisplayName} → you" : $"You → {d.Delegate.DisplayName}")</span></span>
+                                <span class="line2 d-block">@d.StartDate.ToString("dd MMM") – @d.EndDate.ToString("dd MMM yyyy")</span></span>
+                            <span class="aside">@Ui.KeywordBadge(d.Status.ToString(), d.Status == DelegationStatus.Active ? "success" : "warning")</span>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>

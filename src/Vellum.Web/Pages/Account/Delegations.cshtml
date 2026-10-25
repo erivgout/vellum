@@ -1,0 +1,78 @@
+@page "/account/delegations"
+@model Vellum.Pages.Account.DelegationsModel
+@{
+    ViewData["Title"] = "Delegations";
+    var dir = Shell.Directory;
+}
+@section Crumbs { <a href="/account/profile">Account</a><i class="bi bi-chevron-right sep"></i><span class="current">Delegations</span> }
+
+<div class="vl-page-head">
+    <div>
+        <h1 class="vl-page-title">Delegations</h1>
+        <p class="vl-page-sub">Hand your assignments to a colleague while you're away. They act on your behalf, within their own access, and sign with their own credentials.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-person-plus"></i>New delegation</h2></div>
+            <form method="post" asp-page-handler="Create" class="card-body d-grid gap-3">
+                @if (Model.Error != null) { <div class="vl-banner vl-banner-bad py-2 mb-0"><i class="bi bi-exclamation-circle"></i><div class="small">@Model.Error</div></div> }
+                <div>
+                    <label class="form-label">Delegate to <span class="req">*</span></label>
+                    <div class="vl-picker" data-picker="users" data-name="delegateId" data-multi="false">
+                        <div class="vl-picker-box"><input type="text" placeholder="Search people…" autocomplete="off" aria-label="Delegate to" /></div>
+                        <div class="vl-picker-menu"></div>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-6"><label class="form-label" for="start">From</label><input type="date" class="form-control" id="start" name="start" value="@BusinessCalendar.Today.ToString("yyyy-MM-dd")" required /></div>
+                    <div class="col-6"><label class="form-label" for="end">Until</label><input type="date" class="form-control" id="end" name="end" value="@BusinessCalendar.Today.AddDays(7).ToString("yyyy-MM-dd")" required /></div>
+                </div>
+                <div><label class="form-label" for="reason">Reason</label><input class="form-control" id="reason" name="reason" placeholder="For example: annual leave" /></div>
+                <div class="vl-prompt"><i class="bi bi-pen"></i><div class="small">Electronic signatures are never delegated (21 CFR Part 11). Your delegate signs as themselves, “on behalf of” you.</div></div>
+                <button class="btn btn-primary"><i class="bi bi-send"></i>Send for approval</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        @foreach (var (title, list, toMe) in new[] { ("Delegated to me", Model.ToMe, true), ("Requested by me", Model.Mine, false) })
+        {
+            <div class="card mb-4">
+                <div class="card-header"><h2 class="card-title-sm"><i class="bi @(toMe ? "bi-box-arrow-in-down" : "bi-box-arrow-up")"></i>@title</h2><span class="vl-pill-count ms-auto">@list.Count</span></div>
+                @if (list.Count == 0)
+                {
+                    <div class="card-body small text-body-tertiary">None.</div>
+                }
+                <div class="vl-list">
+                    @foreach (var d in list)
+                    {
+                        var other = toMe ? d.RequesterId : d.DelegateId;
+                        <div class="vl-list-item">
+                            @Ui.Avatar(dir.Get(other), "md")
+                            <span class="main">
+                                <span class="d-block fw-medium">@(toMe ? $"{dir.Name(other)} → you" : $"You → {dir.Name(other)}")</span>
+                                <span class="line2 d-block">@d.StartDate.ToString("dd MMM") – @d.EndDate.ToString("dd MMM yyyy")@(d.Reason != null ? " · " + d.Reason : "")</span>
+                            </span>
+                            <span class="aside">
+                                @Ui.KeywordBadge(d.Status.ToString(), d.Status switch { DelegationStatus.Active => "success", DelegationStatus.Pending => "warning", DelegationStatus.Rejected => "danger", _ => null })
+                                @if (toMe && d.Status == DelegationStatus.Pending)
+                                {
+                                    <form method="post" asp-page-handler="Decide" class="m-0 d-flex gap-1"><input type="hidden" name="id" value="@d.Id" />
+                                        <button class="btn btn-sm btn-success" name="accept" value="true"><i class="bi bi-check2"></i>Accept</button>
+                                        <button class="btn btn-sm btn-light" name="accept" value="false">Decline</button></form>
+                                }
+                                else if (d.Status is DelegationStatus.Active or DelegationStatus.Pending)
+                                {
+                                    <form method="post" asp-page-handler="End" class="m-0"><input type="hidden" name="id" value="@d.Id" /><button class="btn btn-sm btn-light">End</button></form>
+                                }
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+<script type="application/json" id="vl-directory">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(dir.Assignable.Where(u => u.Id != Shell.Me.Id).Select(u => new { id = u.Id, name = u.DisplayName, initials = u.Initials, title = u.JobTitle, hue = u.Hue })))</script>

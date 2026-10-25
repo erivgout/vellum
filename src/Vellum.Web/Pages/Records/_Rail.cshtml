@@ -1,0 +1,180 @@
+@model Vellum.Pages.Records.RecordVm
+@{
+    var vm = Model;
+    var r = vm.Record!;
+    var token = ViewData["Token"] as string;
+    var active = vm.CurrentAssignments.Where(a => a.Status is AssignmentStatus.Active or AssignmentStatus.Waiting).ToList();
+    var done = vm.CurrentAssignments.Where(a => a.Status == AssignmentStatus.Completed).ToList();
+    var state = r.PhaseType != PhaseType.Normal ? "done" : vm.IsOverdue ? "overdue" : vm.IsDueToday ? "today" : "";
+    var userComments = vm.Comments.Take(6).ToList();
+}
+<div class="vl-rail">
+    <div class="card vl-current @state">
+        <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="vl-meta-label mb-0">@(r.PhaseType == PhaseType.Normal ? "Current step" : "Status")</span>
+                @if (r.PhaseType == PhaseType.Normal && r.DueDate != null) { @Ui.Due(r.DueDate) }
+            </div>
+            <div class="fw-semibold" style="font-size:1.02rem">@(vm.Phase?.Name ?? "Profile")</div>
+            @if (vm.Phase?.Purpose != null && r.PhaseType == PhaseType.Normal)
+            {
+                <p class="small text-body-secondary mt-1 mb-0">@vm.Phase.Purpose</p>
+            }
+            @if (r.PhaseType == PhaseType.Normal)
+            {
+                <div class="vl-divider my-3"></div>
+                <div class="vl-meta-label">Assigned to @if (vm.Phase?.Routing == RoutingType.Voting) { <span class="text-body-tertiary text-lowercase">· voting @(vm.Phase.QuorumPercent)%</span> } else if (vm.Phase?.Routing == RoutingType.Sequential) { <span class="text-body-tertiary text-lowercase">· in sequence</span> }</div>
+                <ul class="list-unstyled m-0 d-grid gap-2">
+                    @foreach (var a in active.Concat(done))
+                    {
+                        <li class="d-flex align-items-center gap-2">
+                            @Ui.Avatar(vm.Dir.Get(a.UserId), "md")
+                            <span class="min-w-0 flex-grow-1">
+                                <span class="d-block fw-medium text-truncate">@vm.Dir.Name(a.UserId)</span>
+                                <span class="d-block x-small text-body-tertiary">@(a.Status switch { AssignmentStatus.Waiting => "Waiting for their turn", AssignmentStatus.Completed => a.Vote == VoteDecision.Approve ? "Approved" : "Done", _ => vm.Dir.Get(a.UserId)?.JobTitle })</span>
+                            </span>
+                            @if (a.Status == AssignmentStatus.Completed) { <i class="bi bi-check-circle-fill text-success" title="Completed"></i> }
+                            else if (a.UserId == Shell.Me.Id) { <span class="vl-kw vl-kw-info">You</span> }
+                        </li>
+                    }
+                </ul>
+                @if (vm.CanReassign)
+                {
+                    <button type="button" class="btn btn-sm btn-light w-100 mt-3" data-bs-toggle="modal" data-bs-target="#reassign-dialog"><i class="bi bi-person-gear"></i>Reassign</button>
+                }
+            }
+        </div>
+    </div>
+
+    <div class="card" id="comments">
+        <div class="card-header">
+            <h3 class="card-title-sm"><i class="bi bi-chat-left-text"></i>Comments</h3>
+            <span class="vl-pill-count ms-auto">@vm.Comments.Count</span>
+        </div>
+        <div class="card-body pt-2">
+            @if (vm.CanComment)
+            {
+                <form method="post" action="/records/@r.Id?handler=Comment" class="mb-2">
+                    <input type="hidden" name="__RequestVerificationToken" value="@token" />
+                    <textarea name="text" class="form-control vl-autogrow mb-2" rows="2" placeholder="Add a comment…" aria-label="Comment" required maxlength="4000"></textarea>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="vl-sr-hint">Comments are part of the audit trail.</span>
+                        <button class="btn btn-sm btn-ink"><i class="bi bi-send"></i>Post</button>
+                    </div>
+                </form>
+            }
+            @if (userComments.Count == 0)
+            {
+                <div class="text-body-tertiary small py-2">No comments yet.</div>
+            }
+            @foreach (var c in userComments)
+            {
+                <div class="vl-comment @(c.IsSystem ? "system" : "")">
+                    @if (c.IsSystem || c.User == null)
+                    {
+                        <span class="sys-icon @(c.Kind == "signature" ? "sig" : c.Kind == "route" ? "route" : "")"><i class="bi @(c.Kind == "signature" ? "bi-pen-fill" : c.Kind == "route" ? "bi-arrow-right" : "bi-gear")"></i></span>
+                    }
+                    else
+                    {
+                        @Ui.Avatar(vm.Dir.Get(c.UserId), "sm")
+                    }
+                    <div class="body">
+                        <div><span class="who">@(c.User?.DisplayName ?? "System")</span><span class="when">@Ui.Time(c.At, vm.Tz)</span></div>
+                        <div class="txt">@c.Text</div>
+                    </div>
+                </div>
+            }
+            @if (vm.Comments.Count > userComments.Count)
+            {
+                <button class="btn btn-sm btn-ghost w-100 mt-1" data-bs-toggle="modal" data-bs-target="#comments-dialog">View all @vm.Comments.Count comments</button>
+            }
+        </div>
+    </div>
+
+    @foreach (var p in vm.Panels.Where(p => p.Placement == "side"))
+    {
+        <div class="card">
+            <div class="card-header"><h3 class="card-title-sm"><i class="bi @p.Icon"></i>@p.Title</h3>@if (p.Count != null) { <span class="vl-pill-count ms-auto">@p.Count</span> }</div>
+            <div class="card-body"><partial name="@p.Partial" model="p.Model" /></div>
+        </div>
+    }
+
+    @if (vm.Linked.Count > 0)
+    {
+        <div class="card">
+            <div class="card-header"><h3 class="card-title-sm"><i class="bi bi-diagram-3"></i>Related records</h3><span class="vl-pill-count ms-auto">@vm.Linked.Count</span></div>
+            <ul class="vl-list">
+                @foreach (var l in vm.Linked.Take(10))
+                {
+                    <li>
+                        <a class="vl-list-item py-2" href="/records/@l.Record.Id">
+                            <span class="vl-app-tile xs" style="--app:@l.Form.App.Color"><i class="bi @l.Form.Icon"></i></span>
+                            <span class="main">
+                                <span class="line1"><span class="num">@l.Record.Number</span><span class="ttl small">@l.Record.Title</span></span>
+                                <span class="line2 d-block">@l.Relation · @l.Form.Name</span>
+                            </span>
+                            <span class="aside">@Ui.Phase(l.Phase?.Name, l.Record.PhaseType, l.Record.DueDate, l.Record.IsArchived, l.Record.IsEffective)</span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+
+    <div class="card">
+        <div class="card-header"><h3 class="card-title-sm"><i class="bi bi-info-circle"></i>Record information</h3></div>
+        <div class="card-body">
+            <dl class="vl-kv">
+                <dt>Number</dt><dd>@r.Number</dd>
+                @if (r.Revision != null) { <dt>Revision</dt><dd>@r.Revision</dd> }
+                <dt>Application</dt><dd>@vm.App.Name</dd>
+                <dt>Location</dt><dd>@(vm.LocationName ?? "–")</dd>
+                <dt>Created</dt><dd>@Ui.Time(r.CreatedAt, vm.Tz, relative: false)</dd>
+                <dt>Modified</dt><dd>@Ui.Time(r.ModifiedAt, vm.Tz, relative: false)</dd>
+                <dt>Version</dt><dd>@r.Version</dd>
+                <dt>Config version</dt><dd>@r.ConfigVersion</dd>
+                <dt>Content hash</dt><dd><span class="vl-hash" title="SHA-256 of the current content (INV-114)">@vm.CurrentHash?[..16]…</span></dd>
+            </dl>
+        </div>
+    </div>
+</div>
+
+@if (vm.CanReassign)
+{
+    <div class="modal fade" id="reassign-dialog" tabindex="-1" aria-labelledby="reassign-title">
+        <div class="modal-dialog modal-dialog-centered">
+            <form class="modal-content" method="post" action="/records/@r.Id?handler=Reassign">
+                <input type="hidden" name="__RequestVerificationToken" value="@token" />
+                <div class="modal-header"><h2 class="modal-title" id="reassign-title">Reassign @vm.Phase?.Name</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                <div class="modal-body">
+                    <label class="form-label">New assignees <span class="req">*</span></label>
+                    <div class="vl-picker" data-picker="users" data-name="users" data-multi="true">
+                        <div class="vl-picker-box"><input type="text" placeholder="Search people…" autocomplete="off" aria-label="Assignees" /></div>
+                        <div class="vl-picker-menu"></div>
+                    </div>
+                    <label class="form-label mt-3" for="reassign-comment">Comment</label>
+                    <textarea class="form-control" id="reassign-comment" name="comment" rows="2" placeholder="Why is this being reassigned?"></textarea>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary"><i class="bi bi-person-check"></i>Reassign</button></div>
+            </form>
+        </div>
+    </div>
+}
+
+<div class="modal fade" id="comments-dialog" tabindex="-1" aria-labelledby="comments-title">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><h2 class="modal-title" id="comments-title">Comment history</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body">
+                @foreach (var c in vm.Comments)
+                {
+                    <div class="vl-comment @(c.IsSystem ? "system" : "")">
+                        @if (c.IsSystem || c.User == null) { <span class="sys-icon @(c.Kind == "signature" ? "sig" : c.Kind == "route" ? "route" : "")"><i class="bi @(c.Kind == "signature" ? "bi-pen-fill" : c.Kind == "route" ? "bi-arrow-right" : "bi-gear")"></i></span> }
+                        else { @Ui.Avatar(vm.Dir.Get(c.UserId), "sm") }
+                        <div class="body"><div><span class="who">@(c.User?.DisplayName ?? "System")</span><span class="when">@Ui.Time(c.At, vm.Tz, relative: false)</span></div><div class="txt">@c.Text</div></div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

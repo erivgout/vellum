@@ -1,0 +1,69 @@
+@page "/notifications"
+@inject Vellum.Data.VellumDbContext Db
+@using Microsoft.EntityFrameworkCore
+@{
+    ViewData["Title"] = "Notifications";
+    var filter = Request.Query["filter"].ToString();
+    var meId = Shell.Me.Id;
+    var q = Db.Notifications.AsNoTracking().Where(n => n.UserId == meId);
+    if (filter == "safety") q = q.Where(n => n.Kind == NotificationKind.SafetyCritical);
+    if (filter == "unread") q = q.Where(n => n.ReadAt == null);
+    var items = await q.OrderByDescending(n => n.CreatedAt).Take(200).ToListAsync();
+    var counts = await Db.Notifications.Where(n => n.UserId == meId).GroupBy(n => 1).Select(g => new { All = g.Count(), Unread = g.Count(n => n.ReadAt == null), Safety = g.Count(n => n.Kind == NotificationKind.SafetyCritical && n.AcknowledgedAt == null) }).FirstOrDefaultAsync();
+    (string Icon, string Tone) Look(NotificationKind k) => k switch
+    {
+        NotificationKind.Assignment => ("bi-inbox-fill", "tone-info"),
+        NotificationKind.Reminder => ("bi-alarm-fill", "tone-warn"),
+        NotificationKind.Escalation => ("bi-arrow-up-circle-fill", "tone-bad"),
+        NotificationKind.SafetyCritical => ("bi-exclamation-octagon-fill", "tone-bad"),
+        _ => ("bi-info-circle-fill", "tone-neutral"),
+    };
+}
+@section Crumbs { <span class="current">Notifications</span> }
+
+<div class="vl-page-head">
+    <div class="flex-grow-1">
+        <h1 class="vl-page-title">Notifications</h1>
+        <p class="vl-page-sub">Assignments, reminders and escalations. Safety-critical alerts stay here until you acknowledge them (SAF-020).</p>
+    </div>
+    <div class="vl-filter-pills">
+        <a class="@(filter == "" ? "active" : "")" href="/notifications">All <span class="vl-pill-count">@(counts?.All ?? 0)</span></a>
+        <a class="@(filter == "unread" ? "active" : "")" href="/notifications?filter=unread">Unread <span class="vl-pill-count">@(counts?.Unread ?? 0)</span></a>
+        <a class="@(filter == "safety" ? "active" : "")" href="/notifications?filter=safety">Safety-critical <span class="vl-pill-count @(counts?.Safety > 0 ? "hot" : "")">@(counts?.Safety ?? 0)</span></a>
+    </div>
+</div>
+
+<div class="card">
+    @if (items.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-bell-slash"></i></div><h3>No notifications</h3><p>You're all caught up.</p></div>
+    }
+    <div class="vl-list">
+        @foreach (var n in items)
+        {
+            var (icon, tone) = Look(n.Kind);
+            <div class="vl-list-item @(n.ReadAt == null ? "bg-surface-2" : "")">
+                <span class="vl-stat-icon @tone mb-0" style="width:34px;height:34px"><i class="bi @icon"></i></span>
+                <span class="main">
+                    <span class="d-block fw-semibold">@if (n.Url != null) { <a href="@n.Url" class="text-body">@n.Title</a> } else { @n.Title }</span>
+                    @if (n.Body != null) { <span class="d-block small text-body-secondary">@n.Body</span> }
+                    <span class="line2 d-block">@Ui.Time(n.CreatedAt, Shell.TimeZone) · @n.Kind</span>
+                </span>
+                <span class="aside">
+                    @if (n.Kind == NotificationKind.SafetyCritical)
+                    {
+                        if (n.AcknowledgedAt == null)
+                        {
+                            <button class="btn btn-sm btn-danger" data-ack-inline="@n.Id"><i class="bi bi-check2"></i>Acknowledge</button>
+                        }
+                        else
+                        {
+                            <span class="vl-kw vl-kw-success" title="Acknowledged @n.AcknowledgedAt">Acknowledged</span>
+                        }
+                    }
+                    else if (n.ReadAt == null) { <span class="vl-kw vl-kw-info">New</span> }
+                </span>
+            </div>
+        }
+    </div>
+</div>

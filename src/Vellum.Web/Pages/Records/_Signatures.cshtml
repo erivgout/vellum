@@ -1,0 +1,46 @@
+@model Vellum.Pages.Records.RecordVm
+@{
+    var vm = Model;
+}
+<div class="vl-banner vl-banner-violet">
+    <i class="bi bi-pen"></i>
+    <div>
+        <div class="ttl">Electronic signature manifest</div>
+        <div class="small">Each signature records the signer, date and time, meaning and a SHA-256 hash of the exact content signed (21 CFR 11.50, 11.70). Routing back marks later signatures as superseded; they are never deleted.</div>
+    </div>
+</div>
+@if (vm.Signatures.Count == 0)
+{
+    <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-pen"></i></div><h3>No signatures yet</h3><p>Signatures appear here when someone signs a route or action that requires one.</p></div>
+}
+@foreach (var s in vm.Signatures.OrderByDescending(s => s.SignedAt))
+{
+    var valid = !s.Superseded && s.RecordHash == vm.CurrentHash;
+    var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(s.SignedAt, DateTimeKind.Utc), vm.Tz);
+    <div class="vl-sig @(s.Superseded ? "superseded" : "")">
+        <span class="vl-sig-icon"><i class="bi @(s.Superseded ? "bi-pen" : "bi-pen-fill")"></i></span>
+        <div class="min-w-0">
+            <div class="vl-sig-name">@s.SignerName <span class="fw-normal text-body-tertiary small">(@s.SignerUsername)</span></div>
+            <div><span class="vl-sig-meaning">“@s.Meaning”</span> <span class="text-body-secondary small">· @s.PhaseName · @s.Action</span></div>
+            @if (s.OnBehalfOfName != null) { <div class="small text-body-secondary">On behalf of @s.OnBehalfOfName</div> }
+            <div class="vl-sig-meta">@local.ToString("dd MMM yyyy HH:mm:ss") @Ui.Abbrev(vm.Tz, local) · @s.SignedAt.ToString("yyyy-MM-dd HH:mm:ss") UTC · record v@(s.RecordVersion)</div>
+            <div class="vl-hash mt-1" title="@s.RecordHash">SHA-256 @s.RecordHash[..24]…</div>
+            @if (!string.IsNullOrEmpty(s.Comment)) { <div class="small mt-1"><i class="bi bi-chat-quote text-body-tertiary"></i> @s.Comment</div> }
+        </div>
+        <div class="vl-sig-status">
+            @if (s.Superseded)
+            {
+                <span class="vl-kw">Superseded</span>
+                <div class="x-small text-body-tertiary mt-1">@s.SupersededAt?.ToString("dd MMM yyyy")</div>
+            }
+            else if (valid)
+            {
+                <span class="vl-kw vl-kw-success" title="The current content hash matches the signed hash (INV-114)">Valid for current content</span>
+            }
+            else
+            {
+                <span class="vl-kw vl-kw-warning" title="The record changed after this signature">Content changed after signing</span>
+            }
+        </div>
+    </div>
+}

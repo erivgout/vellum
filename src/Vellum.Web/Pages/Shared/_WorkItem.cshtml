@@ -1,0 +1,19 @@
+@model Vellum.Pages.Work.WorkItem
+@{
+    var w = Model;
+}
+<a class="vl-list-item" href="/records/@w.Record.Id">
+    <span class="vl-app-tile sm" style="--app:@w.App.Color" title="@w.App.Name"><i class="bi @w.Form.Icon"></i></span>
+    <span class="main">
+        <span class="line1"><span class="num">@w.Record.Number</span><span class="ttl">@w.Record.Title</span></span>
+        <span class="line2 d-block">
+            @w.Form.Name · @w.Phase?.Name
+            @if (w.Delegated) { <span class="vl-kw vl-kw-violet ms-1" style="font-size:.68rem">Delegated by @Shell.Directory.Name(w.AssigneeId)</span> }
+        </span>
+    </span>
+    <span class="aside">
+        <span class="d-none d-md-inline">@Ui.Phase(w.Phase?.Name, w.Record.PhaseType, w.Record.DueDate)</span>
+        <span style="min-width:92px;text-align:right">@Ui.Due(w.Record.DueDate)</span>
+        <i class="bi bi-chevron-right text-body-tertiary"></i>
+    </span>
+</a>

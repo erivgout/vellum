@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] · Print · Vellum</title>
+    <link rel="icon" href="~/img/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="~/lib/bootstrap/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+        body { background: var(--vl-bg); }
+        .vl-print-bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .6rem 1.25rem; background: var(--vl-surface); border-bottom: 1px solid var(--vl-border); }
+        .vl-print-page { max-width: 880px; margin: 1.5rem auto 3rem; background: #fff; padding: 2.5rem 3rem; border: 1px solid var(--vl-border); border-radius: 10px; box-shadow: var(--vl-shadow-lg); }
+        .vl-print-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: .9rem; border-bottom: 2px solid #1c1917; }
+        .vl-print-page .card { box-shadow: none; border-color: #e5e1db; }
+        .vl-print-page .vl-section-state { display: none; }
+        .vl-print-foot { margin-top: 2rem; padding-top: .8rem; border-top: 1px solid var(--vl-border); font-size: .72rem; color: var(--vl-text-3); }
+        @@media print { .vl-print-page { border: 0; box-shadow: none; margin: 0; padding: 0; max-width: none; } body { background: #fff; } }
+    </style>
+</head>
+<body>
+    @RenderBody()
+    <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+</body>
+</html>

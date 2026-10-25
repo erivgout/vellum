@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+TestResults/
+**/App_Data/
+node_modules/
+*.log
+.DS_Store

@@ -1,0 +1,26 @@
+# Local development database for Vellum.
+# Start:  docker compose up -d
+# Stop:   docker compose down        (add -v to also delete the data volume)
+#
+# The SA password below is for local development only. Never reuse it anywhere else.
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: vellum-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: "Vellum_Dev_2026!"
+    ports:
+      - "14333:1433"
+    volumes:
+      - vellum-sql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  vellum-sql-data:
