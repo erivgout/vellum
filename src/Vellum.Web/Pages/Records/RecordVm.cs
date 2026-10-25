@@ -81,7 +81,8 @@ public sealed class RecordVm
                         Form.Sections.FirstOrDefault(s => s.Key == f.SectionKey)?.Tab == tab) ||
         Errors.Any(e => Form.Sections.FirstOrDefault(s => s.Key == e.FieldKey)?.Tab == tab);
 
-    public IEnumerable<Attachment> AttachmentsOf(string key) => Attachments.Where(a => a.FieldKey == key && a.RowId == null && !a.Removed);
+    /// <summary>Uploaded files of a field; derived PDF renditions are shown next to their original, not as uploads.</summary>
+    public IEnumerable<Attachment> AttachmentsOf(string key) => Attachments.Where(a => a.FieldKey == key && a.RowId == null && !a.Removed && a.RenditionOfId == null);
 
     public int ActiveSignatures => Signatures.Count(s => !s.Superseded);
     public bool IsOverdue => Record is { PhaseType: PhaseType.Normal, DueDate: { } d } && d < BusinessCalendar.Today;
