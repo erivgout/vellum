@@ -62,6 +62,7 @@ public sealed class CurrentUser(UserDirectory directory)
         IsSystem = false;
         Source = "Anonymous report";
         SystemReason = reason;
+        _externalAtSignIn = false;
     }
 
     /// <summary>For tests and seeding: act as a specific user without a session.</summary>
