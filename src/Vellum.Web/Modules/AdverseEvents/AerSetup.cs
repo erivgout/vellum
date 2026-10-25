@@ -193,6 +193,96 @@ public sealed class AerSetup(VellumDbContext db, ConfigCache cfg, RecordService 
         }
     }
 
+    public sealed record ImportResult(bool Ok, int Created, int Updated, IReadOnlyList<string> Errors);
+
+    /// <summary>
+    /// AER-001 (4): import product codes from CSV (code, device name, class, regulation number, review panel, brand names). Existing codes
+    /// are updated. All rows are checked first; nothing is saved when any row is invalid.
+    /// </summary>
+    public async Task<ImportResult> ImportProductCodesAsync(string? csv)
+    {
+        if (!CanManage) return new(false, 0, 0, ["Only Adverse Event Reporting managers can import product codes."]);
+        var lines = (csv ?? "").Replace("\r\n", "\n").Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        if (lines.Count == 0) return new(false, 0, 0, ["Paste at least one line: code, device name, class, regulation number, review panel, brand names."]);
+        if (lines.Count > 2000) return new(false, 0, 0, ["Import at most 2,000 product codes at a time."]);
+        var parsed = new List<(int Line, string Code, string Name, string? Class, string? Regulation, string? Panel, string? Brands)>();
+        var errors = new List<string>();
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var cells = SplitCsv(lines[i]);
+            if (i == 0 && cells.Count > 0 && cells[0].Trim().ToLowerInvariant() is "code" or "product code" or "procode" or "product_code") continue;
+            var code = cells.ElementAtOrDefault(0)?.Trim().ToUpperInvariant() ?? "";
+            var name = cells.ElementAtOrDefault(1)?.Trim() ?? "";
+            if (!EmdrValidator.IsValidProcode(code)) { errors.Add($"Line {i + 1}: \"{code}\" isn't a three-letter product code."); continue; }
+            if (name.Length is 0 or > 200) { errors.Add($"Line {i + 1}: give the device name (at most 200 characters)."); continue; }
+            var cls = cells.ElementAtOrDefault(2)?.Trim().ToLowerInvariant() switch
+            {
+                null or "" => null, "1" or "i" or "class i" => "i", "2" or "ii" or "class ii" => "ii", "3" or "iii" or "class iii" => "iii",
+                "u" or "n" or "unclassified" or "not classified" => "unclassified", var other => "?" + other,
+            };
+            if (cls?.StartsWith('?') == true) { errors.Add($"Line {i + 1}: device class \"{cls[1..]}\" should be 1, 2, 3 or U."); continue; }
+            if (parsed.Any(p => p.Code == code)) { errors.Add($"Line {i + 1}: {code} appears more than once."); continue; }
+            string? Opt(int idx, int max) => cells.ElementAtOrDefault(idx)?.Trim() is { Length: > 0 } v ? v[..Math.Min(v.Length, max)] : null;
+            parsed.Add((i + 1, code, name, cls, Opt(3, 20), Opt(4, 80), cells.Count > 5 ? string.Join(", ", cells.Skip(5).Select(c => c.Trim()).Where(c => c.Length > 0)) : null));
+        }
+        if (errors.Count > 0) return new(false, 0, 0, errors.Take(20).ToList());
+        var existing = (await ProductCodesAsync()).ToDictionary(p => p.Code);
+        var (created, updated) = (0, 0);
+        try
+        {
+            await Tx.RunAsync(db, async () =>
+            {
+                foreach (var p in parsed)
+                {
+                    var values = new Dictionary<string, object?> { ["pc_device_name"] = p.Name };
+                    if (p.Class != null) values["pc_class"] = p.Class;
+                    if (p.Regulation != null) values["pc_regulation"] = p.Regulation;
+                    if (p.Panel != null) values["pc_panel"] = p.Panel;
+                    if (p.Brands is { Length: > 0 }) values["pc_brand_names"] = p.Brands[..Math.Min(p.Brands.Length, 400)];
+                    if (existing.TryGetValue(p.Code, out var e))
+                    {
+                        var res = await records.UpdateAsync(e.Id, values, "Product code import");
+                        if (!res.Ok) throw new InvalidOperationException($"Line {p.Line}: " + string.Join("; ", res.Errors.Select(x => x.Message)));
+                        if (res.Changed) updated++;
+                    }
+                    else
+                    {
+                        values["pc_code"] = p.Code;
+                        var res = await records.CreateAsync(new CreateRequest { FormKey = AerKeys.ProductCode, Values = values, SkipAccessCheck = true, CreateComment = "Product code import" });
+                        if (!res.Ok) throw new InvalidOperationException($"Line {p.Line}: " + string.Join("; ", res.Errors.Select(x => x.Message)));
+                        created++;
+                    }
+                }
+                audit.Global("Product codes imported", $"Adverse Event Reporting: {created} created, {updated} updated from {parsed.Count} line(s)");
+                await db.SaveChangesAsync();
+                return true;
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new(false, 0, 0, [ex.Message]);
+        }
+        return new(true, created, updated, []);
+    }
+
+    /// <summary>Comma, semicolon or tab separated, with "quoted, values".</summary>
+    public static List<string> SplitCsv(string line)
+    {
+        var sep = line.Contains('\t') ? '\t' : line.Contains(',') ? ',' : ';';
+        var cells = new List<string>();
+        var sb = new System.Text.StringBuilder();
+        var quoted = false;
+        for (var i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+            if (ch == '"') { if (quoted && i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i++; } else quoted = !quoted; }
+            else if (ch == sep && !quoted) { cells.Add(sb.ToString()); sb.Clear(); }
+            else sb.Append(ch);
+        }
+        cells.Add(sb.ToString());
+        return cells;
+    }
+
     /// <summary>AER-001: the profile's meanings for Submit to FDA, Complete and Void become the routes' signature meanings.</summary>
     private async Task ApplySignatureMeaningsAsync(string submit, string complete, string voidMeaning)
     {

@@ -1,0 +1,136 @@
+@page "/quality/aer"
+@model Vellum.Areas.Quality.Pages.Aer.IndexModel
+@using Vellum.Modules.AdverseEvents
+@{
+    ViewData["Title"] = "eMDR submissions";
+    ViewData["ActiveApp"] = AerKeys.App;
+    var m = Model;
+    var tz = Shell.TimeZone;
+    string Local(DateTime? utc) => utc is { } u ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(u, DateTimeKind.Utc), tz).ToString("dd MMM HH:mm") : "";
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/@AerKeys.App">Adverse Event Reporting</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">eMDR submissions</span>
+}
+
+<div class="vl-page-head">
+    <span class="vl-app-tile lg" style="--app:#9f1239"><i class="bi bi-send-check"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">eMDR submissions</h1>
+        <p class="vl-page-sub">FDA MedWatch reports with their reporting deadlines, gateway submissions and ACK1 / ACK2 / ACK3 acknowledgements (AER-008, AER-010).</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-light" href="/apps/@AerKeys.App"><i class="bi bi-collection"></i>Views</a>
+        @if (m.CanManage) { <a class="btn btn-light" href="/quality/aer/setup"><i class="bi bi-sliders"></i>Setup</a> }
+    </div>
+</div>
+
+@if (!m.HasAppProfile)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-gear"></i><div><div class="ttl">Adverse Event Reporting isn't set up yet</div>
+        <div class="small">The application profile must exist before any MedWatch can be created (AER-002). @if (m.CanManage) { <a href="/quality/aer/setup">Set it up now</a> } else { <span>Ask a Regulatory Affairs manager to set it up.</span> }</div></div></div>
+}
+@if (m.Profile == null)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-plug"></i><div><div class="ttl">No eMDR gateway profile for this environment</div>
+        <div class="small">@(m.ForeignProfile ? "A profile from another environment was found in this database. eMDR profiles are bound to the environment they were created in and are never promoted, so it isn't used here. " : "")Reports can be prepared and approved, but not submitted, until an administrator creates the profile@(Shell.Me.IsAdmin ? "" : ".") @if (Shell.Me.IsAdmin) { <a href="/admin/emdr">in Administration › eMDR gateway</a><span>.</span> }</div></div></div>
+}
+else if (m.GatewayProblem != null)
+{
+    <div class="vl-banner vl-banner-bad"><i class="bi bi-plug"></i><div><div class="ttl">The eMDR gateway can't be used</div><div class="small">@m.GatewayProblem</div></div></div>
+}
+else if (m.Gateway?.Key == "simulated")
+{
+    <div class="vl-banner vl-banner-violet"><i class="bi bi-cpu"></i><div><div class="ttl">Simulated gateway (@m.Environment environment)</div>
+        <div class="small">Nothing leaves Vellum: a stand-in for the FDA returns ACK1, ACK2 and ACK3 about 1, 2 and 3 minutes after each submission. It's never available in production.</div></div></div>
+}
+else if (m.Gateway?.Key == "manual")
+{
+    <div class="vl-banner vl-banner-info"><i class="bi bi-cloud-arrow-up"></i><div><div class="ttl">Manual submission (ESG WebTrader)</div>
+        <div class="small">Download each eMDR file from its MedWatch, upload it with FDA ESG WebTrader, then record the upload and each acknowledgement on the record. @m.Profile.AccountType account.</div></div></div>
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg"><a class="vl-stat" href="/quality/aer?show=open"><div class="vl-stat-icon tone-info"><i class="bi bi-file-earmark-medical"></i></div><div class="vl-stat-value">@m.OpenCount</div><div class="vl-stat-label">Open reports</div></a></div>
+    <div class="col-6 col-lg"><a class="vl-stat" href="/quality/aer?show=attention"><div class="vl-stat-icon tone-bad"><i class="bi bi-exclamation-octagon"></i></div><div class="vl-stat-value">@m.NeedsAction</div><div class="vl-stat-label">Need action now</div></a></div>
+    <div class="col-6 col-lg"><a class="vl-stat" href="/quality/aer?show=attention"><div class="vl-stat-icon tone-warn"><i class="bi bi-hourglass-split"></i></div><div class="vl-stat-value">@m.DueSoon</div><div class="vl-stat-label">Due within 5 days or late</div></a></div>
+    <div class="col-6 col-lg"><a class="vl-stat" href="/apps/@AerKeys.App?view=submitted"><div class="vl-stat-icon tone-violet"><i class="bi bi-envelope-paper"></i></div><div class="vl-stat-value">@m.AwaitingAcks</div><div class="vl-stat-label">Awaiting acknowledgements</div></a></div>
+    <div class="col-12 col-lg"><a class="vl-stat" href="/apps/@AerKeys.App?view=completed"><div class="vl-stat-icon tone-ok"><i class="bi bi-patch-check"></i></div><div class="vl-stat-value">@m.CompletedThisYear</div><div class="vl-stat-label">Accepted by FDA in @m.Today.Year</div></a></div>
+</div>
+
+<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+    <div class="btn-group" role="group" aria-label="Show">
+        @foreach (var (key, label) in new[] { ("open", "Open"), ("attention", "Needs attention"), ("all", "All") })
+        {
+            <a class="btn btn-sm @(m.Show == key ? "btn-ink active" : "btn-light")" href="/quality/aer?show=@key" aria-current="@(m.Show == key ? "page" : null)">@label</a>
+        }
+    </div>
+    <span class="small text-body-tertiary ms-auto">@Ui.Plural(m.Rows.Count, "report")</span>
+</div>
+
+@if (m.Rows.Count == 0)
+{
+    <div class="vl-table-wrap"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-file-earmark-medical"></i></div><h3>No MedWatch reports here</h3>
+        <p>Create one from a complaint whose MDR decision tree concludes the event is reportable (Regulatory › Create MedWatch).</p></div></div>
+}
+else
+{
+    <div class="vl-table-wrap">
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead>
+                    <tr><th scope="col">Report</th><th scope="col">MedWatch</th><th scope="col">Type</th><th scope="col">Phase</th><th scope="col">Deadline</th><th scope="col">Acknowledgements</th><th scope="col">Owner</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in m.Rows)
+                    {
+                        var s = r.Submission;
+                        var left = r.Due is { } dd ? dd.DayNumber - m.Today.DayNumber : (int?)null;
+                        var acks = new[] { ("ACK1", s?.Ack1At), ("ACK2", s?.Ack2At), ("ACK3", s?.Ack3At) };
+                        var failed = s?.Status is EmdrStatus.Rejected or EmdrStatus.Failed;
+                        <tr data-href="/records/@r.Id">
+                            <td class="col-number"><span class="mono">@(r.ReportNumber ?? "–")</span>@if (r.FollowUp is { } fu) { <div class="x-small text-body-tertiary">Follow-up #@fu</div> }</td>
+                            <td class="col-title"><a href="/records/@r.Id" class="fw-semibold">@r.Number</a><div class="t small text-body-secondary">@r.Title</div></td>
+                            <td>@Ui.Keyword(r.ReportType)</td>
+                            <td>@Ui.Phase(r.Phase, r.PhaseType)</td>
+                            <td class="text-nowrap">
+                                @if (r.Due is { } due)
+                                {
+                                    if (r.PhaseType != PhaseType.Normal || s?.Status == EmdrStatus.Accepted)
+                                    {
+                                        <span class="small text-body-secondary">@due.ToString("dd MMM yyyy")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="vla-due @(left < 0 ? "is-missed" : left <= 5 ? "is-soon" : "")"><i class="bi @(left < 0 ? "bi-exclamation-octagon-fill" : "bi-clock")" aria-hidden="true"></i>@(left < 0 ? $"Overdue {-left}d" : left == 0 ? "Due today" : $"{left}d left")</span>
+                                        <div class="x-small text-body-tertiary">@due.ToString("dd MMM yyyy")</div>
+                                    }
+                                }
+                            </td>
+                            <td>
+                                @if (s == null)
+                                {
+                                    <span class="small text-body-tertiary">Not submitted</span>
+                                }
+                                else
+                                {
+                                    <span class="d-flex flex-wrap gap-1" aria-label="Acknowledgements">
+                                        @if (s.Status == EmdrStatus.AwaitingUpload) { <span class="vla-ack-pill is-warn"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>Upload to ESG</span> }
+                                        @foreach (var (label, at) in acks)
+                                        {
+                                            <span class="vla-ack-pill @(at != null ? "is-done" : "")" title="@(at != null ? Local(at) : "Not received")"><i class="bi @(at != null ? "bi-check" : "bi-dot")" aria-hidden="true"></i>@label<span class="visually-hidden">@(at != null ? " received" : " not received")</span></span>
+                                        }
+                                        @if (failed) { <span class="vla-ack-pill is-bad"><i class="bi bi-x" aria-hidden="true"></i>Rejected</span> }
+                                        else if (s.OverdueAlertedAt != null && s.Status == EmdrStatus.Sent) { <span class="vla-ack-pill is-bad"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>Overdue</span> }
+                                    </span>
+                                }
+                            </td>
+                            <td class="small">@r.Owner</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
