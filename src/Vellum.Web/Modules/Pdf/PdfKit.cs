@@ -102,7 +102,7 @@ public static class PdfKit
     {
         using var doc = Open(pdf, PdfDocumentOpenMode.Import);
         if (doc.PageCount == 0) throw new PdfProcessingException("The PDF has no pages.");
-        return new PdfFacts(doc.PageCount, doc.SecuritySettings.DocumentSecurityLevel != PdfSharp.Pdf.Security.PdfDocumentSecurityLevel.None, doc.Info.Producer);
+        return new PdfFacts(doc.PageCount, doc.SecuritySettings.IsEncrypted, doc.Info.Producer);
     }
 
     public static int PageCount(byte[] pdf) => Inspect(pdf).Pages;
