@@ -1,0 +1,24 @@
+@page
+@model Vellum.Areas.Admin.Pages.Groups.NewModel
+@{
+    ViewData["Title"] = "New group";
+}
+@section Crumbs { <a href="/admin/groups">Groups</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="current">New group</span> }
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-info"><i class="bi bi-diagram-3"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">New group</h1>
+        <p class="vl-page-sub">Add members after you create the group.</p>
+    </div>
+</div>
+
+<partial name="_Errors" model="Model.Errors" />
+
+<form method="post" class="card" style="max-width:860px">
+    <div class="card-body"><partial name="_GroupFields" model="Model.Form" /></div>
+    <div class="card-footer d-flex justify-content-end gap-2">
+        <a class="btn btn-light" href="/admin/groups">Cancel</a>
+        <button class="btn btn-primary"><i class="bi bi-check2"></i>Create group</button>
+    </div>
+</form>

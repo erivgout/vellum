@@ -1,0 +1,17 @@
+@model Vellum.Areas.Admin.Pages.PagerModel
+<div class="vl-table-foot">
+    <span class="tabular">@(Model.Total == 0 ? "None" : $"{Model.First:N0}–{Model.Last:N0} of {Model.Total:N0}") @Model.Noun</span>
+    @if (Model.Pages > 1)
+    {
+        <nav aria-label="Pages">
+            <ul class="pagination pagination-sm">
+                <li class="page-item @(Model.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@Model.Link(Model.Page - 1)" aria-label="Previous page"><i class="bi bi-chevron-left"></i></a></li>
+                @for (var i = Math.Max(1, Model.Page - 2); i <= Math.Min(Model.Pages, Model.Page + 2); i++)
+                {
+                    <li class="page-item @(i == Model.Page ? "active" : "")"><a class="page-link" href="@Model.Link(i)" aria-current="@(i == Model.Page ? "page" : null)">@i</a></li>
+                }
+                <li class="page-item @(Model.Page >= Model.Pages ? "disabled" : "")"><a class="page-link" href="@Model.Link(Model.Page + 1)" aria-label="Next page"><i class="bi bi-chevron-right"></i></a></li>
+            </ul>
+        </nav>
+    }
+</div>

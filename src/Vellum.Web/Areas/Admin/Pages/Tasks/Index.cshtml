@@ -1,0 +1,73 @@
+@page
+@model Vellum.Areas.Admin.Pages.Tasks.IndexModel
+@{
+    ViewData["Title"] = "Scheduled tasks";
+    var tz = Shell.TimeZone;
+    var now = DateTime.UtcNow;
+    var failing = Model.Rows.Where(r => r.Task.Enabled && r.Task.LastOutcome == "Failed").ToList();
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-ok"><i class="bi bi-stopwatch"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Scheduled tasks</h1>
+        <p class="vl-page-sub">Packaged jobs run as the system identity, never twice at once (INV-121). Missed runs are caught up once after downtime, and failures notify administrators (ADM-804/805).</p>
+    </div>
+</div>
+
+@if (failing.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad"><i class="bi bi-exclamation-octagon-fill"></i><div><div class="ttl">@Ui.Plural(failing.Count, "task") failed on the last run</div><div class="small">@string.Join(", ", failing.Select(f => f.Task.Name)). Open a task to see its log.</div></div></div>
+}
+
+<div class="vl-table-wrap">
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-stopwatch"></i></div><h3>No scheduled tasks</h3><p>Packaged jobs appear here once the scheduler has registered them.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead><tr><th scope="col">Task</th><th scope="col">Schedule</th><th scope="col">Last run</th><th scope="col">Next run</th><th scope="col" class="numeric">Runs (24 h)</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        var t = r.Task;
+                        var running = t.LeaseUntil > now;
+                        <tr data-href="/admin/tasks/@t.Key" class="@(t.Enabled ? "" : "adm-row-muted")">
+                            <td class="col-title">
+                                <a class="fw-semibold" href="/admin/tasks/@t.Key">@t.Name</a>
+                                <span class="d-block small text-body-secondary">@t.Description</span>
+                            </td>
+                            <td class="text-nowrap">
+                                <form method="post" asp-page-handler="Toggle" class="m-0 d-inline-flex align-items-center gap-2">
+                                    <input type="hidden" name="key" value="@t.Key" /><input type="hidden" name="enabled" value="@(t.Enabled ? "false" : "true")" />
+                                    <button class="adm-switch @(t.Enabled ? "on" : "")" role="switch" aria-checked="@(t.Enabled ? "true" : "false")" aria-label="@(t.Enabled ? "Disable" : "Enable") @t.Name" data-confirm="@(t.Enabled ? $"Disable {t.Name}? It won't run until you enable it again." : "")"><span></span></button>
+                                    <span class="small">@(t.Enabled ? AdminText.Interval(t.IntervalMinutes) : "Disabled")</span>
+                                </form>
+                            </td>
+                            <td class="text-nowrap">
+                                @if (running) { @AdminText.Outcome("Running") }
+                                else { @AdminText.Outcome(t.LastOutcome) }
+                                @if (t.LastRunAt is { } lr) { <span class="d-block x-small text-body-tertiary">@Ui.Time(lr, tz)@(r.Last?.Manual == true ? " · manual" : "")</span> }
+                            </td>
+                            <td class="text-nowrap small">@if (!t.Enabled) { <span class="text-body-tertiary">–</span> } else if (t.NextRunAt is { } nr) { <span title="@nr.ToString("u")">@(nr <= now ? "Due now" : "in " + Human(nr - now))</span> } else { <text>Soon</text> }</td>
+                            <td class="numeric">@r.Runs24h@if (r.Failures24h > 0) { <span class="text-danger"> · @r.Failures24h failed</span> }</td>
+                            <td class="text-end text-nowrap">
+                                <form method="post" asp-page-handler="Run" class="d-inline" data-adm-busy>
+                                    <input type="hidden" name="key" value="@t.Key" />
+                                    <button class="btn btn-sm btn-light" disabled="@(!t.Enabled || running)" data-confirm="Run @t.Name now? The next scheduled run moves forward."><i class="bi bi-play-fill"></i>Run now</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@functions {
+    static string Human(TimeSpan s) => s.TotalMinutes < 1 ? "under a minute" : s.TotalMinutes < 60 ? $"{(int)s.TotalMinutes} min" : s.TotalHours < 48 ? $"{(int)s.TotalHours} h {s.Minutes} min" : $"{(int)s.TotalDays} days";
+}

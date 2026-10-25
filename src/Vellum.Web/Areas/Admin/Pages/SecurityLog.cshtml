@@ -1,0 +1,82 @@
+@page "/admin/security-log"
+@model SecurityLogModel
+@{
+    ViewData["Title"] = "Security log";
+    var tz = Shell.TimeZone;
+    var exportQuery = string.Join("&", Request.Query.Where(kv => kv.Key is not ("p" or "handler")).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value.ToString())}"));
+    string Icon(SecurityEvent e) => e.Kind switch
+    {
+        var k when k.StartsWith("Login") || k == "Logout" => e.Success ? "bi-box-arrow-in-right" : "bi-person-x",
+        var k when k.Contains("lock", StringComparison.OrdinalIgnoreCase) || k.Contains("disabled", StringComparison.OrdinalIgnoreCase) => "bi-lock",
+        var k when k.Contains("MFA") => "bi-phone",
+        var k when k.Contains("Password") => "bi-key",
+        var k when k.Contains("logout", StringComparison.OrdinalIgnoreCase) || k.Contains("kicked", StringComparison.OrdinalIgnoreCase) => "bi-door-open",
+        var k when k.Contains("Role") || k.Contains("Group") || k.Contains("Administrator") => "bi-person-gear",
+        var k when k.Contains("Integrity") => "bi-shield-check",
+        var k when k.Contains("Compliance") || k.Contains("Re-auth") => "bi-shield-lock",
+        _ => "bi-shield",
+    };
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-warn"><i class="bi bi-shield-exclamation"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Security log</h1>
+        <p class="vl-page-sub">Sign-ins, sign-outs, lockouts, MFA, forced logouts, permission changes and integrity checks (SEC-1001).</p>
+    </div>
+    <a class="btn btn-light" href="/admin/security-log?handler=Export@(exportQuery.Length > 0 ? "&" + exportQuery : "")"><i class="bi bi-filetype-csv"></i>Export CSV</a>
+</div>
+
+<form class="card mb-3" method="get" role="search">
+    <div class="card-body adm-filters">
+        <div><label class="form-label" for="f-kind">Event</label>
+            <select class="form-select form-select-sm" id="f-kind" name="kind" data-autosubmit>
+                <option value="">All events</option>
+                @foreach (var k in Model.Kinds) { <option value="@k" selected="@(Model.Kind == k)">@k</option> }
+            </select></div>
+        <div><label class="form-label" for="f-out">Outcome</label>
+            <select class="form-select form-select-sm" id="f-out" name="outcome" data-autosubmit>
+                <option value="">Any</option>
+                <option value="success" selected="@(Model.Outcome == "success")">Success</option>
+                <option value="failure" selected="@(Model.Outcome == "failure")">Failure</option>
+            </select></div>
+        <div><label class="form-label" for="f-user">Username</label><input class="form-control form-control-sm" id="f-user" name="user" value="@Model.UserFilter" placeholder="Any" /></div>
+        <div><label class="form-label" for="f-from">From</label><input class="form-control form-control-sm" type="date" id="f-from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" /></div>
+        <div><label class="form-label" for="f-to">To</label><input class="form-control form-control-sm" type="date" id="f-to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" /></div>
+        <div class="adm-filters-grow"><label class="form-label" for="f-q">Detail or IP contains</label><input class="form-control form-control-sm" id="f-q" name="q" value="@Model.Q" /></div>
+        <div class="adm-filters-actions">
+            <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i>Filter</button>
+            @if (Model.Filtered) { <a class="btn btn-sm btn-ghost" href="/admin/security-log"><i class="bi bi-x"></i>Clear</a> }
+        </div>
+    </div>
+</form>
+
+<div class="vl-table-wrap">
+    @if (Model.Result.Total == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-shield"></i></div><h3>No security events match</h3><p>@(Model.Filtered ? "Try widening the filters." : "Events appear as people sign in and administrators make changes.")</p></div>
+    }
+    else
+    {
+        <div class="adm-table-bar"><span class="small text-body-secondary">@Model.Result.Total.ToString("N0") events · <span class="@(Model.Failures > 0 ? "text-danger fw-semibold" : "")">@Model.Failures.ToString("N0") failures</span></span></div>
+        <div class="vl-table-scroll">
+            <table class="table vl-table vl-table-compact">
+                <thead><tr><th scope="col">Time</th><th scope="col">Event</th><th scope="col">Outcome</th><th scope="col">User</th><th scope="col">IP address</th><th scope="col">Detail</th></tr></thead>
+                <tbody>
+                    @foreach (var e in Model.Result.Items)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@Ui.Time(e.At, tz, false)</td>
+                            <td class="text-nowrap"><span class="adm-ev"><span class="adm-ev-icon sm @(e.Success ? "tone-neutral" : "tone-bad")"><i class="bi @Icon(e)"></i></span>@e.Kind</span></td>
+                            <td>@if (e.Success) { <span class="adm-status ok"><i class="bi bi-check-circle-fill"></i>Success</span> } else { <span class="adm-status bad"><i class="bi bi-x-circle-fill"></i>Failure</span> }</td>
+                            <td class="text-nowrap">@if (e.UserId is { } uid && Shell.Directory.Get(uid) is { } who) { <a class="adm-person" href="/admin/users/@uid">@Ui.Avatar(who, "xs")<span>@who.DisplayName</span></a> } else if (e.Username != null) { <span class="mono">@e.Username</span> <span class="x-small text-body-tertiary" title="Username not found (visible to administrators only, SEC-1001)">unknown</span> } else { <span class="text-body-tertiary">System</span> }</td>
+                            <td class="mono small">@(e.Ip ?? "–")</td>
+                            <td class="small adm-detail">@(e.Detail ?? "–")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model='PagerModel.For(Model.Result, "events", Request)' />
+    }
+</div>

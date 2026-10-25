@@ -1,0 +1,69 @@
+@page
+@model Vellum.Areas.Admin.Pages.Keywords.IndexModel
+@{
+    ViewData["Title"] = "Keyword lists";
+    (string Key, string Label, int N)[] pills = [("", "All", Model.All), ("used", "In use", Model.All - Model.Orphaned), ("orphaned", "Orphaned", Model.Orphaned)];
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-brand"><i class="bi bi-tags"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Keyword lists</h1>
+        <p class="vl-page-sub">Shared lists behind keyword fields. Records store each keyword by its ID, so keywords are disabled, never deleted (INV-061).</p>
+    </div>
+</div>
+
+<form class="vl-toolbar" method="get" role="search">
+    <div class="vl-filter-pills" role="group" aria-label="Filter">
+        @foreach (var p in pills) { <a class="@((Model.Filter ?? "") == p.Key ? "active" : "")" href="@Model.With("filter", p.Key)">@p.Label <span class="vl-pill-count @(p.Key == "orphaned" && p.N > 0 ? "hot" : "")">@p.N</span></a> }
+    </div>
+    @if (Model.Filter != null) { <input type="hidden" name="filter" value="@Model.Filter" /> }
+    <div class="vl-search-input flex-grow-1" style="max-width:320px">
+        <i class="bi bi-search"></i>
+        <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="List name, key or keyword" aria-label="Search keyword lists" />
+    </div>
+    <button class="btn btn-sm btn-light">Apply</button>
+</form>
+
+<div class="vl-table-wrap">
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-tags"></i></div><h3>@(Model.Filter == "orphaned" ? "No orphaned lists" : "No keyword lists match")</h3><p>@(Model.Filter == "orphaned" ? "Every list is used by at least one field." : "Try a different search.")</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead><tr><th scope="col">List</th><th scope="col">Keywords</th><th scope="col" class="numeric">Enabled</th><th scope="col">Used by</th></tr></thead>
+                <tbody>
+                    @foreach (var (list, uses) in Model.Rows)
+                    {
+                        var enabled = list.Keywords.Count(k => !k.Disabled);
+                        var apps = uses.Select(u => u.App).DistinctBy(a => a.Id).ToList();
+                        <tr data-href="/admin/keywords/@list.Key">
+                            <td class="text-nowrap"><a class="fw-semibold" href="/admin/keywords/@list.Key">@list.Name</a><span class="d-block mono text-body-tertiary">@list.Key</span></td>
+                            <td>
+                                <span class="adm-kw-preview">
+                                    @foreach (var k in list.Keywords.Where(k => !k.Disabled).OrderBy(k => k.Order).Take(5)) { @Ui.Keyword(k) }
+                                    @if (enabled > 5) { <span class="small text-body-tertiary">+@(enabled - 5)</span> }
+                                </span>
+                            </td>
+                            <td class="numeric text-nowrap">@enabled@if (list.Keywords.Count > enabled) { <span class="text-body-tertiary"> / @list.Keywords.Count</span> }</td>
+                            <td>
+                                @if (uses.Count == 0) { <span class="vl-kw vl-kw-warning" title="Not used by any field (ADM-606)">Orphaned</span> }
+                                else
+                                {
+                                    <span class="d-inline-flex align-items-center gap-2">
+                                        @foreach (var a in apps.Take(4)) { <span class="vl-app-tile xs" style="--app:@a.Color" title="@a.Name"><i class="bi @a.Icon"></i></span> }
+                                        <span class="small text-body-secondary">@Ui.Plural(uses.Count, "field") in @Ui.Plural(apps.Count, "app")</span>
+                                    </span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="vl-table-foot"><span>@Ui.Plural(Model.Rows.Count, "list")</span></div>
+    }
+</div>

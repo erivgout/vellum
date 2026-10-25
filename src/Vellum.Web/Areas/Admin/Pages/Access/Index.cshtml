@@ -1,0 +1,116 @@
+@page
+@model Vellum.Areas.Admin.Pages.Access.IndexModel
+@{
+    ViewData["Title"] = "Access report";
+    var apps = Model.Apps.Select(a => a.App).ToList();
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-violet"><i class="bi bi-key"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Access report</h1>
+        <p class="vl-page-sub">Who holds which role on each application, and what any one person can do (SEC-521). Access is deny-by-default; the highest grant wins (SEC-501/504).</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <form class="card h-100" method="get">
+            <div class="card-body">
+                <label class="form-label" for="ac-app"><i class="bi bi-grid text-body-tertiary"></i>Application roles</label>
+                <div class="d-flex gap-2">
+                    <select class="form-select" id="ac-app" name="app" required>
+                        <option value="">Choose an application…</option>
+                        @foreach (var a in apps) { <option value="@a.Key">@a.Name</option> }
+                    </select>
+                    <button class="btn btn-light text-nowrap">Open</button>
+                </div>
+                <div class="form-text">See and change the users and groups with a role, and designer rights.</div>
+            </div>
+        </form>
+    </div>
+    <div class="col-md-6">
+        <form class="card h-100" method="get">
+            <div class="card-body">
+                <label class="form-label" for="ac-user"><i class="bi bi-person text-body-tertiary"></i>What can this user do?</label>
+                <div class="d-flex gap-2">
+                    <select class="form-select" id="ac-user" name="user" required>
+                        <option value="">Choose a person…</option>
+                        @foreach (var u in Shell.Directory.All) { <option value="@u.Id">@u.DisplayName@(u.Status != UserStatus.Active ? $" ({u.Status.ToString().ToLowerInvariant()})" : "")</option> }
+                    </select>
+                    <button class="btn btn-light text-nowrap">Open</button>
+                </div>
+                <div class="form-text">Effective role per application, and where it comes from.</div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="vl-table-wrap mb-4">
+    <div class="adm-table-title"><i class="bi bi-grid"></i>Applications</div>
+    <div class="vl-table-scroll">
+        <table class="table vl-table">
+            <thead><tr><th scope="col">Application</th><th scope="col">Default access</th><th scope="col">Managers</th><th scope="col" class="numeric">Grants</th><th scope="col" class="numeric">Designers</th><th scope="col">INV-084</th></tr></thead>
+            <tbody>
+                @foreach (var r in Model.Apps)
+                {
+                    <tr data-href="/admin/access/apps/@r.App.Key">
+                        <td class="text-nowrap"><a class="adm-person" href="/admin/access/apps/@r.App.Key"><span class="vl-app-tile sm" style="--app:@r.App.Color"><i class="bi @r.App.Icon"></i></span><span><span class="d-block fw-semibold">@r.App.Name</span><span class="d-block x-small text-body-tertiary">@r.App.Suite@(r.App.Disabled ? " · disabled" : "")</span></span></a></td>
+                        <td>@AdminText.RoleBadge(r.App.DefaultAccess)</td>
+                        <td>
+                            <span class="d-flex flex-wrap gap-1">
+                                @foreach (var m in r.Managers)
+                                {
+                                    if (m.User != null) { <span class="vl-token">@Ui.Avatar(m.User, "xs")<span class="t pe-1">@m.PrincipalName</span></span> }
+                                    else { <span class="vl-token"><span class="adm-group-dot xs"><i class="bi bi-people-fill"></i></span><span class="t pe-1">@m.PrincipalName</span></span> }
+                                }
+                                @if (r.Managers.Count == 0) { <span class="text-body-tertiary small">Administrators only</span> }
+                            </span>
+                        </td>
+                        <td class="numeric">@r.Grants</td>
+                        <td class="numeric">@(r.Designers == 0 ? "–" : r.Designers.ToString())</td>
+                        <td>@if (r.ActiveManagers > 0) { <span class="adm-status ok"><i class="bi bi-check-circle-fill"></i>@Ui.Plural(r.ActiveManagers, "active manager")</span> } else { <span class="adm-status bad"><i class="bi bi-x-octagon-fill"></i>No active manager</span> }</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="vl-table-wrap">
+    <div class="adm-table-title"><i class="bi bi-diagram-3"></i>Groups by access <span class="small text-body-tertiary fw-normal ms-2">Highest application-level role per group (ADM-201)</span></div>
+    @if (Model.Groups.Count == 0)
+    {
+        <div class="vl-empty py-4"><p>No group holds an application role.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table vl-table-compact adm-matrix">
+                <thead>
+                    <tr>
+                        <th scope="col">Group</th>
+                        @foreach (var a in apps) { <th scope="col" class="text-center" title="@a.Name"><span class="vl-app-tile xs" style="--app:@a.Color"><i class="bi @a.Icon"></i></span><span class="adm-matrix-app">@a.Name</span></th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in Model.Groups)
+                    {
+                        <tr>
+                            <th scope="row" class="text-nowrap fw-medium"><a href="/admin/groups/@g.Id">@g.Name</a>@if (g.Inactive) { <span class="vl-kw vl-kw-secondary ms-1">Inactive</span> }</th>
+                            @foreach (var a in apps)
+                            {
+                                if (Model.Matrix.TryGetValue((g.Id, a.Id), out var cell))
+                                {
+                                    <td class="text-center"><span class="adm-role adm-role-@cell.Role.ToString().ToLowerInvariant()" title="@AdminText.Role(cell.Role)@(cell.FormOnly ? " (some forms only)" : "")@(cell.Designer ? " + designer" : "")">@cell.Role.ToString()[0]@(cell.FormOnly ? "*" : "")@if (cell.Designer) { <i class="bi bi-pencil-fill"></i> }</span></td>
+                                }
+                                else { <td class="text-center text-body-tertiary">·</td> }
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="vl-table-foot"><span class="d-flex flex-wrap gap-3 small"><span><span class="adm-role adm-role-manager">M</span> Manager</span><span><span class="adm-role adm-role-author">A</span> Author</span><span><span class="adm-role adm-role-reader">R</span> Reader</span><span>* some forms only</span><span><i class="bi bi-pencil-fill"></i> designer</span></span></div>
+    }
+</div>

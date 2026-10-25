@@ -1,0 +1,137 @@
+@page "/admin/access/apps/{key}"
+@model Vellum.Areas.Admin.Pages.Access.AppModel
+@{
+    var app = Model.App;
+    ViewData["Title"] = $"{app.Name} access";
+    AppRole[] roles = [AppRole.Reader, AppRole.Author, AppRole.Manager];
+}
+@section Crumbs { <a href="/admin/access">Access report</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="current">@app.Name</span> }
+
+<div class="vl-page-head align-items-center">
+    <span class="vl-app-tile lg" style="--app:@app.Color"><i class="bi @app.Icon"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">@app.Name</h1>
+        <p class="vl-page-sub">Default access for everyone signed in: <strong>@AdminText.Role(app.DefaultAccess)</strong> (SEC-505). Administrators manage every application.</p>
+    </div>
+    <a class="btn btn-light" href="/apps/@app.Key"><i class="bi bi-box-arrow-up-right"></i>Open application</a>
+</div>
+
+@if (Model.ActiveManagers == 0)
+{
+    <div class="vl-banner vl-banner-bad"><i class="bi bi-x-octagon-fill"></i><div><div class="ttl">No active Manager</div><div class="small">Every application needs at least one active Manager (SEC-502, INV-084). Grant the Manager role to a person or an active group below.</div></div></div>
+}
+else
+{
+    <div class="vl-banner vl-banner-ok"><i class="bi bi-check-circle-fill"></i><div class="small">@Ui.Plural(Model.ActiveManagers, "active Manager"). You can't remove or downgrade the last one (INV-084).</div></div>
+}
+
+<div class="row g-4">
+    <div class="col-xxl-8 min-w-0">
+        <div class="vl-table-wrap">
+            <div class="adm-table-title"><i class="bi bi-key"></i>Role grants <span class="vl-pill-count ms-1">@Model.Grants.Count</span></div>
+            @if (Model.Grants.Count == 0)
+            {
+                <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-key"></i></div><h3>No grants</h3><p>Only the default access applies. Add a grant to give people or groups a role.</p></div>
+            }
+            else
+            {
+                <div class="vl-table-scroll">
+                    <table class="table vl-table">
+                        <thead><tr><th scope="col">Principal</th><th scope="col">Scope</th><th scope="col">Role and designer</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead>
+                        <tbody>
+                            @foreach (var r in Model.Grants)
+                            {
+                                var g = r.Grant;
+                                <tr class="@(r.PrincipalActive ? "" : "adm-row-muted")">
+                                    <td>
+                                        @if (r.User != null) { <a class="adm-person" href="/admin/access/users/@r.User.Id">@Ui.Avatar(r.User, "md")<span><span class="d-block fw-medium">@r.PrincipalName</span><span class="d-block x-small text-body-tertiary">@(r.PrincipalSub ?? r.User.Username)</span></span></a> }
+                                        else if (r.Group != null) { <a class="adm-person" href="/admin/groups/@r.Group.Id"><span class="adm-group-dot md"><i class="bi bi-people-fill"></i></span><span><span class="d-block fw-medium">@r.PrincipalName</span><span class="d-block x-small text-body-tertiary">Group · @r.PrincipalSub</span></span></a> }
+                                        else { <span class="text-body-tertiary">@r.PrincipalName</span> }
+                                        @if (!r.PrincipalActive) { <span class="vl-kw vl-kw-secondary ms-1">Inactive</span> }
+                                    </td>
+                                    <td class="small">@(g.FormKey != null ? app.Forms.FirstOrDefault(f => f.Key == g.FormKey)?.Name ?? g.FormKey : "Whole application")</td>
+                                    <td>
+                                        <form method="post" asp-page-handler="Update" asp-route-key="@app.Key" class="d-flex align-items-center gap-2 m-0">
+                                            <input type="hidden" name="grantId" value="@g.Id" />
+                                            <select class="form-select form-select-sm w-auto" name="role" aria-label="Role for @r.PrincipalName">
+                                                @foreach (var role in roles) { <option value="@role" selected="@(g.Role == role)">@AdminText.Role(role)</option> }
+                                            </select>
+                                            <div class="form-check m-0">
+                                                <input class="form-check-input" type="checkbox" id="des-@g.Id" name="designer" value="true" checked="@g.IsDesigner" />
+                                                <label class="form-check-label small" for="des-@g.Id">Designer</label>
+                                                <input type="hidden" name="designer" value="false" />
+                                            </div>
+                                            <button class="btn btn-sm btn-light">Save</button>
+                                        </form>
+                                    </td>
+                                    <td class="text-end">
+                                        <form method="post" asp-page-handler="Remove" asp-route-key="@app.Key" class="m-0">
+                                            <input type="hidden" name="grantId" value="@g.Id" />
+                                            <button class="btn btn-sm btn-ghost btn-icon" data-confirm="Remove @AdminText.Role(g.Role) from @r.PrincipalName on @app.Name?" aria-label="Remove grant for @r.PrincipalName"><i class="bi bi-trash3"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="col-xxl-4">
+        <form method="post" asp-page-handler="Add" asp-route-key="@app.Key" class="card adm-sticky" data-adm-grant>
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-plus-lg"></i>Add a grant</h2></div>
+            <div class="card-body d-grid gap-3">
+                <fieldset>
+                    <legend class="form-label">Grant to</legend>
+                    <div class="vl-seg">
+                        <input type="radio" class="btn-check" name="kind" id="k-user" value="user" checked data-adm-kind /><label for="k-user">A person</label>
+                        <input type="radio" class="btn-check" name="kind" id="k-group" value="group" data-adm-kind /><label for="k-group">A group</label>
+                    </div>
+                </fieldset>
+                <div data-adm-kind-panel="user">
+                    <label class="form-label" id="g-user-label">Person</label>
+                    <div class="vl-picker" data-picker="users" data-name="userId" data-multi="false">
+                        <div class="vl-picker-box"><input type="text" placeholder="Search people…" autocomplete="off" aria-labelledby="g-user-label" /></div>
+                        <div class="vl-picker-menu"></div>
+                    </div>
+                </div>
+                <div data-adm-kind-panel="group" hidden>
+                    <label class="form-label" for="g-group">Group</label>
+                    <select class="form-select" id="g-group" name="groupId">
+                        <option value="">Choose a group…</option>
+                        @foreach (var gr in Shell.Directory.Groups.Where(x => !x.Inactive)) { <option value="@gr.Id">@gr.Name</option> }
+                    </select>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label" for="g-role">Role</label>
+                        <select class="form-select" id="g-role" name="role">
+                            @foreach (var role in roles) { <option value="@role" selected="@(role == AppRole.Author)">@AdminText.Role(role)</option> }
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="g-form">Scope</label>
+                        <select class="form-select" id="g-form" name="formKey">
+                            <option value="">Whole application</option>
+                            @foreach (var f in app.Forms) { <option value="@f.Key">@f.Name</option> }
+                        </select>
+                    </div>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="g-des" name="designer" value="true" />
+                    <label class="form-check-label" for="g-des">Designer rights for this application (DSN-001)</label>
+                    <input type="hidden" name="designer" value="false" />
+                </div>
+                <dl class="adm-roles small">
+                    <dt>@AdminText.RoleBadge(AppRole.Manager)</dt><dd>Every function on every record; reassign, edit security.</dd>
+                    <dt>@AdminText.RoleBadge(AppRole.Author)</dt><dd>Create records and work on those assigned to them.</dd>
+                    <dt>@AdminText.RoleBadge(AppRole.Reader)</dt><dd>Read only.</dd>
+                </dl>
+            </div>
+            <div class="card-footer d-flex justify-content-end"><button class="btn btn-primary"><i class="bi bi-plus-lg"></i>Add grant</button></div>
+        </form>
+    </div>
+</div>
+
+<script type="application/json" id="vl-directory">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Shell.Directory.All.Where(u => u.Status != UserStatus.Inactive).Select(u => new { id = u.Id, name = u.DisplayName, initials = u.Initials, title = u.JobTitle, hue = u.Hue })))</script>

@@ -1,0 +1,126 @@
+@page
+@model CalendarModel
+@{
+    ViewData["Title"] = "Business calendar";
+    var y = Model.Y;
+    var today = BusinessCalendar.Today;
+    var holidays = Model.Days.Count(d => !d.IsWorking);
+    var extra = Model.Days.Count(d => d.IsWorking);
+    var workingDays = 0;
+    for (var d = new DateOnly(y, 1, 1); d.Year == y; d = d.AddDays(1))
+    {
+        var weekend = d.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+        if (Model.ByDate.TryGetValue(d, out var ex) ? ex.IsWorking : !weekend) workingDays++;
+    }
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-brand"><i class="bi bi-calendar3"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Business calendar</h1>
+        <p class="vl-page-sub">Due dates in business days skip weekends (Saturday and Sunday) and the non-working days below. Extra working days override a weekend (ADM-301).</p>
+    </div>
+    <nav class="adm-year" aria-label="Year">
+        <a class="btn btn-light btn-icon" href="/admin/calendar?year=@(y - 1)" aria-label="Previous year"><i class="bi bi-chevron-left"></i></a>
+        <span class="adm-year-label tabular">@y</span>
+        <a class="btn btn-light btn-icon" href="/admin/calendar?year=@(y + 1)" aria-label="Next year"><i class="bi bi-chevron-right"></i></a>
+    </nav>
+</div>
+
+<div class="row g-4">
+    <div class="col-xxl-8 min-w-0">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 class="card-title-sm"><i class="bi bi-calendar-range"></i>@y at a glance</h2>
+                <span class="ms-auto adm-legend-row">
+                    <span><span class="adm-day-dot hol"></span>Non-working</span>
+                    <span><span class="adm-day-dot work"></span>Extra working</span>
+                    <span><span class="adm-day-dot wkend"></span>Weekend</span>
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="adm-yearcal">
+                    @for (var m = 1; m <= 12; m++)
+                    {
+                        var first = new DateOnly(y, m, 1);
+                        var offset = ((int)first.DayOfWeek + 6) % 7;
+                        var days = DateTime.DaysInMonth(y, m);
+                        <div class="adm-month">
+                            <div class="adm-month-name">@first.ToString("MMMM", CultureInfo.InvariantCulture)</div>
+                            <table class="vl-cal adm-cal" aria-label="@first.ToString("MMMM yyyy", CultureInfo.InvariantCulture)">
+                                <thead><tr><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th><th>S</th></tr></thead>
+                                <tbody>
+                                    @for (var row = 0; row < 6; row++)
+                                    {
+                                        if (row * 7 - offset + 1 > days) { break; }
+                                        <tr>
+                                            @for (var col = 0; col < 7; col++)
+                                            {
+                                                var n = row * 7 + col - offset + 1;
+                                                if (n < 1 || n > days) { <td></td> continue; }
+                                                var date = new DateOnly(y, m, n);
+                                                var weekend = col >= 5;
+                                                Model.ByDate.TryGetValue(date, out var ex);
+                                                var cls = ex == null ? (weekend ? "wkend" : "") : ex.IsWorking ? "work" : "hol";
+                                                <td><span class="d @cls @(date == today ? "today" : "")" title="@(ex?.Name ?? (weekend ? "Weekend" : "Working day")) · @date.ToString("ddd dd MMM", CultureInfo.InvariantCulture)">@n</span></td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="card-footer small text-body-secondary d-flex gap-4 flex-wrap">
+                <span><strong class="tabular">@workingDays</strong> working days</span>
+                <span><strong class="tabular">@holidays</strong> non-working days</span>
+                <span><strong class="tabular">@extra</strong> extra working days</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xxl-4">
+        <form method="post" asp-page-handler="Add" class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-calendar-plus"></i>Add a day</h2></div>
+            <div class="card-body d-grid gap-3">
+                <div><label class="form-label" for="c-date">Date</label><input class="form-control" type="date" id="c-date" name="date" required min="@(y - 1)-01-01" value="@(y == today.Year ? today.ToString("yyyy-MM-dd") : $"{y}-01-01")" /></div>
+                <div><label class="form-label" for="c-name">Name</label><input class="form-control" id="c-name" name="name" required maxlength="120" placeholder="For example: Company shutdown" /></div>
+                <fieldset>
+                    <legend class="form-label">Type</legend>
+                    <div class="vl-seg">
+                        <input type="radio" class="btn-check" name="isWorking" id="c-hol" value="false" checked /><label for="c-hol">Non-working day</label>
+                        <input type="radio" class="btn-check" name="isWorking" id="c-work" value="true" /><label for="c-work">Extra working day</label>
+                    </div>
+                </fieldset>
+                <div class="small text-body-tertiary">Due dates calculated from now on use the change. Existing due dates aren't moved.</div>
+            </div>
+            <div class="card-footer d-flex justify-content-end"><button class="btn btn-primary"><i class="bi bi-plus-lg"></i>Add to calendar</button></div>
+        </form>
+
+        <div class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-list-ul"></i>@y exceptions</h2><span class="vl-pill-count">@Model.Days.Count</span></div>
+            @if (Model.Days.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-calendar-x"></i></div><h3>No exceptions in @y</h3><p>Only weekends are non-working.</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var d in Model.Days)
+                    {
+                        <div class="vl-list-item py-2 @(d.Date < today ? "adm-row-muted" : "")">
+                            <span class="adm-date-chip @(d.IsWorking ? "work" : "hol")"><span class="m">@d.Date.ToString("MMM", CultureInfo.InvariantCulture)</span><span class="n">@d.Date.Day</span></span>
+                            <span class="main"><span class="d-block fw-medium">@d.Name</span><span class="line2 d-block">@d.Date.ToString("dddd", CultureInfo.InvariantCulture) · @(d.IsWorking ? "Extra working day" : "Non-working day")</span></span>
+                            <form method="post" asp-page-handler="Remove" asp-route-year="@y" class="m-0"><input type="hidden" name="id" value="@d.Id" /><button class="btn btn-sm btn-ghost btn-icon" data-confirm="Remove @d.Name (@d.Date.ToString("dd MMM yyyy"))?" aria-label="Remove @d.Name"><i class="bi bi-trash3"></i></button></form>
+                        </div>
+                    }
+                </div>
+            }
+            @if (Model.Years.Count > 0)
+            {
+                <div class="card-footer small d-flex flex-wrap gap-2 align-items-center"><span class="text-body-tertiary">Years with exceptions:</span>@foreach (var yy in Model.Years) { <a class="@(yy == y ? "fw-semibold" : "")" href="/admin/calendar?year=@yy">@yy</a> }</div>
+            }
+        </div>
+    </div>
+</div>

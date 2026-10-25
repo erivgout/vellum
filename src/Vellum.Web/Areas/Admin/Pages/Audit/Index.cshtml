@@ -1,0 +1,133 @@
+@page
+@model Vellum.Areas.Admin.Pages.Audit.IndexModel
+@{
+    ViewData["Title"] = "Audit trail";
+    var tz = Shell.TimeZone;
+    var problems = Model.Run?.Log?.Split('\n').Where(l => l.Contains("PROBLEM:")).Select(l => l[(l.IndexOf("PROBLEM:") + 8)..].Trim()).ToList() ?? [];
+    var lastOk = Model.LastCheck?.Success;
+    (string Key, string Label)[] scopes = [("", "All entries"), ("records", "Record entries"), ("global", "System-wide")];
+    string Tone(string action) => action switch
+    {
+        "Created" or "User created" or "Group created" or "Location created" => "tone-ok",
+        "Signed" or "Vote" => "tone-violet",
+        "Routed" or "System route" or "Reassigned" or "Assignments reassigned" => "tone-info",
+        var a when a.Contains("override", StringComparison.OrdinalIgnoreCase) || a.Contains("inactivated") || a.Contains("Voided") || a.Contains("removed", StringComparison.OrdinalIgnoreCase) || a.Contains("disabled") => "tone-bad",
+        var a when a.Contains("Compliance") || a.Contains("Password") || a.Contains("MFA") || a.Contains("Role") => "tone-warn",
+        _ => "tone-neutral",
+    };
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-neutral"><i class="bi bi-clock-history"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Audit trail</h1>
+        <p class="vl-page-sub">Every audit entry across records and the system-wide chain. Entries are append-only and hash-chained; each one seals the previous (PLT-1006, INV-055).</p>
+    </div>
+    <a class="btn btn-light" href="/admin/audit/config"><i class="bi bi-file-diff"></i>Configuration audit</a>
+</div>
+
+@if (Model.Run != null)
+{
+    var ok = Model.Run.Outcome == "Succeeded" && problems.Count == 0;
+    <div class="vl-banner @(ok ? "vl-banner-ok" : "vl-banner-bad")" role="status">
+        <i class="bi @(ok ? "bi-shield-fill-check" : "bi-shield-fill-x")"></i>
+        <div class="flex-grow-1 min-w-0">
+            <div class="ttl">@(ok ? "All hash chains verified" : problems.Count > 0 ? $"Integrity check found {Ui.Plural(problems.Count, "problem")}" : "The integrity check failed")</div>
+            @if (problems.Count > 0) { <ul>@foreach (var p in problems.Take(10)) { <li>@p</li> }</ul> }
+            <details class="mt-1"><summary class="small">Run log · @Ui.Time(Model.Run.StartedAt, tz, false)@(Model.Run.EndedAt is { } e ? $" · {(e - Model.Run.StartedAt).TotalSeconds:0.0} s" : "")</summary><pre class="adm-log">@Model.Run.Log</pre></details>
+        </div>
+    </div>
+}
+
+<div class="card mb-4 adm-integrity">
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+        <span class="adm-integrity-icon @(lastOk switch { true => "tone-ok", false => "tone-bad", _ => "tone-neutral" })"><i class="bi @(lastOk switch { true => "bi-shield-fill-check", false => "bi-shield-fill-x", _ => "bi-shield" })"></i></span>
+        <div class="flex-grow-1 min-w-0">
+            <div class="fw-semibold">Hash-chain integrity: @(lastOk switch { true => "intact", false => "discrepancies found", _ => "not checked yet" })</div>
+            <div class="small text-body-secondary">@Model.Entries.ToString("N0") entries in @Model.Chains.ToString("N0") chains @if (Model.LastCheck != null) { <text> · last checked </text>@Ui.Time(Model.LastCheck.At, tz)<text> · @Model.LastCheck.Detail</text> }</div>
+        </div>
+        <form method="post" asp-page-handler="Verify" class="m-0" data-adm-busy>
+            <button class="btn btn-ink"><i class="bi bi-shield-check"></i>Verify hash chains now</button>
+        </form>
+    </div>
+</div>
+
+<form class="card mb-3" method="get" role="search">
+    <div class="card-body adm-filters">
+        <div><span class="form-label">Scope</span>
+            <div class="vl-filter-pills" role="group" aria-label="Scope">
+                @foreach (var (k, l) in scopes) { <a class="@((Model.Scope ?? "") == k ? "active" : "")" href="@Model.With("scope", k)">@l</a> }
+            </div>
+            @if (Model.Scope != null) { <input type="hidden" name="scope" value="@Model.Scope" /> }
+        </div>
+        <div><label class="form-label" for="a-user">User</label><input class="form-control form-control-sm" id="a-user" name="user" value="@Model.UserFilter" placeholder="Name" /></div>
+        <div><label class="form-label" for="a-action">Action</label>
+            <select class="form-select form-select-sm" id="a-action" name="action" data-autosubmit>
+                <option value="">Any action</option>
+                @foreach (var a in Model.Actions) { <option value="@a" selected="@(Model.Action == a)">@a</option> }
+            </select></div>
+        <div><label class="form-label" for="a-num">Record number</label><input class="form-control form-control-sm" id="a-num" name="number" value="@Model.Number" placeholder="e.g. CAPA-" /></div>
+        <div><label class="form-label" for="a-from">From</label><input class="form-control form-control-sm" type="date" id="a-from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" /></div>
+        <div><label class="form-label" for="a-to">To</label><input class="form-control form-control-sm" type="date" id="a-to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" /></div>
+        <div class="adm-filters-grow"><label class="form-label" for="a-q">Text</label><input class="form-control form-control-sm" id="a-q" name="q" value="@Model.Q" placeholder="Detail, reason, field or value" /></div>
+        <div class="adm-filters-actions">
+            <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i>Search</button>
+            @if (Model.Filtered) { <a class="btn btn-sm btn-ghost" href="/admin/audit"><i class="bi bi-x"></i>Clear</a> }
+        </div>
+    </div>
+</form>
+
+<div class="vl-table-wrap">
+    @if (Model.Result.Total == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-clock-history"></i></div><h3>No audit entries match</h3><p>Try widening the search.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table vl-table-compact">
+                <thead><tr><th scope="col">Time</th><th scope="col">Who</th><th scope="col">Action</th><th scope="col">Record</th><th scope="col">Change</th><th scope="col">Seal</th></tr></thead>
+                <tbody>
+                    @foreach (var row in Model.Result.Items)
+                    {
+                        var a = row.A;
+                        var form = row.FormId is { } fid ? Model.Config.FormsById.GetValueOrDefault(fid) : null;
+                        <tr>
+                            <td class="text-nowrap">@Ui.Time(a.At, tz, false)</td>
+                            <td class="text-nowrap">
+                                @if (a.ActorKind == ActorKind.System) { <span class="adm-person"><span class="adm-sys-avatar sm"><i class="bi bi-cpu"></i></span><span>@a.UserName</span></span> }
+                                else if (a.UserId is { } uid && Shell.Directory.Get(uid) is { } who) { <span class="adm-person">@Ui.Avatar(who, "xs")<span>@a.UserName</span></span> }
+                                else { <span>@a.UserName</span> }
+                                @if (a.OnBehalfOfName != null) { <span class="d-block x-small text-body-tertiary">for @a.OnBehalfOfName</span> }
+                                @if (a.Source != "UI") { <span class="d-block x-small text-body-tertiary">via @a.Source</span> }
+                            </td>
+                            <td><span class="adm-action @Tone(a.Action)">@a.Action</span></td>
+                            <td class="text-nowrap">
+                                @if (a.RecordId is { } rid && row.Number != null)
+                                {
+                                    <a class="fw-semibold" href="/records/@rid">@row.Number@(row.Revision != null ? " rev " + row.Revision : "")</a>
+                                    <span class="d-block x-small text-body-tertiary">@form?.Name</span>
+                                }
+                                else if (a.RecordId != null) { <span class="text-body-tertiary">Deleted record</span> }
+                                else { <span class="vl-kw">System-wide</span> }
+                            </td>
+                            <td class="adm-change">
+                                @if (a.FieldLabel != null || a.OldValue != null || a.NewValue != null)
+                                {
+                                    <div class="vl-diff mt-0">
+                                        <span class="k">@(a.FieldLabel ?? a.FieldKey ?? "Value")</span>
+                                        <span>@if (a.OldValue != null) { <span class="old">@a.OldValue</span> <i class="bi bi-arrow-right text-body-tertiary"></i> } <span class="new">@(a.NewValue ?? "–")</span></span>
+                                    </div>
+                                }
+                                @if (a.Detail != null) { <div class="small @(a.FieldLabel != null ? "mt-1 text-body-secondary" : "")">@a.Detail</div> }
+                                @if (a.Reason != null) { <div class="small text-body-secondary mt-1"><i class="bi bi-chat-left-quote"></i> @a.Reason</div> }
+                            </td>
+                            <td class="text-nowrap"><span class="vl-hash" title="Hash @a.Hash&#10;Previous @a.PrevHash">#@a.Seq · @(a.Hash.Length > 10 ? a.Hash[..10] : a.Hash)</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model='PagerModel.For(Model.Result, "entries", Request)' />
+    }
+</div>

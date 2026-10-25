@@ -1,0 +1,203 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Administration";
+    ViewData["AdminHome"] = true;
+    var s = Model.Stats;
+    var settings = Shell.Settings;
+    var tz = Shell.TimeZone;
+    var integrityOk = s.LastIntegrity?.Success;
+}
+
+<div class="vl-hero">
+    <div>
+        <div class="vl-hero-date">Administration Center</div>
+        <h1>@settings.OrganizationName</h1>
+        <p class="d-flex flex-wrap align-items-center gap-2">
+            <span>@settings.EnvironmentName environment</span>
+            <span class="text-body-tertiary" aria-hidden="true">·</span>
+            @if (settings.RegulatedMode)
+            {
+                <span class="vl-kw vl-kw-violet" title="Configuration that weakens compliance controls is rejected (SAF-010)"><i class="bi bi-shield-lock-fill"></i>Regulated mode</span>
+            }
+            else
+            {
+                <span class="vl-kw vl-kw-warning">Regulated mode off</span>
+            }
+            @if (!Shell.IsProduction) { <span class="vl-kw vl-kw-warning">Non-production</span> }
+        </p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-light" href="/admin/compliance"><i class="bi bi-shield-check"></i>Compliance posture</a>
+        <a class="btn btn-light" href="/admin/audit"><i class="bi bi-clock-history"></i>Audit trail</a>
+        <a class="btn btn-primary" href="/admin/users/new"><i class="bi bi-person-plus"></i>New user</a>
+    </div>
+</div>
+
+@if (integrityOk == false)
+{
+    <div class="vl-banner vl-banner-bad" role="alert">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <div class="flex-grow-1"><div class="ttl">The last data integrity check found discrepancies</div><div class="small">@s.LastIntegrity!.Detail</div></div>
+        <a class="btn btn-sm btn-danger" href="/admin/audit">Review and re-check</a>
+    </div>
+}
+@if (Model.FailingTasks.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert">
+        <i class="bi bi-stopwatch"></i>
+        <div class="flex-grow-1"><div class="ttl">@Ui.Plural(Model.FailingTasks.Count, "scheduled task") failed on the last run</div>
+            <div class="small">@string.Join(", ", Model.FailingTasks.Select(t => t.Name)). Administrators are notified on each failure until the task succeeds or is disabled (ADM-804).</div></div>
+        <a class="btn btn-sm btn-light" href="/admin/tasks">Open scheduled tasks</a>
+    </div>
+}
+@if (Model.Locked.Count > 0)
+{
+    <div class="vl-banner vl-banner-warn">
+        <i class="bi bi-lock-fill"></i>
+        <div class="flex-grow-1"><div class="ttl">@(s.UsersLocked == 1 ? "1 account is" : $"{s.UsersLocked} accounts are") locked after failed sign-ins</div>
+            <div class="small d-flex flex-wrap gap-2 mt-1">@foreach (var u in Model.Locked) { <a class="vl-person" href="/admin/users/@u.Id">@Ui.Avatar(Shell.Directory.Get(u.Id), "xs")<span class="vl-person-name">@u.DisplayName</span></a> }</div></div>
+        <a class="btn btn-sm btn-light" href="/admin/users?status=disabled">Review accounts</a>
+    </div>
+}
+
+<div class="row g-3 mb-2">
+    <div class="col-6 col-md-4 col-xl-3">
+        <a class="vl-stat" href="/admin/users?status=active">
+            <span class="vl-stat-icon tone-info"><i class="bi bi-people-fill"></i></span>
+            <div class="vl-stat-value">@s.UsersActive</div>
+            <div class="vl-stat-label">Active users</div>
+            <div class="adm-stat-sub"><span class="@(s.UsersDisabled > 0 ? "text-warning-emphasis" : "")">@s.UsersDisabled disabled</span> · @s.UsersInactive inactive</div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-3">
+        <a class="vl-stat" href="/admin/groups">
+            <span class="vl-stat-icon tone-info"><i class="bi bi-diagram-3-fill"></i></span>
+            <div class="vl-stat-value">@s.Groups</div>
+            <div class="vl-stat-label">Groups</div>
+            <div class="adm-stat-sub">@s.GroupsInactive inactive · @Ui.Plural(s.Locations, "location")</div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-3">
+        <a class="vl-stat" href="/admin/sessions">
+            <span class="vl-stat-icon tone-ok"><i class="bi bi-broadcast"></i></span>
+            <div class="vl-stat-value">@s.Sessions</div>
+            <div class="vl-stat-label">Open sessions</div>
+            <div class="adm-stat-sub">@Ui.Plural(s.SignedInUsers, "person") signed in</div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-3">
+        <a class="vl-stat" href="/admin/security-log?outcome=failure&amp;kind=Login+failed">
+            <span class="vl-stat-icon @(s.FailedLogins24h > 0 ? "tone-warn" : "tone-ok")"><i class="bi @(s.FailedLogins24h > 0 ? "bi-person-x-fill" : "bi-person-check-fill")"></i></span>
+            <div class="vl-stat-value">@s.FailedLogins24h</div>
+            <div class="vl-stat-label">Failed sign-ins (24 h)</div>
+            <div class="adm-stat-sub">@(s.UsersLocked > 0 ? Ui.Plural(s.UsersLocked, "locked account") : "No locked accounts")</div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-3">
+        <a class="vl-stat" href="/admin/tasks">
+            <span class="vl-stat-icon @(s.TaskFailures > 0 ? "tone-bad" : "tone-ok")"><i class="bi @(s.TaskFailures > 0 ? "bi-exclamation-triangle-fill" : "bi-stopwatch-fill")"></i></span>
+            <div class="vl-stat-value @(s.TaskFailures > 0 ? "text-danger" : "")">@s.TaskFailures</div>
+            <div class="vl-stat-label">Scheduled task failures</div>
+            <div class="adm-stat-sub">@Ui.Plural(s.TasksTotal, "task profile")</div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-3">
+        <a class="vl-stat" href="/admin/audit">
+            <span class="vl-stat-icon @(integrityOk switch { true => "tone-ok", false => "tone-bad", _ => "tone-neutral" })"><i class="bi @(integrityOk switch { true => "bi-shield-fill-check", false => "bi-shield-fill-x", _ => "bi-shield" })"></i></span>
+            <div class="vl-stat-value adm-stat-text">@(integrityOk switch { true => "Intact", false => "Problems", _ => "Not checked" })</div>
+            <div class="vl-stat-label">Audit trail integrity</div>
+            <div class="adm-stat-sub">@if (s.LastIntegrity != null) { <text>Checked </text>@Ui.Time(s.LastIntegrity.At, tz) } else { <text>Run the integrity check</text> }</div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-3">
+        <a class="vl-stat" href="/admin/compliance">
+            <span class="vl-stat-icon @(s.PostureIssues > 0 ? "tone-bad" : s.PostureWarnings > 0 ? "tone-warn" : "tone-ok")"><i class="bi bi-clipboard2-check-fill"></i></span>
+            <div class="vl-stat-value @(s.PostureIssues > 0 ? "text-danger" : "")">@(s.PostureIssues + s.PostureWarnings)</div>
+            <div class="vl-stat-label">Compliance findings</div>
+            <div class="adm-stat-sub">@s.PostureIssues issues · @s.PostureWarnings warnings</div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-3">
+        <a class="vl-stat" href="/admin/settings">
+            <span class="vl-stat-icon tone-brand"><i class="bi bi-sliders"></i></span>
+            <div class="vl-stat-value adm-stat-text">@settings.SessionIdleMinutes min</div>
+            <div class="vl-stat-label">Idle timeout</div>
+            <div class="adm-stat-sub">Passwords @settings.PasswordMinLength+ chars · MFA @(settings.MfaRequired ? "required" : "optional")</div>
+        </a>
+    </div>
+</div>
+
+@foreach (var cat in AdminCatalog.Categories)
+{
+    <h2 class="vl-suite-head"><span class="adm-cat-num">@cat.Number</span>@cat.Name</h2>
+    <div class="row g-3">
+        @foreach (var a in cat.Areas)
+        {
+            <div class="col-sm-6 col-lg-4 col-xxl-3">
+                <a class="adm-tile" href="@a.Href">
+                    <span class="adm-tile-icon @a.Tone"><i class="bi @a.Icon"></i></span>
+                    <span class="min-w-0">
+                        <span class="adm-tile-name">@a.Label</span>
+                        <span class="adm-tile-desc">@a.Description</span>
+                        <span class="adm-tile-ref">@a.Refs</span>
+                    </span>
+                    <i class="bi bi-chevron-right adm-tile-go" aria-hidden="true"></i>
+                </a>
+            </div>
+        }
+    </div>
+}
+
+<div class="row g-4 mt-1">
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-clock-history"></i>Recent administrative activity</h2><a class="ms-auto small" href="/admin/audit?scope=global">View all</a></div>
+            @if (Model.Recent.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-clock-history"></i></div><p>No system-wide changes yet.</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var a in Model.Recent)
+                    {
+                        <div class="vl-list-item">
+                            @if (a.UserId is { } uid && Shell.Directory.Get(uid) is { IsSystem: false } who) { @Ui.Avatar(who, "md") } else { <span class="adm-sys-avatar"><i class="bi bi-cpu"></i></span> }
+                            <span class="main">
+                                <span class="line1"><span class="ttl">@a.Action</span></span>
+                                <span class="line2 d-block">@(a.FieldLabel != null ? $"{a.Detail} · {a.FieldLabel}: {a.OldValue ?? "–"} → {a.NewValue ?? "–"}" : a.Detail)</span>
+                            </span>
+                            <span class="aside small text-body-tertiary text-nowrap">@a.UserName · @Ui.Time(a.At, tz)</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-shield-exclamation"></i>Recent security failures</h2><a class="ms-auto small" href="/admin/security-log?outcome=failure">View all</a></div>
+            @if (Model.Failures.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon tone-ok"><i class="bi bi-shield-check"></i></div><p>No failed security events.</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var e in Model.Failures)
+                    {
+                        <div class="vl-list-item">
+                            <span class="adm-ev-icon tone-bad"><i class="bi @(e.Kind.Contains("lock", StringComparison.OrdinalIgnoreCase) ? "bi-lock-fill" : e.Kind.Contains("Integrity") ? "bi-shield-fill-x" : "bi-x-octagon-fill")"></i></span>
+                            <span class="main">
+                                <span class="line1"><span class="ttl">@e.Kind</span>@if (e.Username != null) { <span class="num">@e.Username</span> }</span>
+                                <span class="line2 d-block">@(e.Detail ?? "–")@(e.Ip != null ? $" · {e.Ip}" : "")</span>
+                            </span>
+                            <span class="aside small text-body-tertiary text-nowrap">@Ui.Time(e.At, tz)</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>

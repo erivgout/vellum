@@ -1,0 +1,19 @@
+@{
+    var path = (Context.Request.Path.Value ?? "").ToLowerInvariant();
+    var active = AdminCatalog.Active(path);
+}
+<button class="btn btn-light w-100 justify-content-between d-lg-none mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#adm-nav" aria-expanded="false" aria-controls="adm-nav">
+    <span class="d-inline-flex align-items-center gap-2"><i class="bi @(active?.Icon ?? "bi-speedometer2")"></i>@(active?.Label ?? "Overview")</span>
+    <i class="bi bi-chevron-down"></i>
+</button>
+<nav class="vl-viewnav adm-nav collapse d-lg-block" id="adm-nav" aria-label="Administration Center">
+    <a href="/admin" class="@(active == null && path.TrimEnd('/') == "/admin" ? "active" : "")"><i class="bi bi-speedometer2"></i><span class="text-truncate">Overview</span></a>
+    @foreach (var cat in AdminCatalog.Categories)
+    {
+        <div class="vl-nav-label"><span class="adm-nav-num">@cat.Number</span>@cat.Name</div>
+        @foreach (var a in cat.Areas)
+        {
+            <a href="@a.Href" class="@(active == a ? "active" : "")" aria-current="@(active == a ? "page" : null)"><i class="bi @a.Icon"></i><span class="text-truncate">@a.Label</span></a>
+        }
+    }
+</nav>

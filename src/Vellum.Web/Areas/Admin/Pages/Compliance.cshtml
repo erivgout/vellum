@@ -1,0 +1,88 @@
+@page
+@model ComplianceModel
+@{
+    ViewData["Title"] = "Compliance posture";
+    var tz = Shell.TimeZone;
+    var ok = Model.Items.Count(x => x.Status.Level == "ok");
+    var warn = Model.Items.Count(x => x.Status.Level == "warn");
+    var bad = Model.Items.Count(x => x.Status.Level == "bad");
+    var info = Model.Items.Count(x => x.Status.Level == "info");
+    (string Icon, string Text, string Cls) Level(string l) => l switch
+    {
+        "ok" => ("bi-check-circle-fill", "OK", "ok"),
+        "warn" => ("bi-exclamation-triangle-fill", "Warning", "warn"),
+        "bad" => ("bi-x-octagon-fill", "Issue", "bad"),
+        _ => ("bi-info-circle-fill", "Note", "info"),
+    };
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-ok"><i class="bi bi-shield-check"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Compliance posture</h1>
+        <p class="vl-page-sub">Every compliance-sensitive setting and the controls behind it, with its regulatory reference (SAF-011). Generated @Ui.Time(DateTime.UtcNow, tz, false).</p>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <button class="btn btn-light" type="button" data-print><i class="bi bi-printer"></i>Print</button>
+        <a class="btn btn-primary" href="/admin/settings"><i class="bi bi-sliders"></i>System preferences</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon @(Model.Settings.RegulatedMode ? "tone-violet" : "tone-warn")"><i class="bi bi-shield-lock-fill"></i></span><div class="vl-stat-value adm-stat-text">@(Model.Settings.RegulatedMode ? "On" : "Off")</div><div class="vl-stat-label">Regulated mode</div></div></div>
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon tone-ok"><i class="bi bi-check-circle-fill"></i></span><div class="vl-stat-value">@ok</div><div class="vl-stat-label">Meeting the recommended level</div></div></div>
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon @(warn > 0 ? "tone-warn" : "tone-neutral")"><i class="bi bi-exclamation-triangle-fill"></i></span><div class="vl-stat-value">@warn</div><div class="vl-stat-label">Warnings</div></div></div>
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon @(bad > 0 ? "tone-bad" : "tone-neutral")"><i class="bi bi-x-octagon-fill"></i></span><div class="vl-stat-value @(bad > 0 ? "text-danger" : "")">@bad</div><div class="vl-stat-label">Issues@(info > 0 ? $" · {info} notes" : "")</div></div></div>
+</div>
+
+@foreach (var area in Model.Items.GroupBy(x => x.Area))
+{
+    <div class="vl-table-wrap mb-4">
+        <div class="adm-table-title"><i class="bi @(area.Key switch { "Settings" => "bi-sliders", "Controls" => "bi-gear-wide-connected", _ => "bi-people" })"></i>@(area.Key switch { "Settings" => "Compliance-sensitive settings", "Controls" => "Platform controls", _ => "People and access" })</div>
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead><tr><th scope="col">Setting</th><th scope="col">Current value</th><th scope="col">Status</th><th scope="col">Reference</th></tr></thead>
+                <tbody>
+                    @foreach (var x in area)
+                    {
+                        var lv = Level(x.Status.Level);
+                        <tr>
+                            <td class="adm-posture-name">
+                                @if (x.Href != null) { <a class="fw-semibold" href="@x.Href">@x.Label</a> } else { <span class="fw-semibold">@x.Label</span> }
+                                <span class="d-block small text-body-tertiary">@x.Effect</span>
+                            </td>
+                            <td class="adm-posture-value">@x.Value</td>
+                            <td><span class="adm-status @lv.Cls"><i class="bi @lv.Icon"></i>@lv.Text</span><span class="d-block small text-body-secondary">@x.Status.Note</span></td>
+                            <td class="text-nowrap small mono">@x.Reference</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<div class="card">
+    <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-file-diff"></i>Recent changes to system preferences</h2><a class="ms-auto small" href="/admin/audit/config?type=SystemSettings">Configuration audit</a></div>
+    @if (Model.RecentChanges.Count == 0)
+    {
+        <div class="vl-empty py-4"><p>No changes since the system was set up.</p></div>
+    }
+    else
+    {
+        <div class="vl-list">
+            @foreach (var c in Model.RecentChanges)
+            {
+                var diff = AdminJson.Diff(c.Before, c.After);
+                <div class="vl-list-item">
+                    <span class="adm-ev-icon tone-brand"><i class="bi bi-sliders"></i></span>
+                    <span class="main">
+                        <span class="line1"><span class="ttl">@string.Join(", ", diff.Select(d => AdminJson.Humanize(d.Path)).Take(4))@(diff.Count > 4 ? $" +{diff.Count - 4}" : "")</span></span>
+                        <span class="line2 d-block">@c.UserName@(c.Reason != null ? " · “" + c.Reason + "”" : "")</span>
+                    </span>
+                    <span class="aside small text-body-tertiary">@Ui.Time(c.At, tz)</span>
+                </div>
+            }
+        </div>
+    }
+</div>
