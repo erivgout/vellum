@@ -1,0 +1,29 @@
+@model Vellum.Modules.Projects.ProjectProgressVm
+@{
+    var vm = Model;
+    var riskTone = vm.Risk switch { "high" => "vl-kw-danger", "low" => "vl-kw-warning", _ => "vl-kw-success" };
+    var riskLabel = vm.Risk switch { "high" => "High risk", "low" => "Low risk", _ => "No risk" };
+    var currentIndex = vm.CurrentStage == null ? -1 : Array.IndexOf(Vellum.Modules.Projects.ProjectsApp.Stages, vm.CurrentStage);
+}
+<div class="d-flex align-items-center gap-2 mb-1">
+    <span class="fw-semibold">@vm.Percent.ToString("0", CultureInfo.InvariantCulture)% of tasks done</span>
+    <span class="vl-kw @riskTone ms-auto" title="Schedule risk (PRJ-008)"><i class="bi @(vm.Risk == "high" ? "bi-exclamation-octagon" : vm.Risk == "low" ? "bi-exclamation-triangle" : "bi-check-circle")"></i> @riskLabel</span>
+</div>
+<div class="vl-progress mb-2" role="progressbar" aria-valuenow="@vm.Percent" aria-valuemin="0" aria-valuemax="100" aria-label="Tasks complete"><span style="width:@(vm.Percent.ToString(CultureInfo.InvariantCulture))%"></span></div>
+<div class="small text-body-secondary mb-3">@vm.Done of @vm.Total tasks closed · @vm.Open open@(vm.Overdue > 0 ? $" · {vm.Overdue} overdue" : "")@(vm.DueSoon > 0 ? $" · {vm.DueSoon} due within 3 days" : "")</div>
+<ul class="vl-stage-list">
+    @for (var i = 0; i < vm.Stages.Count; i++)
+    {
+        var st = vm.Stages[i];
+        var passed = currentIndex < 0 ? st.Decision != null : i < currentIndex;
+        var current = i == currentIndex;
+        <li>
+            <i class="bi @(passed ? "bi-check-circle-fill text-success" : current ? "bi-record-circle text-primary" : "bi-circle text-body-tertiary")" aria-hidden="true"></i>
+            <span class="grow"><span class="@(current ? "fw-semibold" : "")">@st.Label</span>
+                <span class="text-body-tertiary"> · @st.Done/@st.Total tasks@(st.Overdue > 0 ? $", {st.Overdue} overdue" : "")</span></span>
+            @if (st.Decision != null) { @Ui.Keyword(st.Decision) }
+            else if (current) { <span class="vl-kw">Gate pending</span> }
+        </li>
+    }
+</ul>
+<div class="small text-body-tertiary mt-2">Each gate needs a Go decision on the Gates tab, every task of the stage closed, and the e-signature of every gate approver.</div>

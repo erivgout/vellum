@@ -1,0 +1,63 @@
+/* EHS, Assets & Calibration and Projects module styles. Built on the Vellum design tokens in site.css. */
+
+/* ---------- OSHA reporting clock (EHS-114) ---------- */
+.vl-osha-clock { padding: 1rem 1.15rem; margin-bottom: 1.1rem; border-width: 1px 1px 1px 4px; }
+.vl-osha-clock.vl-banner-bad { border-left-color: var(--vl-bad); }
+.vl-osha-clock.vl-banner-ok { border-left-color: var(--vl-ok); }
+.vl-osha-clock.vl-banner-warn { border-left-color: var(--vl-warn); }
+.vl-osha-clock > .bi { font-size: 1.35rem; margin-top: 0.1rem; }
+.vl-osha-top { display: flex; gap: 1.25rem; align-items: flex-start; flex-wrap: wrap; }
+.vl-osha-eyebrow { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 680; color: var(--vl-text-2); margin-bottom: 0.2rem; }
+.vl-osha-title { font-size: 1.02rem; font-weight: 680; letter-spacing: -0.015em; margin: 0 0 0.25rem; }
+.vl-osha-rule { font-size: 0.8rem; color: var(--vl-text-2); margin: 0; max-width: 62ch; }
+.vl-osha-count { text-align: right; min-width: 150px; padding: 0.45rem 0.8rem; border-radius: 10px; background: var(--vl-surface); border: 1px solid var(--vl-bad-border); }
+.vl-osha-count-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--vl-text-3); font-weight: 650; }
+.vl-osha-count-value { font-size: 1.55rem; font-weight: 720; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--vl-bad); line-height: 1.15; white-space: nowrap; }
+.vl-osha-clock.is-missed .vl-osha-count { background: var(--vl-bad); border-color: var(--vl-bad); }
+.vl-osha-clock.is-missed .vl-osha-count-value, .vl-osha-clock.is-missed .vl-osha-count-label { color: #fff; }
+.vl-osha-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.5rem 1.25rem; margin: 0.85rem 0 0; padding-top: 0.75rem; border-top: 1px dashed var(--vl-bad-border); font-size: 0.8rem; }
+.vl-banner-ok .vl-osha-facts { border-top-color: var(--vl-ok-border); }
+.vl-banner-warn .vl-osha-facts { border-top-color: var(--vl-warn-border); }
+.vl-osha-facts dt { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--vl-text-3); font-weight: 650; }
+.vl-osha-facts dd { margin: 0.1rem 0 0; font-weight: 540; }
+.vl-osha-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.8rem; }
+.vl-osha-foot .grow { flex: 1; }
+.vl-osha-ack { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--vl-text-2); }
+.vl-osha-ack.ok { color: var(--vl-ok); font-weight: 560; }
+
+/* ---------- Near-miss quick report ---------- */
+.vl-quick { max-width: 760px; }
+.vl-quick .card-body { padding: 1.4rem 1.5rem; }
+.vl-quick-done { text-align: center; padding: 2.5rem 1.5rem; }
+.vl-quick-done .vl-empty-icon { width: 64px; height: 64px; font-size: 1.8rem; }
+.vl-anon { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.8rem 1rem; border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); background: var(--vl-surface-2); }
+
+/* ---------- OSHA log & rates ---------- */
+.vl-rate-value { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+.vl-rate-formula { font-size: 0.72rem; color: var(--vl-text-3); margin-top: 0.35rem; font-variant-numeric: tabular-nums; }
+.vl-osha-log td.check, .vl-osha-log th.check { text-align: center; width: 3.2rem; }
+.vl-osha-log tfoot td { font-weight: 650; background: var(--vl-surface-2); border-top: 1px solid var(--vl-border-strong); }
+.vl-osha-log .privacy { font-style: italic; color: var(--vl-text-2); }
+.vl-filterbar { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem; margin-bottom: 1.25rem; }
+.vl-filterbar .form-select { min-width: 9rem; }
+
+/* ---------- Assets & calibration ---------- */
+.vl-cal-status { display: flex; align-items: center; gap: 0.75rem; }
+.vl-cal-status .big { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.vl-cal-history { list-style: none; margin: 0; padding: 0; font-size: 0.8rem; }
+.vl-cal-history li { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--vl-border); }
+.vl-cal-history li:last-child { border-bottom: 0; }
+.vl-cal-history .grow { flex: 1; min-width: 0; }
+.vl-widget-counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; padding: 0.85rem 1rem 0.25rem; }
+.vl-widget-counts a { display: block; padding: 0.55rem 0.6rem; border-radius: var(--vl-radius-sm); border: 1px solid var(--vl-border); color: var(--vl-text); text-align: center; }
+.vl-widget-counts a:hover { text-decoration: none; border-color: var(--vl-border-strong); background: var(--vl-surface-2); }
+.vl-widget-counts .n { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.vl-widget-counts .l { font-size: 0.7rem; color: var(--vl-text-2); font-weight: 560; }
+
+/* ---------- Projects ---------- */
+.vl-progress { height: 8px; border-radius: 999px; background: var(--vl-surface-3); overflow: hidden; }
+.vl-progress > span { display: block; height: 100%; background: var(--vl-ok); border-radius: 999px; }
+.vl-stage-list { list-style: none; margin: 0; padding: 0; font-size: 0.8rem; }
+.vl-stage-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.38rem 0; border-bottom: 1px solid var(--vl-border); }
+.vl-stage-list li:last-child { border-bottom: 0; }
+.vl-stage-list .grow { flex: 1; min-width: 0; }

@@ -1,0 +1,108 @@
+@page "/ehs/near-miss"
+@model Vellum.Areas.Ehs.Pages.NearMissModel
+@using Vellum.Modules.Kit
+@{
+    ViewData["Title"] = "Report a near miss";
+    ViewData["ActiveApp"] = "ehs";
+    string Inv(string key) => Model.Err(key) != null ? " is-invalid" : "";
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/ehs">Environment, Health &amp; Safety</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Report a near miss</span>
+}
+
+<div class="vl-quick mx-auto">
+    @if (Model.Created is { } done)
+    {
+        <div class="card">
+            <div class="vl-quick-done">
+                <div class="vl-empty-icon tone-ok"><i class="bi bi-hand-thumbs-up"></i></div>
+                <h1 class="h4 fw-bold mb-2">Thank you for speaking up</h1>
+                <p class="text-body-secondary mb-3">Your near miss is logged as <strong>@done.Number</strong> and is with the EHS team now.
+                    @if (Model.WasAnonymous) { <br /><span>It was submitted anonymously: your name isn't stored on the report.</span> }
+                </p>
+                <div class="d-flex justify-content-center gap-2">
+                    <a class="btn btn-primary" href="/records/@done.Id"><i class="bi bi-box-arrow-up-right"></i>Open @done.Number</a>
+                    <a class="btn btn-light" href="/ehs/near-miss"><i class="bi bi-plus-lg"></i>Report another</a>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="vl-page-head align-items-center">
+            <span class="vl-app-tile lg" style="--app:#ea580c"><i class="bi bi-megaphone"></i></span>
+            <div class="min-w-0 flex-grow-1">
+                <h1 class="vl-page-title">Report a near miss</h1>
+                <p class="vl-page-sub">Something nearly went wrong? Tell us in two minutes. Every report helps prevent the next injury.</p>
+            </div>
+        </div>
+
+        @if (Model.Errors.Count > 0)
+        {
+            <div class="vl-banner vl-banner-bad" role="alert"><i class="bi bi-exclamation-octagon"></i><div><div class="ttl">Please check the highlighted fields</div><ul>@foreach (var e in Model.Errors.Values) { <li>@e</li> }</ul></div></div>
+        }
+        <div class="vl-banner vl-banner-info"><i class="bi bi-info-circle"></i><div class="small">If someone was hurt, or there was a spill, fire or damage, use <a href="/records/new?form=incident">New Incident</a> instead. In an emergency call site security first.</div></div>
+
+        <form method="post" class="card" novalidate>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="nm-subject">What nearly happened? <span class="req">*</span></label>
+                        <input class="form-control@(Inv("Subject"))" id="nm-subject" name="Subject" value="@Model.Subject" maxlength="200" required placeholder="For example: Pallet slipped off forklift forks near the walkway" />
+                        @if (Model.Err("Subject") is { } e1) { <div class="invalid-feedback">@e1</div> }
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="nm-site">Site <span class="req">*</span></label>
+                        <select class="form-select@(Inv("Site"))" id="nm-site" name="Site" required>
+                            <option value="">Choose…</option>
+                            @foreach (var s in Sites.All) { <option value="@s.Key" selected="@(s.Key == Model.Site)">@s.Name</option> }
+                        </select>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label" for="nm-area">Where exactly?</label>
+                        <input class="form-control" id="nm-area" name="Area" value="@Model.Area" maxlength="200" placeholder="Building, line, room or equipment" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="nm-when">When? <span class="req">*</span></label>
+                        <input type="datetime-local" class="form-control@(Inv("OccurredAt"))" id="nm-when" name="OccurredAt" value="@Model.OccurredAt" required />
+                        <div class="form-text">Your time zone (@Shell.TimeZone.StandardName).</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="nm-potential">How bad could it have been?</label>
+                        <select class="form-select" id="nm-potential" name="Potential">
+                            <option value="">Not sure</option>
+                            @foreach (var k in Model.PotentialOptions) { <option value="@k.Key" selected="@(k.Key == Model.Potential)">@k.Label</option> }
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="nm-desc">Describe what happened <span class="req">*</span></label>
+                        <textarea class="form-control vl-autogrow@(Inv("Description"))" id="nm-desc" name="Description" rows="4" required placeholder="What was going on, what went wrong, and what stopped it from becoming an injury?">@Model.Description</textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="nm-immediate">What did you do straight away?</label>
+                        <textarea class="form-control vl-autogrow" id="nm-immediate" name="Immediate" rows="2">@Model.Immediate</textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="nm-suggestion">How could we prevent it?</label>
+                        <textarea class="form-control vl-autogrow" id="nm-suggestion" name="Suggestion" rows="2">@Model.Suggestion</textarea>
+                    </div>
+                    <div class="col-12">
+                        <div class="vl-anon">
+                            <div class="form-check m-0">
+                                <input class="form-check-input" type="checkbox" value="true" id="nm-anon" name="Anonymous" checked="@Model.Anonymous" />
+                                <label class="form-check-label fw-semibold" for="nm-anon">Report anonymously</label>
+                            </div>
+                            <div class="small text-body-secondary">Your name won't be stored on the report or in its history. EHS won't be able to ask you follow-up questions, so describe things as fully as you can.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-end gap-2">
+                <a class="btn btn-light" href="/apps/ehs">Cancel</a>
+                <button class="btn btn-primary"><i class="bi bi-send"></i>Send to EHS</button>
+            </div>
+        </form>
+    }
+</div>

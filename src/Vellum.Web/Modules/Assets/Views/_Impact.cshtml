@@ -1,0 +1,39 @@
+@model Vellum.Modules.Assets.ImpactVm
+@{
+    var vm = Model;
+    string D(DateOnly? d) => d?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "the first recorded use";
+}
+<section class="card vl-section">
+    <div class="card-header">
+        <span class="vl-section-icon"><i class="bi bi-diagram-3"></i></span>
+        <div class="min-w-0">
+            <h3 class="card-title-sm">Measurement impact assessment</h3>
+            <p class="vl-section-desc">Calibrations that used this asset as a standard between its last passing calibration (@D(vm.Since)) and this as-found failure (@D(vm.Until)). Review each result (AST-024, SAF-040).</p>
+        </div>
+    </div>
+    @if (vm.Rows.Count == 0)
+    {
+        <div class="card-body">
+            <div class="vl-prompt"><i class="bi bi-info-circle-fill"></i><div>No calibrations in Vellum used this asset as a standard in that period. Check product inspections and test records that used it as a measuring tool, and record your conclusion in the impact assessment.</div></div>
+        </div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table vl-table-compact">
+                <thead><tr><th>Number</th><th>Calibration</th><th>Date</th><th>As-left result</th></tr></thead>
+                <tbody>
+                    @foreach (var r in vm.Rows)
+                    {
+                        <tr data-href="/records/@r.Id">
+                            <td class="col-number"><a href="/records/@r.Id">@r.Number</a></td>
+                            <td class="col-title"><span class="t">@r.Title</span></td>
+                            <td class="text-nowrap">@r.Date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</td>
+                            <td>@if (r.Phase == PhaseType.Normal) { <span class="vl-kw vl-kw-info">In progress</span> } else if (r.Result == "fail") { <span class="vl-kw vl-kw-danger">Fail</span> } else if (r.Result == "pass") { <span class="vl-kw vl-kw-success">Pass</span> } else { <text>–</text> }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

@@ -1,0 +1,35 @@
+@model Vellum.Modules.Assets.CalDueVm
+@{
+    var vm = Model;
+    var today = BusinessCalendar.Today;
+}
+<div class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-speedometer2"></i>Calibration due</h2>
+        <a class="ms-auto small" href="/apps/assets?view=due">All assets</a>
+    </div>
+    <div class="vl-widget-counts">
+        <a href="/apps/assets?view=overdue"><div class="n @(vm.Overdue > 0 ? "text-danger" : "")">@vm.Overdue</div><div class="l"><i class="bi bi-alarm"></i> Overdue</div></a>
+        <a href="/apps/assets?view=due"><div class="n">@vm.Due</div><div class="l"><i class="bi bi-hourglass-split"></i> Due soon</div></a>
+        <a href="/apps/assets?view=quarantined"><div class="n">@vm.Quarantined</div><div class="l"><i class="bi bi-sign-stop"></i> Quarantined</div></a>
+    </div>
+    @if (vm.Items.Count == 0)
+    {
+        <div class="card-body small text-body-secondary"><i class="bi bi-check-circle text-success"></i> Every asset is in calibration.</div>
+    }
+    else
+    {
+        <div class="vl-list mt-2">
+            @foreach (var i in vm.Items)
+            {
+                <a class="vl-list-item py-2" href="/records/@i.Id">
+                    <div class="main">
+                        <div class="small fw-semibold text-truncate">@i.Title</div>
+                        <div class="small text-body-tertiary">@(i.Next is { } n ? (n < today ? $"Was due {n:dd MMM yyyy}" : $"Due {n:dd MMM yyyy}") : "No calibration recorded")</div>
+                    </div>
+                    @Ui.Keyword(i.Status)
+                </a>
+            }
+        </div>
+    }
+</div>

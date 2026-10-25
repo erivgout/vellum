@@ -1,0 +1,62 @@
+@model Vellum.Modules.Assets.AssetPanelVm
+@using Vellum.Modules.Assets
+@{
+    var vm = Model;
+    var today = BusinessCalendar.Today;
+    var days = vm.NextCal is { } n ? n.DayNumber - today.DayNumber : (int?)null;
+    var statusKey = vm.Status?.Key;
+    var tone = statusKey switch { "overdue" or "quarantined" => "tone-bad", "due" => "tone-warn", "retired" => "tone-neutral", "maintenance" => "tone-info", _ => "tone-ok" };
+    var icon = statusKey switch { "overdue" => "bi-alarm", "quarantined" => "bi-sign-stop", "due" => "bi-hourglass-split", "retired" => "bi-archive", "maintenance" => "bi-wrench", _ => "bi-check-circle" };
+    string Res(string? r) => r == "pass" ? "Pass" : r == "fail" ? "Fail" : "–";
+}
+<div class="vl-cal-status mb-3">
+    <span class="vl-stat-icon @tone mb-0"><i class="bi @icon"></i></span>
+    <div class="min-w-0">
+        <div class="fw-semibold">@(vm.Status?.Label ?? "Not set")</div>
+        @if (!vm.CalRequired)
+        {
+            <div class="small text-body-secondary">No calibration required.</div>
+        }
+        else if (days is { } d)
+        {
+            <div class="small @(d < 0 ? "text-danger fw-semibold" : "text-body-secondary")">
+                @(d < 0 ? $"Calibration overdue by {-d} day{(-d == 1 ? "" : "s")}" : d == 0 ? "Calibration due today" : $"Next calibration in {d} day{(d == 1 ? "" : "s")}") · @vm.NextCal!.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+            </div>
+        }
+        else
+        {
+            <div class="small text-body-secondary">Never calibrated in Vellum. Record an initial calibration.</div>
+        }
+    </div>
+</div>
+<dl class="vl-kv mb-3">
+    <dt>Last calibrated</dt><dd>@(vm.LastCal?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "–")</dd>
+    <dt>Last as-left result</dt><dd>@if (vm.LastResult != null) { @Ui.Keyword(vm.LastResult) } else { <text>–</text> }</dd>
+    @if (vm.CalRequired) { <dt>Interval</dt><dd>@vm.Interval days · due status @AssetStatus.DueLeadDays(vm.Interval) days ahead</dd> }
+    @if (vm.NextPm != null) { <dt>Next preventive maintenance</dt><dd>@vm.NextPm.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</dd> }
+    @if (vm.IsStandard) { <dt>Used as a standard</dt><dd>@Ui.Plural(vm.UsedAsStandard, "calibration")</dd> }
+</dl>
+@if (vm.History.Count > 0)
+{
+    <div class="vl-meta-label mb-1">History</div>
+    <ul class="vl-cal-history">
+        @foreach (var h in vm.History.Take(8))
+        {
+            <li>
+                <i class="bi @(h.Form == "calibration" ? "bi-bullseye" : "bi-wrench-adjustable") text-body-tertiary"></i>
+                <a href="/records/@h.Id" class="fw-semibold">@h.Number</a>
+                <span class="grow text-truncate text-body-secondary">@(h.Date?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "–")@(h.Type != null ? " · " + h.Type : "")</span>
+                @if (h.Phase == PhaseType.Normal)
+                {
+                    <span class="vl-kw vl-kw-info">In progress</span>
+                }
+                else if (h.Form == "calibration")
+                {
+                    <span class="vl-kw @(h.FoundResult == "fail" ? "vl-kw-danger" : "vl-kw-success")" title="As found">@Res(h.FoundResult)</span>
+                    <span class="vl-kw @(h.LeftResult == "fail" ? "vl-kw-danger" : "vl-kw-success")" title="As left">@Res(h.LeftResult)</span>
+                }
+            </li>
+        }
+    </ul>
+    <div class="small text-body-tertiary mt-1">Calibration results: as found, then as left.</div>
+}
