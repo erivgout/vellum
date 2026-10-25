@@ -7,6 +7,9 @@
     string O(string k) => Model.Origin.TryGetProperty(k, out var v) && v.ValueKind != System.Text.Json.JsonValueKind.Null ? (v.ValueKind == System.Text.Json.JsonValueKind.Array ? string.Join(", ", v.EnumerateArray().Select(x => x.ToString())) : v.ToString()) : "–";
     var matchCols = Model.Result.Columns.Where(c => c.Match).ToList();
     var extraCols = Model.Result.Columns.Where(c => !c.Match).ToList();
+    var creates = t.Action == "create";
+    var createdCount = Model.Creations.Count(c => c.Status == "Created");
+    var failedCount = Model.Creations.Count(c => c.Status is "Failed" or "PreviewFailed");
 }
 @section Crumbs {
     <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
@@ -24,7 +27,13 @@
         </div>
         <p class="vl-page-sub">Generated @Ui.Time(r.GeneratedAt, Shell.TimeZone, relative: false) · @Ui.Plural(r.GroupCount, "group") reached the minimum · @Ui.Plural(r.RecordCount, "record")</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap gap-2">
+        @if (Model.CanRetry)
+        {
+            <form method="post" action="/insights/alerts/reports/@r.Id?handler=Retry" class="m-0">@Html.AntiForgeryToken()
+                <button class="btn btn-primary" title="Create the records that are still missing. Records already created for this report are never created again."><i class="bi bi-arrow-clockwise" aria-hidden="true"></i>Retry missing records</button>
+            </form>
+        }
         <a class="btn btn-light" href="/insights/alerts/reports/@r.Id?handler=Json"><i class="bi bi-filetype-json" aria-hidden="true"></i>Data (JSON)</a>
         <a class="btn btn-light" href="/insights/alerts/@t.Id"><i class="bi bi-bell" aria-hidden="true"></i>Alert @t.Number</a>
     </div>
@@ -34,7 +43,12 @@
 {
     <div class="vl-banner vl-banner-bad" role="alert">
         <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>
-        <div><div class="ttl">The alert's action failed@(r.IsTest ? " (test run)" : "")</div>@r.ActionDetail @if (!r.IsTest) { <div class="small mt-1">The owner and every administrator were sent a safety-critical alert about this failure.</div> }</div>
+        <div>
+            <div class="ttl">@(r.IsTest ? (creates ? "A real run would fail" : "The alert's action would fail") : "The alert's action failed")</div>
+            @r.ActionDetail
+            @if (creates && failedCount > 0) { <div class="small mt-1">Nothing was created for the failed @(failedCount == 1 ? "item" : "items"): a record is only created when every required field has a value (INV-127).</div> }
+            @if (!r.IsTest) { <div class="small mt-1">The owner and every administrator were sent a safety-critical alert about this failure.</div> }
+        </div>
     </div>
 }
 else if (r.ActionDetail != null)
@@ -67,6 +81,84 @@ else if (r.ActionDetail != null)
         </section>
     </div>
     <div class="col-lg-8 min-w-0">
+        @if (Model.Creations.Count > 0)
+        {
+            <section class="card mb-4" aria-labelledby="ins-created-title">
+                <div class="card-header d-flex align-items-center gap-2">
+                    <h2 class="card-title-sm" id="ins-created-title"><i class="bi bi-file-earmark-plus" aria-hidden="true"></i>@(r.IsTest ? "Records this alert would create" : "Records created")</h2>
+                    <span class="ms-auto small text-body-tertiary">@(r.IsTest ? "Dry run: nothing was created, numbered, linked or sent" : $"{createdCount} created" + (failedCount > 0 ? $" · {failedCount} failed" : ""))</span>
+                </div>
+                <ul class="ins-created">
+                    @foreach (var c in Model.Creations)
+                    {
+                        var d = ReportModel.Detail(c);
+                        var canOpen = c.RecordId is { } rid && Model.VisibleCreated.Contains(rid);
+                        <li>
+                            <div class="ins-created-head">
+                                @switch (c.Status)
+                                {
+                                    case "Created": <span class="vl-chip vl-chip-done"><i class="bi bi-check2-circle" aria-hidden="true"></i>Created</span> break;
+                                    case "Preview": <span class="vl-chip vl-chip-draft"><i class="bi bi-eye" aria-hidden="true"></i>Would create</span> break;
+                                    case "PreviewFailed": <span class="vl-chip vl-chip-overdue"><i class="bi bi-x-octagon" aria-hidden="true"></i>Would fail</span> break;
+                                    case "Skipped": <span class="vl-chip vl-chip-archived"><i class="bi bi-skip-forward" aria-hidden="true"></i>Skipped</span> break;
+                                    default: <span class="vl-chip vl-chip-overdue"><i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>Not created</span> break;
+                                }
+                                <span class="ins-created-rec min-w-0">
+                                    @if (c.Status == "Created")
+                                    {
+                                        if (canOpen) { <a href="/records/@c.RecordId"><span class="num">@c.RecordNumber</span>@c.RecordTitle</a> }
+                                        else { <span class="num">@c.RecordNumber</span><span class="text-body-tertiary">(you can't open this record)</span> }
+                                    }
+                                    else if (c.Status == "Preview") { <span>@(d?.Title ?? c.RecordTitle)</span> }
+                                    else { <span>@(d?.Form ?? "Record")</span> }
+                                </span>
+                                <span class="ins-created-item ms-auto">For @c.ItemLabel</span>
+                            </div>
+                            @if (c.Message != null)
+                            {
+                                <div class="ins-created-msg @(c.Status is "Failed" or "PreviewFailed" ? "bad" : "")">@c.Message</div>
+                            }
+                            @if (d != null && c.Status is "Created" or "Preview" or "Failed" or "PreviewFailed")
+                            {
+                                <details>
+                                    <summary>@(c.Status is "Created" ? "What was set" : c.Status is "Preview" ? "What would be set" : "What the action tried to set")</summary>
+                                    <div class="ins-created-detail">
+                                        <dl class="ins-origin">
+                                            <dt>Form</dt><dd>@d.App › @d.Form</dd>
+                                            <dt>Phase</dt><dd>@(d.Phase ?? "–")</dd>
+                                            <dt>Due</dt><dd>@(d.Due?.ToString("dd MMM yyyy") ?? "–")</dd>
+                                            <dt>Assigned to</dt><dd>@(d.Assignees.Count > 0 ? string.Join(", ", d.Assignees) : "–")</dd>
+                                            <dt>Notify</dt><dd>@(d.Notify.Count > 0 ? string.Join(", ", d.Notify) : "Assignees only")</dd>
+                                            <dt>Linked to</dt><dd>@(d.Sources.Count > 0 ? string.Join(", ", d.Sources) : "–")</dd>
+                                        </dl>
+                                        <table class="ins-created-fields">
+                                            <caption class="visually-hidden">Field values</caption>
+                                            <tbody>
+                                                @foreach (var f in d.Fields)
+                                                {
+                                                    <tr>
+                                                        <th scope="row">@f.Label@if (f.Required) { <span class="visually-hidden"> (required)</span><span class="text-danger" aria-hidden="true"> *</span> }</th>
+                                                        <td>
+                                                            @if (f.Value.Length > 0) { @f.Value } else if (f.Required) { <span class="text-danger"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> No value</span> } else { <span class="text-body-tertiary">–</span> }
+                                                            @if (f.Value.Length > 0) { <span class="ins-origin-tag">@(f.Origin == "alert" ? "from alert" : "form default")</span> }
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    @if (d.Notes.Count > 0) { <ul class="small text-body-secondary mt-2 mb-0 ps-3">@foreach (var n in d.Notes) { <li>@n</li> }</ul> }
+                                </details>
+                            }
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+        else if (creates && r.ActionStatus == "Pending")
+        {
+            <div class="vl-banner vl-banner-info" role="status"><i class="bi bi-hourglass-split" aria-hidden="true"></i><div>The create-record action hasn't finished. The next run resumes it without creating anything twice.</div></div>
+        }
         @if (Model.Result.Groups.Count == 0)
         {
             <div class="card"><div class="vl-empty"><div class="vl-empty-icon tone-ok"><i class="bi bi-check2-all"></i></div><h3>No group reached the minimum</h3><p>Nothing matched the threshold when this report ran.</p></div></div>
