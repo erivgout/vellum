@@ -792,3 +792,14 @@ a.vl-list-item:hover, .vl-list-item.hover:hover { background: var(--vl-surface-2
 /* Bootstrap's .offcanvas-lg forces a transparent background at desktop widths; keep the ink sidebar. */
 .vl-sidebar.offcanvas-lg { background-color: var(--vl-side-bg) !important; }
 @media (max-width: 991.98px) { .vl-sidebar.offcanvas-lg { width: var(--vl-side-w); } }
+
+/* Collapsible suite groups in the sidebar */
+.vl-side-toggle { width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; border-radius: 6px; }
+.vl-side-toggle:hover { color: var(--vl-side-text); }
+.vl-side-toggle:focus-visible { outline: 2px solid rgba(var(--vl-brand-rgb), .6); outline-offset: -2px; }
+.vl-side-chevron { font-size: .7rem; transition: transform .15s; }
+.vl-side-toggle[aria-expanded="false"] .vl-side-chevron { transform: rotate(-90deg); }
+.vl-side-suite-count:empty, .vl-side-toggle[aria-expanded="true"] .vl-side-suite-count { display: none; }
+.vl-side-group[hidden] { display: none !important; }
+@media (min-width: 1200px) { .vl-viewnav-col { width: 248px; } }
+.vl-viewnav a .text-truncate { flex: 1 1 auto; min-width: 0; }

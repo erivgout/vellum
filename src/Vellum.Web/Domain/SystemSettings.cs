@@ -39,7 +39,21 @@ public class SystemSettings
         "I certify that my electronic signature in this system is the legally binding equivalent of my handwritten signature, in accordance with 21 CFR Part 11.";
 
     public string? LoginMessage { get; set; }
+
+    // Login block / maintenance mode (SEC-404)
+    public bool LoginBlocked { get; set; }
+    /// <summary>Comma-separated usernames that can always sign in while the block is on.</summary>
+    public string? LoginBlockAllowList { get; set; }
+    public string? LoginBlockMessage { get; set; }
+
     public DateTime UpdatedAt { get; set; }
+
+    public bool CanSignInDuringBlock(string username) =>
+        !LoginBlocked || LoginBlockUsernames(LoginBlockAllowList).Contains(username, StringComparer.OrdinalIgnoreCase);
+
+    public static IReadOnlyList<string> LoginBlockUsernames(string? list) =>
+        (list ?? "").Split([',', ';', ' ', '\n', '\r', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 }
 
 /// <summary>ADM-301: business calendar exceptions.</summary>

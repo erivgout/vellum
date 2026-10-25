@@ -17,7 +17,7 @@
     <span class="current">@app.Name</span>
 }
 
-<div class="vl-page-head align-items-center">
+<div class="vl-page-head align-items-center flex-md-nowrap">
     <span class="vl-app-tile lg" style="--app:@app.Color"><i class="bi @app.Icon"></i></span>
     <div class="min-w-0 flex-grow-1">
         <h1 class="vl-page-title">@app.Name</h1>
@@ -45,7 +45,7 @@
 </div>
 
 <div class="row g-4">
-    <div class="col-lg-3 col-xxl-2">
+    <div class="col-lg-3 col-xl-auto vl-viewnav-col">
         <nav class="vl-viewnav" aria-label="Views">
             @foreach (var g in Model.Navigator)
             {
@@ -62,7 +62,7 @@
         </nav>
     </div>
 
-    <div class="col-lg-9 col-xxl-10 min-w-0">
+    <div class="col-lg-9 col-xl min-w-0">
         @if (Model.Current == null || res == null)
         {
             <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-table"></i></div><h3>No views</h3><p>This application has no views you can see.</p></div></div>

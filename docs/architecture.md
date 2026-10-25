@@ -11,6 +11,7 @@ docker compose up -d                       # SQL Server 2022 on localhost:14333
 dotnet run --project src/Vellum.Web        # http://localhost:5048 (creates and seeds the DB on first start)
 dotnet test                                # integration tests use a throw-away database per run
 ./scripts/reset-db.ps1                     # drop the dev database so the next start reseeds it
+./scripts/smoke-test.ps1                   # sign in and crawl every reachable page, reporting errors
 ```
 
 Sign in with any demo account (password `Vellum!Demo2026`), for example `jlee` (quality engineer), `sortiz` (quality manager/approver),
@@ -58,7 +59,7 @@ Everything below is discovered by reflection at startup (`Infrastructure/Extensi
 
 | Implement | For |
 |---|---|
-| `IPackagedApp` | A packaged application: keyword lists, forms, sections, fields, workflows, phases, routes, views, grants (`Define`) and demo data (`SeedDemoAsync`). Installed once, in `Order`. |
+| `IPackagedApp` | A packaged application: keyword lists, forms, sections, fields, workflows, phases, routes, views, grants (`Define`), reference data every install needs (`SeedBaselineAsync`, e.g. templates) and demo data (`SeedDemoAsync`, only when `Vellum:SeedDemoData` is on). Installed once, in `Order`. |
 | `RecordBehavior` | Server logic for given form keys: `OnSavingAsync` (computed fields, validation), `OnCreatedAsync`, `ValidateRouteAsync` (block routes), `OnRoutedAsync` (create activities, archive, notify…), `ActionsAsync` + `ExecuteAsync` (custom toolbar actions with inputs and optional e-signature), `PanelsAsync` (extra record-page tabs/cards rendered from your partial). |
 | `IScheduledJob` | A background job run by the scheduler as the system identity, with run history and missed-run catch-up. |
 | `IHomeWidget` | A homepage card (main or side column) rendered from your partial. |
@@ -100,3 +101,23 @@ Gates: `MustComplete("action_item")`. Conditional routes: `when: "field=value"`.
 * Never use inline `<script>` or `on*=` attributes (strict CSP). Add behaviour in `wwwroot/js/modules/<module>.js` with `data-*` hooks; JSON data islands (`<script type="application/json">`) are fine. People pickers: `.vl-picker[data-picker=users]` plus a `#vl-directory` JSON island.
 * Accessibility: labelled controls, visible focus, never colour alone for status (icon + text), keyboard reachable.
 * `Shell` (the injected `UiContext`) gives the current user, settings, navigation and config in any view.
+
+## Database schema and migrations
+
+The schema is managed by EF Core migrations in `src/Vellum.Web/Data/Migrations`; they are applied automatically at startup,
+followed by the database-level guards (audit and signature triggers). After changing entities, add a migration:
+
+```powershell
+dotnet tool restore
+dotnet dotnet-ef migrations add <Name> --project src/Vellum.Web --output-dir Data/Migrations
+```
+
+## Pitfalls
+
+* A `<form method="post">` **without** an `action` attribute gets an antiforgery token injected by the form tag helper. Don't
+  also add `__RequestVerificationToken` by hand, or two tokens are posted and the request fails with HTTP 400. Either rely on
+  `asp-page`/`asp-page-handler`, or set an explicit `action` and add the token yourself.
+* Writing a record's fields after it has been signed makes the signature show "content changed after signing" (by design,
+  INV-114). Keep derived values that change later in system columns, links or related records instead.
+* Sensitive fields (`.Sensitive()`) render as "Restricted" for users without manager rights; the engine never reads them from
+  posted forms for those users, so saving can't clear them.

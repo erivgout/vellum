@@ -41,6 +41,10 @@
             {
                 <div class="vl-banner vl-banner-warn py-2"><i class="bi bi-exclamation-triangle-fill"></i><div class="small"><strong>@Model.Settings.EnvironmentName environment.</strong> Not for production use.</div></div>
             }
+            @if (Model.Settings.LoginBlocked)
+            {
+                <div class="vl-banner vl-banner-violet py-2"><i class="bi bi-cone-striped"></i><div class="small"><strong>Sign-in is restricted for maintenance.</strong> @(Model.Settings.LoginBlockMessage ?? "Only designated users can sign in right now.")</div></div>
+            }
             @if (Model.Info != null)
             {
                 <div class="vl-banner vl-banner-info py-2"><i class="bi bi-info-circle"></i><div class="small">@Model.Info</div></div>

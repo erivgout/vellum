@@ -25,6 +25,7 @@
                 <span class="vl-kw vl-kw-warning">Regulated mode off</span>
             }
             @if (!Shell.IsProduction) { <span class="vl-kw vl-kw-warning">Non-production</span> }
+            @if (settings.LoginBlocked) { <a class="vl-kw vl-kw-danger text-decoration-none" href="/admin/sessions#login-block" title="Only allow-listed users can sign in (SEC-404)"><i class="bi bi-cone-striped"></i>Login block on</a> }
         </p>
     </div>
     <div class="d-flex flex-wrap gap-2">

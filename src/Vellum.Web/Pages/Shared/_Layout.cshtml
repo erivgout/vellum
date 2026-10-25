@@ -80,15 +80,26 @@
 
                     @foreach (var suite in Shell.Suites)
                     {
-                        <div class="vl-side-label">@suite.Name</div>
-                        @foreach (var a in suite.Apps)
-                        {
-                            <a class="vl-side-link @(activeApp == a.App.Key ? "active" : "")" href="/apps/@a.App.Key" title="@a.App.Description">
-                                <span class="vl-app-dot" style="--app:@a.App.Color"><i class="bi @a.App.Icon"></i></span>
-                                <span class="vl-side-text">@a.App.Name</span>
-                                @if (a.OpenAssignments > 0) { <span class="vl-side-badge" title="@a.OpenAssignments assigned to you">@a.OpenAssignments</span> }
-                            </a>
-                        }
+                        var suiteId = "suite-" + System.Text.RegularExpressions.Regex.Replace(suite.Name.ToLowerInvariant(), "[^a-z0-9]+", "-");
+                        var holdsActive = suite.Apps.Any(a => a.App.Key == activeApp);
+                        var suiteWork = suite.Apps.Sum(a => a.OpenAssignments);
+                        <button type="button" class="vl-side-label vl-side-toggle" data-suite-toggle="@suiteId" data-holds-active="@(holdsActive ? "true" : "false")" aria-expanded="true" aria-controls="@suiteId">
+                            <span>@suite.Name</span>
+                            <span class="d-inline-flex align-items-center gap-2">
+                                <span class="vl-side-badge vl-side-suite-count" title="@suiteWork assigned to you">@(suiteWork > 0 ? suiteWork.ToString() : "")</span>
+                                <i class="bi bi-chevron-down vl-side-chevron" aria-hidden="true"></i>
+                            </span>
+                        </button>
+                        <div class="vl-side-group" id="@suiteId">
+                            @foreach (var a in suite.Apps)
+                            {
+                                <a class="vl-side-link @(activeApp == a.App.Key ? "active" : "")" href="/apps/@a.App.Key" title="@a.App.Description">
+                                    <span class="vl-app-dot" style="--app:@a.App.Color"><i class="bi @a.App.Icon"></i></span>
+                                    <span class="vl-side-text">@a.App.Name</span>
+                                    @if (a.OpenAssignments > 0) { <span class="vl-side-badge" title="@a.OpenAssignments assigned to you">@a.OpenAssignments</span> }
+                                </a>
+                            }
+                        </div>
                     }
 
                     @foreach (var navGroup in Shell.ExtraNav.GroupBy(n => n.Section))

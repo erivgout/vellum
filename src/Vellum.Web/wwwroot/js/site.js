@@ -490,3 +490,21 @@ document.addEventListener("click", async (e) => {
   b.outerHTML = '<span class="vl-kw vl-kw-success">Acknowledged</span>';
   window.vl.toast("Alert acknowledged. Your acknowledgment is recorded.");
 });
+// Collapsible sidebar suites (state remembered per browser; the suite holding the open app always stays expanded)
+(function () {
+  const key = "vl-side-collapsed";
+  let collapsed = [];
+  try { collapsed = JSON.parse(localStorage.getItem(key) || "[]"); } catch { }
+  document.querySelectorAll("[data-suite-toggle]").forEach((btn) => {
+    const group = document.getElementById(btn.dataset.suiteToggle);
+    const set = (open) => { btn.setAttribute("aria-expanded", open ? "true" : "false"); group.hidden = !open; };
+    set(btn.dataset.holdsActive === "true" || !collapsed.includes(btn.dataset.suiteToggle));
+    btn.addEventListener("click", () => {
+      const open = btn.getAttribute("aria-expanded") !== "true";
+      set(open);
+      collapsed = collapsed.filter((s) => s !== btn.dataset.suiteToggle);
+      if (!open) collapsed.push(btn.dataset.suiteToggle);
+      try { localStorage.setItem(key, JSON.stringify(collapsed)); } catch { }
+    });
+  });
+})();

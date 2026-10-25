@@ -25,6 +25,41 @@
     <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon tone-neutral"><i class="bi bi-door-closed"></i></span><div class="vl-stat-value">@Model.Ended24h</div><div class="vl-stat-label">Sessions ended (24 h)</div></div></div>
 </div>
 
+@{ var blocked = Model.Settings.LoginBlocked; }
+<form method="post" asp-page-handler="LoginBlock" class="card mb-4" id="login-block">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-cone-striped"></i>Login block</h2>
+        @if (blocked) { <span class="vl-kw vl-kw-danger ms-auto"><i class="bi bi-lock-fill"></i>On · sign-in restricted</span> }
+        else { <span class="vl-kw vl-kw-success ms-auto"><i class="bi bi-unlock-fill"></i>Off · everyone can sign in</span> }
+    </div>
+    <div class="card-body adm-settings">
+        <div class="adm-setting">
+            <div><label class="form-label" for="lb-on">Maintenance mode</label>
+                <div class="form-text">Stops everyone signing in except the people listed. People already signed in stay signed in; log them out above if you need to (SEC-404).</div></div>
+            <div class="pt-1">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="lb-on" name="blocked" value="true" checked="@blocked" />
+                    <label class="form-check-label" for="lb-on">Block sign-in</label>
+                </div>
+                <input type="hidden" name="blocked" value="false" />
+            </div>
+        </div>
+        <div class="adm-setting">
+            <div><label class="form-label" for="lb-allow">Can always sign in</label>
+                <div class="form-text">Usernames, separated by commas. You're added automatically when you turn the block on, so you can't lock yourself out.</div></div>
+            <div><input class="form-control mono" id="lb-allow" name="allowList" value="@Model.Settings.LoginBlockAllowList" placeholder="admin, sortiz" spellcheck="false" autocomplete="off" /></div>
+        </div>
+        <div class="adm-setting">
+            <div><label class="form-label" for="lb-msg">Message on the sign-in page</label>
+                <div class="form-text">Tell people why and when they can sign in again.</div></div>
+            <div><input class="form-control" id="lb-msg" name="message" value="@Model.Settings.LoginBlockMessage" maxlength="300" placeholder="Sign-in is paused for maintenance. Try again later." /></div>
+        </div>
+    </div>
+    <div class="card-footer d-flex justify-content-end">
+        <button class="btn btn-primary" data-confirm="Save the login block settings? Changes apply to the next sign-in."><i class="bi bi-check2"></i>Save login block</button>
+    </div>
+</form>
+
 <form method="post" asp-page-handler="End">
     <div class="vl-table-wrap">
         @if (Model.Rows.Count == 0)

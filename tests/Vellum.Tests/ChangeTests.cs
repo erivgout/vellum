@@ -63,7 +63,7 @@ public class ChangeTests(VellumFixture fx)
 
         var after = await s.LoadAsync(change.Id);
         Assert.Equal("Label change", after.Text("change_type"));
-        Assert.Equal(["quality", "manufacturing"], after.Rows("approvals").Select(r => after.KeywordKey(r, "approval_type")).ToArray());
+        Assert.Equal(["quality", "manufacturing"], after.Rows("approvals").Select(r => after.KeywordKey(r, "approval_type")!).ToArray());
         Assert.Equal(records.ComputeHash(snap), records.ComputeHash(after));
 
         // A disabled template can't be used for new changes.

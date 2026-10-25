@@ -53,8 +53,9 @@
                         <span><svg width="26" height="8" aria-hidden="true"><line x1="0" y1="4" x2="26" y2="4" class="dz-lg-special" /></svg>Special</span>
                         <span><i class="bi bi-pen-fill dz-lg-sig"></i>E-signature</span>
                     </div>
+                    <button type="button" class="btn btn-sm btn-light ms-2" data-dz-fit aria-pressed="true" title="Switch between fitting the whole workflow and actual size"><i class="bi bi-arrows-angle-expand"></i><span>Actual size</span></button>
                 </div>
-                <div class="dz-diagram" data-dz-diagram tabindex="-1">@Html.Raw(Model.Svg)</div>
+                <div class="dz-diagram dz-fit" data-dz-diagram tabindex="-1">@Html.Raw(Model.Svg)</div>
                 <div class="dz-diagram-hint">Click a phase or an arrow to edit it. Numbers on phases are records in them now.</div>
             </section>
             <ul class="nav vl-tabs" role="tablist">

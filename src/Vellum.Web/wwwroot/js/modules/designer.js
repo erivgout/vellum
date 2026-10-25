@@ -1854,3 +1854,19 @@
     runPreview();
   }
 })();
+
+// Workflow diagram: toggle between fitting the whole workflow and actual size. Fit is the default only while labels stay
+// readable; large workflows open at actual size (scrollable).
+(function () {
+  const diagram = document.querySelector("[data-dz-diagram]");
+  const btn = document.querySelector("[data-dz-fit]");
+  if (!diagram || !btn) return;
+  const setFit = (fit) => {
+    diagram.classList.toggle("dz-fit", fit);
+    btn.setAttribute("aria-pressed", fit ? "true" : "false");
+    btn.innerHTML = fit ? '<i class="bi bi-arrows-angle-expand"></i><span>Actual size</span>' : '<i class="bi bi-arrows-angle-contract"></i><span>Fit</span>';
+  };
+  const natural = Number((diagram.querySelector("svg")?.getAttribute("viewBox") || "").split(/\s+/)[2]) || 0;
+  setFit(!natural || diagram.clientWidth / natural >= 0.7);
+  btn.addEventListener("click", () => setFit(!diagram.classList.contains("dz-fit")));
+})();

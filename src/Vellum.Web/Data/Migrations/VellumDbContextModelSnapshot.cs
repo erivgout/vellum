@@ -1941,6 +1941,17 @@ namespace Vellum.Data.Migrations
                     b.Property<int>("LockoutThreshold")
                         .HasColumnType("int");
 
+                    b.Property<string>("LoginBlockAllowList")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<string>("LoginBlockMessage")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<bool>("LoginBlocked")
+                        .HasColumnType("bit");
+
                     b.Property<string>("LoginMessage")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");

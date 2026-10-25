@@ -359,3 +359,7 @@
 @keyframes dz-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 @media print { .dz-topbar, .dz-left, .dz-right { display: none !important; } .dz-layout { display: block; } }
+
+/* Fit-to-width diagram (default) with an "Actual size" toggle for detail */
+.dz-diagram.dz-fit { overflow-x: hidden; }
+.dz-diagram.dz-fit svg { width: 100%; height: auto; }

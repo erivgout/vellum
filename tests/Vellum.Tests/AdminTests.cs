@@ -246,6 +246,51 @@ public class AdminTests(VellumFixture fx)
         Assert.False((await users.InactivateAsync(s.UserId("admin"), "Oops")).Ok);
     }
 
+    [Fact] // SEC-404
+    public async Task Login_block_lets_only_allow_listed_users_sign_in()
+    {
+        try
+        {
+            using (var s = fx.As("jlee"))
+                Assert.False((await Svc<LoginBlockService>(s).SaveAsync(true, "jlee", null)).Ok);
+
+            using (var s = fx.As("admin"))
+            {
+                var block = Svc<LoginBlockService>(s);
+                var bad = await block.SaveAsync(true, "sortiz, no_such_user", null);
+                Assert.False(bad.Ok);
+                Assert.Contains("no_such_user", bad.Error);
+                Assert.True((await block.SaveAsync(true, "SORTIZ", "Upgrade in progress until 18:00.")).Ok);
+                var st = await s.Db().Settings.AsNoTracking().FirstAsync();
+                Assert.True(st.LoginBlocked);
+                // The administrator who turned it on is always allowed; names are normalised to the stored usernames.
+                Assert.Equal(new[] { "admin", "sortiz" }, SystemSettings.LoginBlockUsernames(st.LoginBlockAllowList));
+                Assert.True(await s.Db().SecurityEvents.AnyAsync(e => e.Kind == "Login block turned on"));
+            }
+
+            using (var s = fx.As(null))
+            {
+                var login = Svc<Vellum.Infrastructure.Auth.LoginService>(s);
+                var blocked = await login.VerifyPasswordAsync("jlee", TestHelpers.Password);
+                Assert.Equal(Vellum.Infrastructure.Auth.LoginOutcome.Blocked, blocked.Outcome);
+                Assert.Contains("maintenance", blocked.Message);
+                // A wrong password still reads as a wrong password, not as the block.
+                Assert.Equal(Vellum.Infrastructure.Auth.LoginOutcome.Invalid, (await login.VerifyPasswordAsync("jlee", "wrong-password")).Outcome);
+                Assert.NotEqual(Vellum.Infrastructure.Auth.LoginOutcome.Blocked, (await login.VerifyPasswordAsync("sortiz", TestHelpers.Password)).Outcome);
+            }
+        }
+        finally
+        {
+            using var s = fx.As("admin");
+            Assert.True((await Svc<LoginBlockService>(s).SaveAsync(false, null, null)).Ok);
+            await s.Db().Users.Where(u => u.Username == "jlee").ExecuteUpdateAsync(x => x.SetProperty(u => u.FailedLoginCount, 0));
+        }
+
+        using (var s = fx.As(null))
+            Assert.NotEqual(Vellum.Infrastructure.Auth.LoginOutcome.Blocked,
+                (await Svc<Vellum.Infrastructure.Auth.LoginService>(s).VerifyPasswordAsync("jlee", TestHelpers.Password)).Outcome);
+    }
+
     // ------------------------------------------------------------------ SEC-201/203/305
 
     [Fact] // SEC-201, SEC-203, INV-151

@@ -7,7 +7,7 @@ using Vellum.Engine.Security;
 
 namespace Vellum.Infrastructure.Auth;
 
-public enum LoginOutcome { Success, Invalid, Locked, Disabled, MfaRequired, MfaEnrollRequired, PasswordExpired }
+public enum LoginOutcome { Success, Invalid, Locked, Disabled, Blocked, MfaRequired, MfaEnrollRequired, PasswordExpired }
 
 public sealed record LoginResult(LoginOutcome Outcome, User? User = null, string? Message = null);
 
@@ -63,6 +63,14 @@ public sealed class LoginService(VellumDbContext db, IHttpContextAccessor http, 
         }
 
         user.FailedLoginCount = 0;
+        // SEC-404: while the login block is on, only the allow-listed users can sign in. Checked after the password so the
+        // message never helps anyone guess which usernames exist.
+        if (!settings.CanSignInDuringBlock(user.Username))
+        {
+            Log("Login blocked", false, user.Id, username, "Login block (maintenance mode) is on", ip);
+            await db.SaveChangesAsync();
+            return new LoginResult(LoginOutcome.Blocked, Message: "Only designated users can sign in during maintenance. Try again later.");
+        }
         await db.SaveChangesAsync();
         if (user.MfaEnrolled && user.TotpSecret != null) return new LoginResult(LoginOutcome.MfaRequired, user);
         if (settings.MfaRequired && !user.MfaEnrolled) return new LoginResult(LoginOutcome.MfaEnrollRequired, user);

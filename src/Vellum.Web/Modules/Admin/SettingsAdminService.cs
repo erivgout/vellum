@@ -170,6 +170,47 @@ public sealed class SettingsAdminService(VellumDbContext db, CurrentUser me, Aud
     private static string UiPlural(int n, string noun) => Infrastructure.Ui.Ui.Plural(n, noun);
 }
 
+/// <summary>
+/// SEC-404: the login block (maintenance mode) stops everyone signing in except an allow list. The administrator turning it on
+/// is always added to the list so nobody can lock the whole organisation out. Existing sessions aren't touched; use
+/// "Log out all other users" for that.
+/// </summary>
+[ScopedService]
+public sealed class LoginBlockService(VellumDbContext db, CurrentUser me, AuditService audit)
+{
+    private static string Snap(SystemSettings s) => AdminJson.Of(new { blocked = s.LoginBlocked, allow = s.LoginBlockAllowList, message = s.LoginBlockMessage });
+
+    public async Task<AdminResult> SaveAsync(bool blocked, string? allowList, string? message)
+    {
+        if (!me.IsAdmin) return AdminResult.Fail(AdminResult.NotAdmin);
+        var names = SystemSettings.LoginBlockUsernames(allowList).ToList();
+        var known = await db.Users.Where(u => !u.IsSystemIdentity).Select(u => new { u.Username, u.Status }).ToListAsync();
+        var unknown = names.Where(n => !known.Any(k => string.Equals(k.Username, n, StringComparison.OrdinalIgnoreCase))).ToList();
+        if (unknown.Count > 0) return AdminResult.Fail($"These usernames don't exist: {string.Join(", ", unknown)}.");
+        names = names.Select(n => known.First(k => string.Equals(k.Username, n, StringComparison.OrdinalIgnoreCase)).Username).ToList();
+        if (blocked && me.Info?.Username is { } self && !names.Contains(self, StringComparer.OrdinalIgnoreCase)) names.Insert(0, self);
+        if (string.Join(", ", names).Length > 400) return AdminResult.Fail("The allow list is too long. Keep it to the few people who need to work during maintenance.");
+        if (message?.Trim().Length > 300) return AdminResult.Fail("Keep the sign-in page message under 300 characters.");
+
+        var s = await db.Settings.FirstAsync();
+        var before = Snap(s);
+        var wasBlocked = s.LoginBlocked;
+        s.LoginBlocked = blocked;
+        s.LoginBlockAllowList = names.Count == 0 ? null : string.Join(", ", names);
+        s.LoginBlockMessage = string.IsNullOrWhiteSpace(message) ? null : message.Trim();
+        if (Snap(s) == before) return AdminResult.Success("No changes to save.");
+        s.UpdatedAt = DateTime.UtcNow;
+
+        var kind = blocked == wasBlocked ? "Login block changed" : blocked ? "Login block turned on" : "Login block turned off";
+        var detail = blocked ? $"Only {string.Join(", ", names)} can sign in" : "Everyone can sign in again";
+        audit.Security(kind, true, me.Id, me.Info?.Username, detail);
+        audit.Global(kind, detail);
+        audit.Config("SystemSettings", "login-block", kind, before, Snap(s));
+        await db.SaveChangesAsync();
+        return AdminResult.Success(blocked ? $"Login block is on. {detail}." : "Login block is off. Everyone can sign in again.");
+    }
+}
+
 /// <summary>ADM-301: holidays and extra working days of the business calendar (weekends are Saturday and Sunday).</summary>
 [ScopedService]
 public sealed class CalendarAdminService(VellumDbContext db, CurrentUser me, AuditService audit)
