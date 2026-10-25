@@ -28,7 +28,8 @@ public sealed class UserDirectory(IServiceScopeFactory scopes)
         IReadOnlyDictionary<int, GroupInfo> Groups,
         IReadOnlyDictionary<string, GroupInfo> GroupsByKey,
         IReadOnlyDictionary<int, IReadOnlyList<int>> GroupsOfUser,
-        int SystemUserId);
+        int SystemUserId,
+        int AnonymousReporterId);
 
     public void Invalidate() => _snap = null;
 
@@ -54,7 +55,8 @@ public sealed class UserDirectory(IServiceScopeFactory scopes)
                     groups.ToDictionary(g => g.Id),
                     groups.ToDictionary(g => g.Key, StringComparer.OrdinalIgnoreCase),
                     members.GroupBy(m => m.UserId).ToDictionary(g => g.Key, g => (IReadOnlyList<int>)g.Select(m => m.GroupId).ToList()),
-                    users.FirstOrDefault(u => u.IsSystem)?.Id ?? 0);
+                    users.FirstOrDefault(u => u.IsSystem && u.Username == CoreSeed.SystemUsername)?.Id ?? users.FirstOrDefault(u => u.IsSystem)?.Id ?? 0,
+                    users.FirstOrDefault(u => u.IsSystem && u.Username == CoreSeed.AnonymousUsername)?.Id ?? 0);
                 return _snap;
             }
         }
@@ -68,6 +70,8 @@ public sealed class UserDirectory(IServiceScopeFactory scopes)
     public IEnumerable<UserInfo> All => S.Users.Values.Where(u => !u.IsSystem).OrderBy(u => u.DisplayName);
     public IEnumerable<UserInfo> Assignable => All.Where(u => u.Assignable);
     public int SystemUserId => S.SystemUserId;
+    /// <summary>The intake identity for anonymous reports (<see cref="CoreSeed.AnonymousUsername"/>).</summary>
+    public int AnonymousReporterId => S.AnonymousReporterId;
 
     public GroupInfo? Group(int id) => S.Groups.TryGetValue(id, out var g) ? g : null;
     public GroupInfo? Group(string key) => S.GroupsByKey.TryGetValue(key, out var g) ? g : null;

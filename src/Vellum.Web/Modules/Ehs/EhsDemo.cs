@@ -320,12 +320,12 @@ public static class EhsDemo
 
         // 12. Anonymous near miss (quick report form) with EHS.
         var me = d.Services.GetRequiredService<CurrentUser>();
-        me.UseSystem("Anonymous near-miss report");
+        me.UseAnonymousReporter("Near-miss quick report");
         d.Db.ChangeTracker.Clear();
         var anon = await records.CreateAsync(new CreateRequest
         {
             FormKey = "incident", StartPhaseKey = "investigation", Assignees = [d.User("mchen")], SkipAccessCheck = true,
-            CreatedById = d.Directory.SystemUserId, CreatedAt = DateTime.UtcNow.AddDays(-3),
+            CreatedById = d.Directory.AnonymousReporterId, CreatedAt = DateTime.UtcNow.AddDays(-3),
             CreateComment = "Anonymous near-miss report (quick report form)",
             Values = new()
             {
@@ -333,7 +333,7 @@ public static class EhsDemo
                 ["incident_type"] = "near_miss", ["occurred_at"] = Ago(3, 2), ["site"] = "bos", ["area"] = "Warehouse, consumables shelving",
                 ["outcome"] = "none", ["potential_severity"] = "moderate",
                 ["description"] = "Cartons of gowning supplies are stacked three high on the top shelf and lean outwards. One fell when I took the box below it.",
-                ["suggestion"] = "Keep the top shelf for light items only, or add a lip.",
+                ["suggestion"] = "Keep the top shelf for light items only, or add a lip.", ["anonymous"] = true,
             },
         });
         if (!anon.Ok) throw new InvalidOperationException("Demo anonymous near miss failed: " + string.Join("; ", anon.Errors.Select(e => e.Message)));

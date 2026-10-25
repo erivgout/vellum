@@ -13,7 +13,8 @@ namespace Vellum.Areas.Ehs.Pages;
 
 /// <summary>
 /// One-screen near-miss report for anyone (EHS-101/102). It creates an incident of type "near miss" that goes straight to EHS.
-/// "Report anonymously" creates it as the system identity, so the reporter's name isn't stored on the record or its audit trail.
+/// "Report anonymously" creates it as the anonymous intake identity, so the reporter's name isn't stored on the record or its
+/// audit trail. A named EHS team member then has to accept the report before the investigation can move on.
 /// </summary>
 public class NearMissModel(ConfigCache cfg, AccessService access, RecordService records, CurrentUser me, UserDirectory dir, VellumDbContext db) : PageModel
 {
@@ -42,7 +43,7 @@ public class NearMissModel(ConfigCache cfg, AccessService access, RecordService 
         if (Done is { } id)
         {
             Created = await db.Records.FindAsync(id);
-            WasAnonymous = Created != null && Created.CreatedById == dir.SystemUserId;
+            WasAnonymous = Created != null && Created.CreatedById == dir.AnonymousReporterId;
             if (Created == null || (Created.CreatedById != me.Id && !WasAnonymous)) Created = null;
         }
         OccurredAt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, records.TimeZone).ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture);
@@ -75,18 +76,18 @@ public class NearMissModel(ConfigCache cfg, AccessService access, RecordService 
             ["subject"] = Subject!.Trim(), ["incident_type"] = "near_miss", ["occurred_at"] = occurredUtc, ["site"] = Site,
             ["area"] = Area?.Trim(), ["outcome"] = "none", ["description"] = Description!.Trim(), ["potential_severity"] = Potential,
             ["immediate_actions"] = Immediate?.Trim(), ["suggestion"] = Suggestion?.Trim(),
-            ["reported_by"] = Anonymous ? null : reporterId,
+            ["reported_by"] = Anonymous ? null : reporterId, ["anonymous"] = Anonymous,
         };
         CreateResult res;
         try
         {
-            // Anonymous reports are created by the system identity on behalf of an unnamed employee.
-            if (Anonymous) me.UseSystem("Anonymous near-miss report");
+            // Anonymous reports are created by the anonymous intake identity on behalf of an unnamed employee.
+            if (Anonymous) me.UseAnonymousReporter("Near-miss quick report");
             res = await records.CreateAsync(new CreateRequest
             {
                 FormKey = "incident", StartPhaseKey = "investigation", Values = values,
                 Assignees = ehs.Count > 0 ? ehs : null, SkipAccessCheck = true,
-                CreatedById = Anonymous ? dir.SystemUserId : null,
+                CreatedById = Anonymous ? dir.AnonymousReporterId : null,
                 CreateComment = Anonymous ? "Anonymous near-miss report (quick report form)" : "Near-miss quick report",
             });
         }

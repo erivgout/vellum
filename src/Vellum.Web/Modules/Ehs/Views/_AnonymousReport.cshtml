@@ -1,0 +1,30 @@
+@model Vellum.Modules.Ehs.AnonymousReportVm
+@{
+    var vm = Model;
+    var accepted = vm.AcceptedBy != null;
+}
+<section class="vl-banner vl-banner-@(accepted ? "info" : "violet")" role="status" aria-labelledby="anon-report-title">
+    <i class="bi @(accepted ? "bi-person-check-fill" : "bi-incognito")"></i>
+    <div class="flex-grow-1 min-w-0 d-flex flex-wrap align-items-center gap-2">
+        <div class="flex-grow-1 min-w-0">
+            <div class="fw-semibold" id="anon-report-title">
+                @if (accepted)
+                {
+                    <text>Anonymous report, accepted by @vm.AcceptedBy!.DisplayName @if (vm.AcceptedUtc is { } at) { @Ui.Time(at, vm.ViewerTz) }</text>
+                }
+                else
+                {
+                    <text>Anonymous report: waiting for EHS to accept it</text>
+                }
+            </div>
+            <div class="small text-body-secondary">
+                The reporter's name isn't stored, and nobody can be asked follow-up questions.
+                @(accepted ? "The accepting EHS team member owns the report." : "A named EHS team member has to accept it before the investigation can move on.")
+            </div>
+        </div>
+        @if (vm.CanAccept)
+        {
+            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#action-anon_accept"><i class="bi bi-person-check"></i>Accept anonymous report</button>
+        }
+    </div>
+</section>

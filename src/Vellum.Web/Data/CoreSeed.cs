@@ -1,12 +1,29 @@
+using Microsoft.EntityFrameworkCore;
 using Vellum.Domain;
 using Vellum.Engine.Security;
 using Vellum.Packaging;
 
 namespace Vellum.Data;
 
-/// <summary>Tenant baseline: settings, locations, the system identity, demo people, groups and the business calendar.</summary>
+/// <summary>Tenant baseline: settings, locations, the system identities, demo people, groups and the business calendar.</summary>
 public static class CoreSeed
 {
+    public const string SystemUsername = "system";
+    /// <summary>Intake identity for anonymous reports (EHS near misses). It can't sign in or sign.</summary>
+    public const string AnonymousUsername = "anonymous";
+
+    /// <summary>Runs on every start so databases created before an identity existed get it too.</summary>
+    public static async Task EnsureSystemIdentitiesAsync(VellumDbContext db)
+    {
+        if (await db.Users.AnyAsync(u => u.Username == AnonymousUsername)) return;
+        db.Users.Add(new User
+        {
+            Username = AnonymousUsername, DisplayName = "Anonymous reporter", FirstName = "Anonymous", LastName = "reporter",
+            Email = "anonymous@vellum.invalid", IsSystemIdentity = true, Status = UserStatus.Active, CreatedAt = DateTime.UtcNow, TimeZone = "UTC",
+        });
+        await db.SaveChangesAsync();
+    }
+
     public sealed record DemoUser(string Username, string First, string Last, string Title, string Department, string Location, string? ReportsTo, bool Admin = false);
 
     public static readonly DemoUser[] People =
@@ -72,7 +89,7 @@ public static class CoreSeed
 
         db.Users.Add(new User
         {
-            Username = "system", DisplayName = "System", FirstName = "System", LastName = "", Email = "system@vellum.invalid",
+            Username = SystemUsername, DisplayName = "System", FirstName = "System", LastName = "", Email = "system@vellum.invalid",
             IsSystemIdentity = true, Status = UserStatus.Active, CreatedAt = now, TimeZone = "UTC",
         });
 

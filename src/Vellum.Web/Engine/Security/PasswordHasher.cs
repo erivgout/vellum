@@ -19,9 +19,10 @@ public static class PasswordHasher
         return $"argon2id$m={MemoryKb},t={Iterations},p={Parallelism}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
     }
 
-    public static bool Verify(string password, string? encoded)
+    public static bool Verify(string? password, string? encoded)
     {
-        if (string.IsNullOrEmpty(encoded)) return false;
+        // An empty password never matches (Argon2 rejects empty input, and callers such as re-authentication may pass one).
+        if (string.IsNullOrEmpty(password) || string.IsNullOrEmpty(encoded)) return false;
         var parts = encoded.Split('$');
         if (parts.Length != 4 || parts[0] != "argon2id") return false;
         var p = parts[1].Split(',').Select(x => x.Split('=')).ToDictionary(x => x[0], x => int.Parse(x[1]));

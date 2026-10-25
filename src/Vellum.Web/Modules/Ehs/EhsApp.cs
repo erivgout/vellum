@@ -205,6 +205,9 @@ public sealed class EhsApp : IPackagedApp
             .Section("sys", "System", s =>
             {
                 s.YesNo("in_current_year", "In the current calendar year").ReadOnly();
+                s.YesNo("anonymous", "Reported anonymously").ReadOnly();
+                s.User("anon_accepted_by", "Anonymous report accepted by").ReadOnly();
+                s.DateTime("anon_accepted_at", "Anonymous report accepted at").ReadOnly();
             }, tab: "System", collapsed: true)
             .Workflow("incident", "Incident", w =>
             {

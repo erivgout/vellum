@@ -36,6 +36,19 @@ public sealed class CurrentUser(UserDirectory directory)
         SystemReason = reason;
     }
 
+    /// <summary>
+    /// Act as the anonymous intake identity, so an anonymous report stores no reporter on the record or its audit trail.
+    /// Unlike the system identity it gets no extra rights; it can never sign in or sign.
+    /// </summary>
+    public void UseAnonymousReporter(string reason)
+    {
+        if (directory.AnonymousReporterId == 0) throw new InvalidOperationException("The anonymous reporter identity is missing.");
+        Id = directory.AnonymousReporterId;
+        IsSystem = false;
+        Source = "Anonymous report";
+        SystemReason = reason;
+    }
+
     /// <summary>For tests and seeding: act as a specific user without a session.</summary>
     public void Impersonate(int userId, string source = "UI")
     {

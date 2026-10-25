@@ -168,6 +168,71 @@ public class EhsTests(VellumFixture fx)
         Assert.Contains(close.Errors, e => e.Message.Contains("OSHA report"));
     }
 
+    [Fact] // EHS-102: anonymous near misses store no reporter, and a named EHS team member must accept them
+    public async Task Anonymous_near_miss_has_no_reporter_and_needs_named_acceptance()
+    {
+        Guid id;
+        using (var s = fx.As("nflores"))
+        {
+            var tz = s.ServiceProvider.GetRequiredService<RecordService>().TimeZone;
+            var page = ActivatorUtilities.CreateInstance<Vellum.Areas.Ehs.Pages.NearMissModel>(s.ServiceProvider);
+            page.Subject = "Pallet jack left on the loading ramp";
+            page.Description = "Someone nearly walked into it in the dark.";
+            page.Site = "kzo";
+            page.OccurredAt = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow.AddHours(-2), tz).ToString("yyyy-MM-ddTHH:mm");
+            page.Anonymous = true;
+            var redirect = Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectResult>(await page.OnPostAsync());
+            id = Guid.Parse(redirect.Url.Split("done=")[1]);
+            Assert.Equal(s.UserId("nflores"), s.ServiceProvider.GetRequiredService<Vellum.Engine.Security.CurrentUser>().Id); // identity restored
+        }
+
+        using (var ehs = fx.As("mchen"))
+        {
+            var snap = await ehs.LoadAsync(id);
+            var dir = ehs.ServiceProvider.GetRequiredService<Vellum.Engine.Security.UserDirectory>();
+            Assert.Equal(dir.AnonymousReporterId, snap.Record.CreatedById);
+            Assert.True(snap.Bool("anonymous"));
+            Assert.Null(snap.UserId("reported_by"));
+            var reporter = ehs.UserId("nflores");
+            var trail = await ehs.Db().Audit.AsNoTracking().Where(a => a.RecordId == id).ToListAsync();
+            Assert.NotEmpty(trail);
+            Assert.All(trail, a => Assert.NotEqual(reporter, a.UserId));
+            Assert.All(trail, a => Assert.DoesNotContain("Flores", a.UserName));
+
+            // Nothing moves until a named EHS team member accepts it, and there's no reporter to return it to.
+            await ehs.ServiceProvider.GetRequiredService<RecordService>().UpdateAsync(id, new()
+            {
+                ["root_cause_category"] = "method", ["root_cause"] = "Test", ["corrective_action_required"] = false, ["reviewer"] = ehs.UserId("mchen"),
+                ["recordable"] = false,
+            });
+            var blocked = await ehs.RouteAsync(id, "review");
+            Assert.False(blocked.Ok);
+            Assert.Contains(blocked.Errors, e => e.Message.Contains("Accept this anonymous report"));
+            Assert.False((await ehs.RouteAsync(id, "report")).Ok);
+        }
+
+        using (var outsider = fx.As("nflores"))
+            Assert.False((await RunActionAsync(outsider, id, "anon_accept")).Success);
+
+        using (var ehs = fx.As("mchen"))
+        {
+            var accepted = await RunActionAsync(ehs, id, "anon_accept", new() { ["note"] = ["Credible: ramp inspected, jack parking marked."] });
+            Assert.True(accepted.Success, string.Join("; ", accepted.Errors ?? []));
+            Assert.Equal(ehs.UserId("mchen"), (await ehs.LoadAsync(id)).UserId("anon_accepted_by"));
+            var moved = await ehs.RouteAsync(id, "review");
+            Assert.True(moved.Ok, string.Join("; ", moved.Errors.Select(e => e.Message)));
+            Assert.True(await ehs.Db().Audit.AnyAsync(a => a.RecordId == id && a.Action == "Anonymous report accepted" && a.UserId == ehs.UserId("mchen")));
+        }
+
+        // The intake identity can't sign in, and an empty password is simply wrong rather than an error.
+        using (var anon = fx.As(null))
+        {
+            var login = anon.ServiceProvider.GetRequiredService<Vellum.Infrastructure.Auth.LoginService>();
+            Assert.Equal(Vellum.Infrastructure.Auth.LoginOutcome.Invalid, (await login.VerifyPasswordAsync("anonymous", TestHelpers.Password)).Outcome);
+            Assert.Equal(Vellum.Infrastructure.Auth.LoginOutcome.Invalid, (await login.VerifyPasswordAsync("anonymous", "")).Outcome);
+        }
+    }
+
     private static async Task<ActionOutcome> RunActionAsync(Microsoft.Extensions.DependencyInjection.IServiceScope s, Guid id, string action,
         Dictionary<string, string[]>? values = null, bool tzUtc = false)
     {

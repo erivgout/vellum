@@ -24,6 +24,7 @@ public sealed class DbInitializer(IServiceProvider services, ILogger<DbInitializ
             log.LogInformation("Seeding core data");
             await CoreSeed.SeedAsync(db);
         }
+        await CoreSeed.EnsureSystemIdentitiesAsync(db);
         sp.GetRequiredService<UserDirectory>().Invalidate();
 
         var installer = sp.GetRequiredService<PackagedAppInstaller>();

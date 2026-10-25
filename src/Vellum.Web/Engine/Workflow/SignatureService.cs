@@ -23,6 +23,7 @@ public sealed class SignatureService(VellumDbContext db, CurrentUser me, AuditSe
     {
         if (me.IsSystem || !me.IsAuthenticated) return new(false, "Only a person can sign electronically.", null);
         var user = await db.Users.FirstAsync(u => u.Id == me.Id);
+        if (user.IsSystemIdentity) return new(false, "Only a person can sign electronically.", null); // e.g. the anonymous reporter
         if (user.Status != UserStatus.Active) return new(false, "Your account can't sign right now.", null);
 
         if (user.ESignatureCertifiedAt == null)

@@ -90,6 +90,12 @@ public sealed class IncidentBehavior : RecordBehavior
     public override Task ValidateRouteAsync(RoutingContext ctx)
     {
         var s = ctx.Snapshot;
+        // Anonymous reports have no reporter to answer for them, so a named EHS team member must accept one before it moves on.
+        if (IsAnonymous(s) && ctx.To.Type != PhaseType.Voided)
+        {
+            if (ctx.To.Key == "report") ctx.Error("This report was made anonymously, so there's no reporter to return it to. Add what you know in the investigation instead.");
+            else if (s.UserId("anon_accepted_by") == null) ctx.Error("Accept this anonymous report first (\"Accept anonymous report\"), so a named EHS team member owns it.");
+        }
         if (ctx.To.Key != "closed") return Task.CompletedTask;
 
         if (OshaClock.RuleFor(s.KeywordKey("osha_severe_event")) is { } rule && s.DateTime("osha_reported_at") == null)
@@ -159,11 +165,25 @@ public sealed class IncidentBehavior : RecordBehavior
     private static bool ClockOpen(RecordSnapshot s) =>
         s.Record.PhaseType != PhaseType.Voided && OshaClock.RuleFor(s.KeywordKey("osha_severe_event")) != null && s.DateTime("osha_reported_at") == null;
 
+    private static bool IsAnonymous(RecordSnapshot s) => s.Bool("anonymous") == true;
+
+    private static bool AwaitingAcceptance(RecordSnapshot s) =>
+        IsAnonymous(s) && s.UserId("anon_accepted_by") == null && s.Record.PhaseType is not (PhaseType.Voided or PhaseType.Completed);
+
     public override Task<IEnumerable<RecordAction>> ActionsAsync(RecordContext ctx)
     {
         var s = ctx.Snapshot;
         var list = new List<RecordAction>();
-        if (!ClockOpen(s) || ctx.Me.IsSystem) return Task.FromResult<IEnumerable<RecordAction>>(list);
+        if (ctx.Me.IsSystem) return Task.FromResult<IEnumerable<RecordAction>>(list);
+        if (AwaitingAcceptance(s))
+            list.Add(new RecordAction
+            {
+                Key = "anon_accept", Label = "Accept anonymous report", Icon = "bi-person-check", Group = "Anonymous report",
+                Description = "Records you as the named EHS owner of this anonymous report. The investigation can't move on until someone in EHS accepts it.",
+                DisabledReason = CanActOnClock(ctx) ? null : "Only the EHS team can accept an anonymous report.",
+                Inputs = [new ActionField("note", "Triage note (optional)", "textarea", Help: "For example: credible, area inspected, shelving tagged out.")],
+            });
+        if (!ClockOpen(s)) return Task.FromResult<IEnumerable<RecordAction>>(list);
         var why = CanActOnClock(ctx) ? null : "Only the EHS team can acknowledge the clock or record the OSHA report.";
         var tz = ctx.Records.TimeZone;
         if (s.UserId("osha_ack_by") == null)
@@ -193,11 +213,31 @@ public sealed class IncidentBehavior : RecordBehavior
     public override async Task<ActionOutcome> ExecuteAsync(RecordContext ctx, string actionKey, ActionInput input)
     {
         var s = ctx.Snapshot;
-        if (!ClockOpen(s)) return ActionOutcome.Fail("There's no open OSHA reporting clock on this incident.");
         if (!CanActOnClock(ctx)) return ActionOutcome.Fail("Only the EHS team can do this.");
         var db = ctx.Db;
         var audit = ctx.Get<AuditService>();
         var now = DateTime.UtcNow;
+
+        if (actionKey == "anon_accept")
+        {
+            if (!AwaitingAcceptance(s)) return ActionOutcome.Fail("This report isn't waiting for acceptance.");
+            return await Tx.RunAsync(db, async () =>
+            {
+                var note = input.Get("note")?.Trim();
+                var res = await ctx.Records.UpdateAsync(s.Record.Id, new() { ["anon_accepted_by"] = ctx.Me.Id, ["anon_accepted_at"] = now }, note);
+                if (!res.Ok) return ActionOutcome.Fail(res.Errors.Select(e => e.Message).ToArray());
+                audit.Record(s.Record.Id, "Anonymous report accepted", $"{ctx.Me.Name} accepted the anonymous report and owns it for EHS.", reason: note);
+                db.Comments.Add(new Comment
+                {
+                    RecordId = s.Record.Id, UserId = ctx.Me.Id, IsSystem = string.IsNullOrEmpty(note), Kind = "system", At = now,
+                    Text = "Accepted the anonymous report" + (string.IsNullOrEmpty(note) ? "" : ": " + note),
+                });
+                await db.SaveChangesAsync();
+                return ActionOutcome.Ok("Anonymous report accepted. You're recorded as its EHS owner.");
+            });
+        }
+
+        if (!ClockOpen(s)) return ActionOutcome.Fail("There's no open OSHA reporting clock on this incident.");
 
         switch (actionKey)
         {
@@ -271,8 +311,26 @@ public sealed class IncidentBehavior : RecordBehavior
     public override async Task<IEnumerable<RecordPanel>> PanelsAsync(RecordContext ctx)
     {
         var s = ctx.Snapshot;
+        var panels = new List<RecordPanel>();
+        if (IsAnonymous(s) && s.Record.PhaseType != PhaseType.Voided)
+        {
+            var canAccept = (await ActionsAsync(ctx)).Any(a => a.Key == "anon_accept" && a.DisabledReason == null);
+            panels.Add(new RecordPanel
+            {
+                Key = "anonymous", Title = "Anonymous report", Partial = "~/Modules/Ehs/Views/_AnonymousReport.cshtml", Placement = "top", Icon = "bi-incognito",
+                Model = new AnonymousReportVm(ctx.Directory.Get(s.UserId("anon_accepted_by")),
+                    s.DateTime("anon_accepted_at") is { } at ? ModuleKit.Utc(at) : null, canAccept, ctx.Records.TimeZone),
+            });
+        }
+        if (await OshaPanelAsync(ctx) is { } osha) panels.Add(osha);
+        return panels;
+    }
+
+    private async Task<RecordPanel?> OshaPanelAsync(RecordContext ctx)
+    {
+        var s = ctx.Snapshot;
         var rule = OshaClock.RuleFor(s.KeywordKey("osha_severe_event"));
-        if (rule == null || s.DateTime("osha_deadline") is not { } deadline || s.Record.PhaseType == PhaseType.Voided) return [];
+        if (rule == null || s.DateTime("osha_deadline") is not { } deadline || s.Record.PhaseType == PhaseType.Voided) return null;
         var alerts = await ctx.Db.Notifications.AsNoTracking()
             .Where(n => n.RecordId == s.Record.Id && n.Kind == NotificationKind.SafetyCritical)
             .Select(n => new { n.UserId, n.CreatedAt, n.AcknowledgedAt, n.Title }).ToListAsync();
@@ -299,9 +357,11 @@ public sealed class IncidentBehavior : RecordBehavior
             CanAcknowledge = actions.Contains("osha_ack"),
             CanReport = actions.Contains("osha_report"),
         };
-        return [new RecordPanel { Key = "osha_clock", Title = "OSHA reporting clock", Partial = "~/Modules/Ehs/Views/_OshaClock.cshtml", Model = vm, Placement = "top", Icon = "bi-alarm" }];
+        return new RecordPanel { Key = "osha_clock", Title = "OSHA reporting clock", Partial = "~/Modules/Ehs/Views/_OshaClock.cshtml", Model = vm, Placement = "top", Icon = "bi-alarm" };
     }
 }
+
+public sealed record AnonymousReportVm(UserInfo? AcceptedBy, DateTime? AcceptedUtc, bool CanAccept, TimeZoneInfo ViewerTz);
 
 public sealed class OshaClockVm
 {
