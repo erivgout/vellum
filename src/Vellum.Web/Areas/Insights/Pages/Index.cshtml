@@ -120,7 +120,7 @@
                 <span class="vl-app-tile" style="--app:@a.App.Color"><i class="bi @a.App.Icon"></i></span>
                 <span class="main">
                     <span class="name d-block">@a.App.Name</span>
-                    <span class="meta d-block">@a.Open open@if (a.Overdue > 0) { <text> · </text><span class="od">@a.Overdue overdue</span> }</span>
+                    <span class="meta d-block">@a.Open open @if (a.Overdue > 0) { <text>· </text><span class="od">@a.Overdue overdue</span> }</span>
                 </span>
                 @ChartRenderer.Sparkline(a.CreatedWeekly, $"Created per week, last 12 weeks: {string.Join(", ", a.CreatedWeekly)}", "s1", 72, 28)
             </a>

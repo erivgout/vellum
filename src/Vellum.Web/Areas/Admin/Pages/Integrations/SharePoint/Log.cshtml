@@ -37,7 +37,7 @@
 
 <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
     <nav class="vl-filter-pills" aria-label="Log view">
-        <a class="@(!files ? "active" : "")" aria-current="@(!files ? "page" : null)" href="@LogModel.Path@(Model.RecordFilter is { } r1 ? $"?record={r1}" : "")"><i class="bi bi-inboxes"></i> Queue@if (Model.PendingCount > 0) { <span class="vl-pill-count ms-1">@Model.PendingCount</span> }</a>
+        <a class="@(!files ? "active" : "")" aria-current="@(!files ? "page" : null)" href="@LogModel.Path@(Model.RecordFilter is { } r1 ? $"?record={r1}" : "")"><i class="bi bi-inboxes"></i> Queue @if (Model.PendingCount > 0) { <span class="vl-pill-count ms-1">@Model.PendingCount</span> }</a>
         <a class="@(files ? "active" : "")" aria-current="@(files ? "page" : null)" href="@LogModel.Path?view=files@(Model.RecordFilter is { } r2 ? $"&record={r2}" : "")"><i class="bi bi-files"></i> Published files</a>
     </nav>
     @if (Model.FilteredRecord is { } fr)
