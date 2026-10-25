@@ -1,0 +1,31 @@
+@model Vellum.Modules.Supplier.ScorecardResult
+@using Vellum.Modules.Supplier
+@{
+    var r = Model;
+    string D(decimal? d) => d is { } v ? v.ToString("0.##", CultureInfo.InvariantCulture) : "–";
+    var grade = r.Overall is { } o ? Scoring.GradeFor(o) : null;
+}
+@if (r.Errors.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad py-2 mb-2"><i class="bi bi-exclamation-circle"></i><div>@string.Join(" ", r.Errors)</div></div>
+}
+<table class="table table-sm sq-breakdown mb-2">
+    <caption class="visually-hidden">Score by criterion</caption>
+    <thead><tr><th scope="col">Criterion</th><th scope="col" class="text-end">Weight</th><th scope="col" class="text-end" title="After sharing not-applicable weight proportionally (INV-095)">Effective</th><th scope="col" class="text-end">Score</th></tr></thead>
+    <tbody>
+        @foreach (var c in r.Criteria)
+        {
+            <tr class="@(c.Applicable ? "" : "text-body-tertiary")">
+                <td>@c.Label</td>
+                <td class="text-end tabular">@D(c.Weight)%</td>
+                <td class="text-end tabular">@(c.Applicable ? D(r.EffectiveWeight(c)) + "%" : "n/a")</td>
+                <td class="text-end tabular">@D(c.Score)</td>
+            </tr>
+        }
+    </tbody>
+    <tfoot><tr><th scope="row">Overall</th><td></td><td></td><td class="text-end tabular fw-semibold">@D(r.Overall)</td></tr></tfoot>
+</table>
+@if (grade != null)
+{
+    <div class="small text-body-secondary"><strong>@grade.Label</strong>: @grade.Guidance</div>
+}

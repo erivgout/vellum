@@ -1,0 +1,27 @@
+@model Vellum.Modules.Risk.FmeaSummaryVm
+@{
+    var m = Model;
+}
+@if (m.OpenFlags > 0)
+{
+    <div class="vl-banner vl-banner-bad py-2 mb-3" role="status">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <div><strong>@m.OpenFlags row@(m.OpenFlags == 1 ? "" : "s")</strong> at or over a threshold still need@(m.OpenFlags == 1 ? "s" : "") a recommended action or a justification. The FMEA can't be completed until then (INV-179).</div>
+    </div>
+}
+else if (m.Flagged > 0)
+{
+    <div class="vl-banner vl-banner-ok py-2 mb-3" role="status">
+        <i class="bi bi-check-circle-fill"></i>
+        <div>Every row over a threshold has a recommended action or a justification.</div>
+    </div>
+}
+<dl class="vl-kv">
+    <dt>Failure modes</dt><dd class="tabular">@m.Rows</dd>
+    <dt>Highest RPN</dt><dd class="tabular">@(m.MaxRpn?.ToString(CultureInfo.InvariantCulture) ?? "–")</dd>
+    <dt>Over a threshold</dt><dd class="tabular">@m.Flagged</dd>
+    <dt>Needing action or justification</dt><dd class="tabular @(m.OpenFlags > 0 ? "text-danger fw-semibold" : "")">@m.OpenFlags</dd>
+    <dt>Action items created</dt><dd class="tabular">@m.ActionItems</dd>
+    <dt>Average RPN reduction</dt><dd class="tabular">@(m.AvgReduction is { } r ? r.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "–")</dd>
+</dl>
+<p class="small text-body-tertiary mt-3 mb-0">Thresholds: severity ≥ @m.SeverityThreshold or RPN ≥ @m.RpnThreshold (FMEA-006).</p>

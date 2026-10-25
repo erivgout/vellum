@@ -1,0 +1,41 @@
+@model Vellum.Modules.Supplier.ReceivingListVm
+@{
+    var m = Model;
+    var bySupplier = m.Context == "supplier";
+    var closed = m.Lots.Where(l => l.PhaseType == PhaseType.Completed).ToList();
+    var rejected = closed.Count(l => l.Phase?.Key == "rejected");
+    var skipped = closed.Count(l => l.Phase?.Key == "released");
+}
+@if (m.Lots.Count == 0)
+{
+    <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-box-arrow-in-down"></i></div><h3>No lots received yet</h3><p>Receiving records for @(bySupplier ? "this supplier" : "this material") show up here with their skip-lot status and inspection result.</p></div></div>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-4"><div class="vl-stat"><div class="vl-stat-value">@closed.Count</div><div class="vl-stat-label">Lots closed</div></div></div>
+        <div class="col-4"><div class="vl-stat"><div class="vl-stat-value">@skipped</div><div class="vl-stat-label">Released under skip-lot</div></div></div>
+        <div class="col-4"><div class="vl-stat"><div class="vl-stat-value @(rejected > 0 ? "text-danger" : "")">@rejected</div><div class="vl-stat-label"><i class="bi @(rejected > 0 ? "bi-x-octagon" : "bi-check-circle") me-1"></i>Rejected</div></div></div>
+    </div>
+    <div class="vl-table-wrap"><div class="vl-table-scroll">
+        <table class="table vl-table">
+            <caption class="visually-hidden">Receiving records</caption>
+            <thead><tr><th scope="col">Number</th><th scope="col">@(bySupplier ? "Material" : "Supplier")</th><th scope="col">Lot</th><th scope="col">Received</th><th scope="col" class="text-end">Qty</th><th scope="col">Inspection</th><th scope="col">Result</th><th scope="col">Phase</th></tr></thead>
+            <tbody>
+                @foreach (var l in m.Lots)
+                {
+                    <tr data-href="/records/@l.Id">
+                        <td class="col-number"><a href="/records/@l.Id">@l.Number</a></td>
+                        <td class="col-title"><span class="t">@(bySupplier ? l.Material : l.Supplier)</span></td>
+                        <td class="mono small">@l.Lot</td>
+                        <td class="text-nowrap">@l.Received?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</td>
+                        <td class="text-end tabular">@l.Quantity?.ToString("#,##0.##", CultureInfo.InvariantCulture)</td>
+                        <td>@Ui.Keyword(l.Status)</td>
+                        <td>@(l.Result != null ? Ui.Keyword(l.Result) : Ui.KeywordBadge("Pending", "secondary"))</td>
+                        <td>@Ui.Phase(l.Phase?.Name, l.PhaseType, l.Due)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div></div>
+}

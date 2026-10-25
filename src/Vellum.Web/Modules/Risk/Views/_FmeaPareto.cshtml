@@ -1,0 +1,55 @@
+@model Vellum.Modules.Risk.FmeaSummaryVm
+@using Vellum.Modules.Risk
+@{
+    var m = Model;
+    var ranked = m.Pareto.OrderByDescending(r => r.Rpn).ThenBy(r => r.Index).ToList();
+    var total = ranked.Sum(r => r.Rpn);
+    var cumulative = 0;
+}
+<div class="card mb-3">
+    <div class="card-header">
+        <span class="vl-section-icon"><i class="bi bi-bar-chart-line"></i></span>
+        <div class="min-w-0">
+            <h3 class="card-title-sm">Highest RPNs</h3>
+            <p class="vl-section-desc">The top @Math.Min(10, ranked.Count) failure modes by RPN, with their revised RPN after actions.</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="pf-legend mb-2">
+            <span><span class="pf-swatch pf-flag" aria-hidden="true"></span>At or over a threshold (severity ≥ @m.SeverityThreshold or RPN ≥ @m.RpnThreshold)</span>
+            <span><span class="pf-swatch" aria-hidden="true"></span>Below the thresholds</span>
+            <span><span class="pf-swatch pf-rev-key" aria-hidden="true"></span>Revised RPN</span>
+            <span><span class="fw-semibold">!</span> needs an action or justification</span>
+        </div>
+        @RiskCharts.Pareto(m.Pareto, m.RpnThreshold, m.SeverityThreshold, m.Title)
+    </div>
+</div>
+<div class="vl-table-wrap"><div class="vl-table-scroll">
+    <table class="table vl-table vl-table-compact">
+        <caption class="visually-hidden">Failure modes ranked by RPN</caption>
+        <thead><tr><th scope="col">Rank</th><th scope="col">Row</th><th scope="col">Item / failure mode</th><th scope="col" class="text-end">S</th><th scope="col" class="text-end">O</th><th scope="col" class="text-end">D</th><th scope="col" class="text-end">RPN</th><th scope="col" class="text-end">Cumulative</th><th scope="col" class="text-end">RPN′</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+            @for (var i = 0; i < ranked.Count; i++)
+            {
+                var r = ranked[i];
+                cumulative += r.Rpn;
+                <tr>
+                    <td class="tabular">@(i + 1)</td>
+                    <td class="tabular">@r.Index</td>
+                    <td>@r.Label</td>
+                    <td class="text-end tabular @(r.S >= m.SeverityThreshold ? "text-danger fw-semibold" : "")">@r.S</td>
+                    <td class="text-end tabular">@r.O</td>
+                    <td class="text-end tabular">@r.D</td>
+                    <td class="text-end tabular fw-semibold">@r.Rpn</td>
+                    <td class="text-end tabular text-body-secondary">@(total == 0 ? "–" : (cumulative * 100m / total).ToString("0", CultureInfo.InvariantCulture) + "%")</td>
+                    <td class="text-end tabular">@(r.RevisedRpn?.ToString(CultureInfo.InvariantCulture) ?? "–")</td>
+                    <td>
+                        @if (r.Flagged && !r.Handled) { <span class="vl-kw vl-kw-danger"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i>Needs action</span> }
+                        else if (r.Flagged) { <span class="vl-kw vl-kw-warning">Action / justified</span> }
+                        else { <span class="vl-kw vl-kw-secondary">Below thresholds</span> }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div></div>

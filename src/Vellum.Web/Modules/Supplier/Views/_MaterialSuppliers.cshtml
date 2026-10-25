@@ -1,0 +1,51 @@
+@model Vellum.Modules.Supplier.MaterialSuppliersVm
+@{
+    var m = Model;
+    var p = m.Profile;
+}
+<div class="vl-prompt mb-3">
+    <i class="bi bi-info-circle-fill"></i>
+    <div>
+        Filled in from the supplier profiles that list this material (SUP-010).
+        @if (p.Allowed)
+        {
+            <text>Skip-lot profile: <strong>@p.InitialPasses</strong> consecutive accepted lots to qualify, then <strong>@p.LotsToSkip</strong> lot(s) skipped between inspections; <strong>@p.RequalifyPasses</strong> passes to requalify after a rejection (RCV-002).</text>
+        }
+        else
+        {
+            <text>Skip-lot isn't allowed for this material: every lot is inspected.</text>
+        }
+    </div>
+</div>
+@if (m.Suppliers.Count == 0)
+{
+    <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-building"></i></div><h3>No suppliers list this material</h3><p>Once the material is approved, add it to a supplier's supplied materials (INV-089).</p></div></div>
+}
+else
+{
+    <div class="vl-table-wrap"><div class="vl-table-scroll">
+        <table class="table vl-table">
+            <caption class="visually-hidden">Suppliers of this material</caption>
+            <thead><tr><th scope="col">Supplier</th><th scope="col">Supplier part</th><th scope="col">Approval</th><th scope="col">Grade</th><th scope="col" class="text-end">Lots</th><th scope="col">Next lot</th></tr></thead>
+            <tbody>
+                @foreach (var s in m.Suppliers)
+                {
+                    <tr data-href="/records/@s.Id">
+                        <td class="col-title"><a href="/records/@s.Id" class="t">@s.Name</a><div class="small text-body-tertiary">@s.Number</div></td>
+                        <td class="mono small">@s.SupplierPart</td>
+                        <td>@Ui.Keyword(s.Status)</td>
+                        <td>@(s.Grade != null ? Ui.Keyword(s.Grade) : Ui.KeywordBadge("Not rated", "secondary"))</td>
+                        <td class="text-end tabular">@s.Lots</td>
+                        <td>
+                            @if (s.NextLot is { } d)
+                            {
+                                <span title="@d.Basis">@(d.Skip ? Ui.KeywordBadge("Skip", "success") : Ui.KeywordBadge("Inspect", "warning"))</span>
+                                <div class="small text-body-tertiary sq-basis">@d.Basis</div>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div></div>
+}

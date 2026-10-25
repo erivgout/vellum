@@ -1,0 +1,30 @@
+@model Vellum.Modules.Risk.RiskMatrixVm
+@using Vellum.Modules.Risk
+@{
+    var st = Model.State;
+}
+@RiskCharts.RecordMatrix(st, Model.Title)
+<div class="rk-legend mt-2" aria-hidden="true">
+    @if (st.InitialScore != null) { <span><span class="rk-key rk-key-initial">I</span>Initial</span> }
+    @if (st.ResidualScore != null) { <span><span class="rk-key rk-key-residual">R</span>Residual</span> }
+</div>
+<dl class="vl-kv mt-3">
+    @if (st.InitialScore is { } i)
+    {
+        <dt>Initial</dt><dd>S@(st.Severity) × L@(st.Likelihood) = <span class="tabular fw-semibold">@i</span> @Ui.KeywordBadge(st.Initial?.Label ?? "–", RiskMatrix.Color(st.Initial?.Key))</dd>
+    }
+    @if (st.ResidualScore is { } r)
+    {
+        <dt>Residual</dt><dd>S@(st.ResidualSeverity) × L@(st.ResidualLikelihood) = <span class="tabular fw-semibold">@r</span> @Ui.KeywordBadge(st.Residual?.Label ?? "–", RiskMatrix.Color(st.Residual?.Key))</dd>
+    }
+</dl>
+@if (st.Current is { } band)
+{
+    <p class="small text-body-secondary mt-2 mb-0"><strong>@band.Label (@band.Min–@band.Max):</strong> @band.Guidance</p>
+}
+<ul class="rk-bands mt-3" aria-label="Risk bands">
+    @foreach (var b in RiskMatrix.Bands)
+    {
+        <li><span class="rk-swatch rk-@b.Key" aria-hidden="true"></span>@b.Label <span class="text-body-tertiary">@b.Min–@b.Max</span>@if (!b.Acceptable) { <i class="bi bi-exclamation-triangle-fill text-danger ms-1" title="Unacceptable"></i><span class="visually-hidden">(unacceptable)</span> }</li>
+    }
+</ul>

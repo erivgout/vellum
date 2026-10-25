@@ -1,0 +1,44 @@
+@model Vellum.Modules.Supplier.SupplierPerformanceVm
+@using Vellum.Modules.Supplier
+@{
+    var m = Model;
+    var gradeKey = m.CurrentGrade?.Key;
+    var tone = gradeKey switch { "a" => "tone-ok", "b" => "tone-info", "c" => "tone-warn", "d" => "tone-bad", _ => "tone-neutral" };
+    var days = m.NextExpiry is { } ne ? ne.DayNumber - BusinessCalendar.Today.DayNumber : (int?)null;
+}
+<div class="sq-rating">
+    <div class="d-flex align-items-center gap-3">
+        <div class="sq-grade @tone" aria-hidden="true">@(gradeKey?.ToUpperInvariant() ?? "–")</div>
+        <div class="min-w-0">
+            <div class="fw-semibold">@(m.CurrentGrade?.Label ?? "Not rated yet")</div>
+            <div class="small text-body-secondary">
+                @if (m.CurrentScore is { } sc) { <text>Score <span class="tabular">@sc.ToString("0.00", CultureInfo.InvariantCulture)</span> · @m.CurrentPeriod</text> }
+                else { <text>No published scorecard</text> }
+            </div>
+        </div>
+    </div>
+    @if (m.Points.Count(p => p.Score != null) > 1)
+    {
+        <div class="mt-2">@SupplierCharts.Trend(m.Points, m.SupplierName, compact: true)</div>
+    }
+    <dl class="vl-kv mt-3">
+        <dt>Approval</dt><dd>@Ui.Keyword(m.Status)</dd>
+        <dt>Certificates</dt><dd>@(m.CertStatus != null ? Ui.Keyword(m.CertStatus) : Ui.KeywordBadge("None", "secondary"))</dd>
+        @if (m.NextExpiry is { } exp)
+        {
+            <dt>Next expiry</dt>
+            <dd class="@(days < 0 ? "text-danger" : days <= 60 ? "text-warning-emphasis" : "")">
+                @exp.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                @if (days < 0) { <span class="small">(@(-days)d ago)</span> } else if (days <= 60) { <span class="small">(in @days d)</span> }
+            </dd>
+        }
+        @if (m.RequalifyOn is { } rq)
+        {
+            <dt>Requalify by</dt><dd class="@(rq < BusinessCalendar.Today ? "text-danger" : "")">@rq.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</dd>
+        }
+    </dl>
+    @if (m.CanCreateScorecard && m.Status?.Key is "approved" or "conditional")
+    {
+        <button type="button" class="btn btn-sm btn-light w-100 mt-3" data-bs-toggle="modal" data-bs-target="#action-create_scorecard"><i class="bi bi-plus-lg"></i>New scorecard</button>
+    }
+</div>
