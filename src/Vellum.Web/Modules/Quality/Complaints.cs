@@ -449,6 +449,9 @@ public sealed class ComplaintsApp : IPackagedApp
         d.Services.GetRequiredService<Engine.Security.CurrentUser>().UseSystem("Regulatory reporting clocks");
         await d.Services.GetServices<Infrastructure.Jobs.IScheduledJob>().OfType<RegulatoryClockJob>().First()
             .RunAsync(new Infrastructure.Jobs.JobContext(d.Services, true), CancellationToken.None);
+
+        // Insights: the "repeat complaints → CAPA" alert (RPT-603) watches these complaints.
+        await Insights.InsightsDemo.SeedAsync(d);
     }
 }
 
