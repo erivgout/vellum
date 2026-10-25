@@ -46,9 +46,11 @@
     <div class="card-body adm-settings">
         <div class="adm-setting">
             <div><span class="form-label" id="emdr-acct-l">Account type</span><div class="form-text">Test submissions go to the FDA's test system; production submissions are official reports.</div></div>
-            <div class="vl-seg" role="radiogroup" aria-labelledby="emdr-acct-l">
-                <input type="radio" class="btn-check" name="AccountType" id="emdr-acct-test" value="test" checked="@(Model.AccountType == "test")" data-emdr-account /><label for="emdr-acct-test">Test</label>
-                <input type="radio" class="btn-check" name="AccountType" id="emdr-acct-prod" value="production" checked="@(Model.AccountType == "production")" data-emdr-account /><label for="emdr-acct-prod">Production</label>
+            <div>
+                <div class="vl-seg" role="radiogroup" aria-labelledby="emdr-acct-l">
+                    <input type="radio" class="btn-check" name="AccountType" id="emdr-acct-test" value="test" checked="@(Model.AccountType == "test")" data-emdr-account /><label for="emdr-acct-test">Test</label>
+                    <input type="radio" class="btn-check" name="AccountType" id="emdr-acct-prod" value="production" checked="@(Model.AccountType == "production")" data-emdr-account /><label for="emdr-acct-prod">Production</label>
+                </div>
             </div>
         </div>
         <div class="adm-setting">

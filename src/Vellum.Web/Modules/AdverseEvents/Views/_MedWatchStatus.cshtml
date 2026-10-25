@@ -50,7 +50,7 @@
                 </div>
                 @if (m.Due is { } due)
                 {
-                    <div class="vlq-deadline-meta">Due <strong>@due.ToString("ddd dd MMM yyyy")</strong> · counted from the awareness date (CMP-009)</div>
+                    <div class="vlq-deadline-meta">Due <strong>@due.ToString("ddd dd MMM yyyy")</strong> · @(m.ReportType?.Key == AerKeys.Supplemental ? "counted from receipt of the new information" : "counted from the awareness date (CMP-009)")</div>
                 }
             </div>
             <div class="vla-tile">
