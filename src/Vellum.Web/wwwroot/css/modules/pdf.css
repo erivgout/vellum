@@ -1,0 +1,102 @@
+/* PDF engine: rendition chips, the record card, the in-browser viewer (DOC-081) and the rendition rules editor. */
+
+/* ------------------------------------------------------------------ chips in attachment fields */
+.vl-pdf-chip {
+  display: inline-flex; align-items: center; gap: 0.28rem; flex: 0 0 auto;
+  padding: 0.12rem 0.45rem; border-radius: 6px; border: 1px solid var(--vl-border);
+  font-size: 0.72rem; font-weight: 600; line-height: 1.45; white-space: nowrap; text-decoration: none;
+  background: var(--vl-surface-2); color: var(--vl-text-2);
+}
+.vl-pdf-chip.done { background: var(--vl-bad-bg); border-color: var(--vl-bad-border); color: var(--vl-bad); }
+a.vl-pdf-chip.done:hover { background: color-mix(in srgb, var(--vl-bad) 14%, var(--vl-surface)); color: var(--vl-bad); text-decoration: none; }
+a.vl-pdf-chip:focus-visible { outline: 0; box-shadow: var(--vl-ring); }
+.vl-pdf-chip.pending { background: var(--vl-info-bg); border-color: var(--vl-info-border); color: var(--vl-info); }
+.vl-pdf-chip.bad { background: var(--vl-warn-bg); border-color: var(--vl-warn-border); color: var(--vl-warn); cursor: help; }
+.vl-pdf-chip .spinner-border, .vl-pdf-spin { width: 0.7rem; height: 0.7rem; border-width: 0.12em; }
+
+/* ------------------------------------------------------------------ record card */
+.vl-pdf-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.vl-pdf-item { padding: 0.6rem 0.65rem; border: 1px solid var(--vl-border); border-radius: 9px; background: var(--vl-surface-2); }
+.vl-pdf-item .vl-kw { font-size: 0.7rem; }
+.vl-pdf-error { font-size: 0.75rem; color: var(--vl-bad); background: var(--vl-bad-bg); border: 1px solid var(--vl-bad-border); border-radius: 7px; padding: 0.35rem 0.5rem; }
+.vl-pdf-note { display: flex; gap: 0.45rem; align-items: flex-start; font-size: 0.78rem; color: var(--vl-warn); background: var(--vl-warn-bg); border: 1px solid var(--vl-warn-border); border-radius: 8px; padding: 0.45rem 0.6rem; margin-bottom: 0.6rem; }
+
+/* ------------------------------------------------------------------ viewer */
+.vl-pdfv { border: 1px solid var(--vl-border); border-radius: var(--vl-radius); background: var(--vl-surface); box-shadow: var(--vl-shadow); overflow: hidden; }
+.vl-pdfv-bar {
+  position: sticky; top: var(--vl-topbar-h); z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; padding: 0.5rem 0.75rem;
+  background: var(--vl-surface); border-bottom: 1px solid var(--vl-border);
+}
+.vl-pdfv-bar .grow { flex: 1 1 auto; }
+.vl-pdfv-bar .btn { display: inline-flex; align-items: center; gap: 0.35rem; }
+.vl-pdfv-page { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; }
+.vl-pdfv-page input { width: 4.2rem; text-align: center; }
+.vl-pdfv-zoom { width: auto; min-width: 7.5rem; }
+.vl-pdfv-sep { width: 1px; height: 1.4rem; background: var(--vl-border); margin: 0 0.15rem; }
+.vl-pdfv-scroll {
+  position: relative; height: calc(100vh - var(--vl-topbar-h) - 13.5rem); min-height: 420px; overflow: auto;
+  background: var(--vl-surface-3); outline: 0;
+}
+.vl-pdfv-scroll:focus-visible { box-shadow: inset var(--vl-ring); }
+.vl-pdfv-pages { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 1.25rem 1rem 2rem; min-width: max-content; }
+.vl-pdfv-sheet { position: relative; background: #fff; box-shadow: 0 1px 3px rgba(28, 25, 23, .12), 0 6px 18px -6px rgba(28, 25, 23, .18); border-radius: 2px; overflow: hidden; }
+.vl-pdfv-sheet canvas { display: block; }
+.vl-pdfv-state { position: absolute; inset: 0; display: grid; place-content: center; gap: 0.5rem; color: var(--vl-text-2); font-size: 0.9rem; grid-auto-flow: column; align-items: center; }
+.vl-pdfv-state[hidden] { display: none; }
+.vl-pdfv-perm { padding: 0.45rem 0.85rem; border-top: 1px solid var(--vl-border); background: var(--vl-surface-2); }
+[data-bs-theme="dark"] .vl-pdfv-scroll { background: #0c0a09; }
+
+/* pdf.js text layer (selectable text and screen-reader access over the canvas). */
+.vl-pdfv-sheet .textLayer {
+  position: absolute; text-align: initial; inset: 0; overflow: clip; opacity: 1; line-height: 1; letter-spacing: normal; word-spacing: normal;
+  text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; caret-color: CanvasText; z-index: 0;
+  --min-font-size: 1; --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size)); --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.vl-pdfv-sheet .textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; user-select: text; }
+.vl-pdfv-sheet .textLayer > :not(.markedContent), .vl-pdfv-sheet .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1; --font-height: 0; font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1; --rotate: 0deg; transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.vl-pdfv-sheet .textLayer .markedContent { display: contents; }
+.vl-pdfv-sheet .textLayer ::selection { background: color-mix(in srgb, AccentColor, transparent 60%); color: transparent; }
+.vl-pdfv-sheet .textLayer br::selection { background: transparent; }
+.vl-pdfv-sheet .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none; }
+
+/* Printing from the viewer: only the prepared page images, or a notice when printing isn't permitted. */
+.vl-pdf-print, .vl-pdf-noprint { display: none; }
+@media print {
+  body.vl-pdf-page > :not(.vl-pdf-print):not(.vl-pdf-noprint) { display: none !important; }
+  body.vl-pdf-page .vl-pdf-print { display: block; }
+  body.vl-pdf-page .vl-pdf-print img { display: block; width: 100%; height: auto; break-after: page; }
+  body.vl-pdf-page .vl-pdf-print img:last-child { break-after: auto; }
+  body.vl-pdf-page .vl-pdf-noprint { display: block; padding: 2rem; font: 600 14pt/1.4 system-ui, sans-serif; }
+  @page { margin: 0; }
+}
+
+/* ------------------------------------------------------------------ administration: rendition rules */
+.pdf-matrix { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.82rem; }
+.pdf-matrix th, .pdf-matrix td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--vl-border); vertical-align: middle; }
+.pdf-matrix thead th { position: sticky; top: 0; background: var(--vl-surface-2); font-size: 0.7rem; font-weight: 640; text-transform: uppercase; letter-spacing: .03em; color: var(--vl-text-2); white-space: nowrap; z-index: 1; }
+.pdf-matrix thead tr.group th { text-transform: none; font-size: 0.78rem; letter-spacing: 0; color: var(--vl-text); border-bottom: 0; }
+.pdf-matrix .field-group { border-left: 1px solid var(--vl-border); text-align: center; }
+.pdf-matrix .phase { min-width: 11rem; }
+.pdf-matrix .phase .name { font-weight: 600; }
+.pdf-matrix .phase .type { font-size: 0.72rem; color: var(--vl-text-3); }
+.pdf-matrix .wm { min-width: 15rem; }
+.pdf-matrix .wm .form-control { font-size: 0.8rem; }
+.pdf-matrix .roles .form-select { font-size: 0.78rem; min-width: 7rem; }
+.pdf-matrix .chk { text-align: center; border-left: 1px solid transparent; }
+.pdf-matrix .chk.first { border-left-color: var(--vl-border); }
+.pdf-matrix .chk .form-check-input { margin: 0; width: 1.05rem; height: 1.05rem; }
+.pdf-matrix tbody tr:hover td { background: var(--vl-surface-2); }
+.pdf-matrix tr.terminal td { background: color-mix(in srgb, var(--vl-surface-3) 60%, transparent); }
+.pdf-tokens { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.pdf-tokens code { font-size: 0.74rem; background: var(--vl-surface-3); border: 1px solid var(--vl-border); border-radius: 6px; padding: 0.05rem 0.4rem; color: var(--vl-text); }
+.pdf-preview { position: relative; aspect-ratio: 8.5 / 11; max-width: 220px; border: 1px solid var(--vl-border); border-radius: 4px; background: #fff; box-shadow: var(--vl-shadow); overflow: hidden; }
+.pdf-preview .lines { position: absolute; inset: 14% 12% 18%; background: repeating-linear-gradient(#e7e5e4 0 3px, transparent 3px 12px); opacity: .9; }
+.pdf-preview .mark { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-52deg); font-weight: 800; font-size: 1.15rem; white-space: nowrap; color: var(--pdf-color, #b91c1c); opacity: var(--pdf-opacity, .18); letter-spacing: .02em; }
+.pdf-preview .band { position: absolute; left: 10%; right: 10%; font-size: 0.48rem; font-weight: 640; text-align: center; color: var(--pdf-color, #b91c1c); border: 1px solid currentColor; border-radius: 3px; padding: 1px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #fff; }
+.pdf-preview .band.top { top: 2.5%; }
+.pdf-preview .band.bottom { bottom: 2.5%; }
+.pdf-state { display: inline-flex; align-items: center; gap: .3rem; }
