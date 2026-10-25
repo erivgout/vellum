@@ -6,7 +6,7 @@ using Vellum.Modules.Designer;
 namespace Vellum.Areas.Designer.Pages;
 
 /// <summary>Application designer home (DSN-006): components by type with counts, new/copy/delete, draft state, locks, problems.</summary>
-public class AppModel(DesignerStore store, VellumDbContext db) : DesignerPageModel(store)
+public class AppModel(DesignerStore store) : DesignerPageModel(store)
 {
     public List<DesignIssue> Issues { get; private set; } = [];
     public List<DesignerLock> Locks { get; private set; } = [];

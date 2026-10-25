@@ -64,7 +64,7 @@ public sealed class DesignerStore(VellumDbContext db, ConfigCache cfg, CurrentUs
             var missing = new List<string>();
             foreach (var t in Tables)
             {
-                var exists = await db.Database.SqlQueryRaw<int>($"SELECT CASE WHEN OBJECT_ID(N'[{t}]', N'U') IS NULL THEN 0 ELSE 1 END AS [Value]").SingleAsync();
+                var exists = await db.Database.SqlQueryRaw<int>("SELECT CASE WHEN OBJECT_ID({0}, N'U') IS NULL THEN 0 ELSE 1 END AS [Value]", $"[{t}]").SingleAsync();
                 if (exists == 0) missing.Add(t);
             }
             if (missing.Count > 0)
@@ -245,6 +245,7 @@ public sealed class DesignerStore(VellumDbContext db, ConfigCache cfg, CurrentUs
                 if (x.Type is not (FieldType.Keyword or FieldType.KeywordMulti)) x.KeywordList = null; else x.KeywordList = N(x.KeywordList);
                 if (x.Type != FieldType.Link) x.LinkForms = [];
                 if (x.Type is not (FieldType.Number or FieldType.Currency)) { x.Min = null; x.Max = null; x.Decimals = null; }
+                x.Min = DesignDocs.Dec(x.Min); x.Max = DesignDocs.Dec(x.Max);
                 if (x.Type != FieldType.Currency) x.CurrencyCode = null; else x.CurrencyCode = N(x.CurrencyCode)?.ToUpperInvariant() ?? "USD";
                 if (x.Type is not (FieldType.Text or FieldType.TextArea)) x.MaxLength = null;
                 if (x.Type == FieldType.Prompt) { x.Required = false; x.RequiredInPhases = []; x.PreventNull = false; x.Unique = false; x.ShowInHeader = false; }

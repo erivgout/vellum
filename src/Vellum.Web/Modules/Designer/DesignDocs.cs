@@ -56,8 +56,8 @@ public sealed class FormDoc
     public List<FieldDoc> Detached { get; set; } = [];
     public List<WorkflowDoc> Workflows { get; set; } = [];
 
-    public IEnumerable<FieldDoc> AllFields => Sections.SelectMany(s => s.Fields).Concat(Detached);
-    public IEnumerable<FieldDoc> MainFields => Sections.Where(s => !s.IsSubform).SelectMany(s => s.Fields);
+    [JsonIgnore] public IEnumerable<FieldDoc> AllFields => Sections.SelectMany(s => s.Fields).Concat(Detached);
+    [JsonIgnore] public IEnumerable<FieldDoc> MainFields => Sections.Where(s => !s.IsSubform).SelectMany(s => s.Fields);
 }
 
 public sealed class SectionDoc
@@ -222,6 +222,9 @@ public static class DesignDocs
         return key;
     }
 
+    /// <summary>Drop trailing zeros (1.0000000000 → 1) so decimals compare equal after a round trip through the browser.</summary>
+    public static decimal? Dec(decimal? v) => v is { } d ? d / 1.0000000000000000000000000000m : null;
+
     // ------------------------------------------------------------------ live → document
 
     public static AppDoc FromLive(AppDefinition app) => new()
@@ -259,7 +262,7 @@ public static class DesignDocs
         Id = f.Id, Key = f.Key, Label = f.Label, Type = f.Type, Width = f.Width, Required = f.Required, RequiredInPhases = [.. f.RequiredInPhases],
         PreventNull = f.PreventNull, Unique = f.Unique, Sensitive = f.Sensitive, ReadOnly = f.ReadOnly, ProtectFromAdminUpdate = f.ProtectFromAdminUpdate,
         KeywordList = f.KeywordList, LinkForms = [.. f.LinkForms], Help = f.Help, Placeholder = f.Placeholder, DefaultValue = f.DefaultValue,
-        Min = f.Min, Max = f.Max, Decimals = f.Decimals, MaxLength = f.MaxLength, CurrencyCode = f.CurrencyCode, ShowInHeader = f.ShowInHeader,
+        Min = Dec(f.Min), Max = Dec(f.Max), Decimals = f.Decimals, MaxLength = f.MaxLength, CurrencyCode = f.CurrencyCode, ShowInHeader = f.ShowInHeader,
         VisibleWhen = f.VisibleWhen,
     };
 
