@@ -145,7 +145,8 @@ public sealed class PdfQueue(
         if (claimed == 0) return false;
         db.ChangeTracker.Clear();
         var job = await db.Set<PdfJob>().FirstAsync(j => j.Id == jobId, ct);
-        await Tx.RunAsync(db, async () => { await RunAsync(job, inline: false, ct); return true; });
+        // No transaction around the conversion itself (it can take a while); the writes are atomic in RunAsync.
+        await RunAsync(job, inline: false, ct);
         return true;
     }
 
@@ -201,29 +202,32 @@ public sealed class PdfQueue(
                     formRules?.Profile.Color ?? "#b91c1c", formRules?.Profile.Opacity ?? 18))
                 : basePdf;
 
-            // 3. Store it as the rendition (contract: same record, field and row; RenditionOfId = original).
+            // 3. Store it as the rendition (contract: same record, field and row; RenditionOfId = original), atomically with the job.
             var (sha, size) = await files.SaveAsync(new MemoryStream(pdf), ct);
-            var rendition = new Attachment
+            await Tx.RunAsync(db, async () =>
             {
-                RecordId = original.RecordId, RowId = original.RowId, FieldKey = original.FieldKey, FileName = SourceTypes.RenditionName(original.FileName),
-                ContentType = "application/pdf", Sha256 = sha, Size = size, UploadedById = dir.SystemUserId, UploadedAt = DateTime.UtcNow,
-                RenditionOfId = original.Id,
-            };
-            db.Attachments.Add(rendition);
-            audit.Record(record.Id, "PDF rendition created",
-                $"{rendition.FileName} ({size:N0} bytes, SHA-256 {sha[..12]}…) derived from {original.FileName} (SHA-256 {original.Sha256[..12]}…) by {job.Converter}" +
-                (job.Watermark != null ? $"; watermark \"{job.Watermark}\"" : ""),
-                fieldKey: original.FieldKey, fieldLabel: form.Fields.FirstOrDefault(f => f.Key == original.FieldKey)?.Label, phaseName: cfg.Current.Phase(record.PhaseId)?.Name);
-            await db.SaveChangesAsync(ct);
-
-            job.RenditionId = rendition.Id;
-            job.Status = PdfJobStatus.Done;
-            job.LastError = null;
-            job.Permanent = false;
-            job.CompletedAt = DateTime.UtcNow;
-            job.DurationMs = (int)sw.ElapsedMilliseconds;
-            job.LeaseUntil = null;
-            await db.SaveChangesAsync(ct);
+                var rendition = new Attachment
+                {
+                    RecordId = original.RecordId, RowId = original.RowId, FieldKey = original.FieldKey, FileName = SourceTypes.RenditionName(original.FileName),
+                    ContentType = "application/pdf", Sha256 = sha, Size = size, UploadedById = dir.SystemUserId, UploadedAt = DateTime.UtcNow,
+                    RenditionOfId = original.Id,
+                };
+                db.Attachments.Add(rendition);
+                audit.Record(record.Id, "PDF rendition created",
+                    $"{rendition.FileName} ({size:N0} bytes, SHA-256 {sha[..12]}…) derived from {original.FileName} (SHA-256 {original.Sha256[..12]}…) by {job.Converter}" +
+                    (job.Watermark != null ? $"; watermark \"{job.Watermark}\"" : ""),
+                    fieldKey: original.FieldKey, fieldLabel: form.Fields.FirstOrDefault(f => f.Key == original.FieldKey)?.Label, phaseName: cfg.Current.Phase(record.PhaseId)?.Name);
+                await db.SaveChangesAsync(ct);
+                job.RenditionId = rendition.Id;
+                job.Status = PdfJobStatus.Done;
+                job.LastError = null;
+                job.Permanent = false;
+                job.CompletedAt = DateTime.UtcNow;
+                job.DurationMs = (int)sw.ElapsedMilliseconds;
+                job.LeaseUntil = null;
+                await db.SaveChangesAsync(ct);
+                return true;
+            });
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
@@ -242,9 +246,14 @@ public sealed class PdfQueue(
         if (ex is not PdfProcessingException) log.LogError(ex, "PDF conversion of job {Job} ({File}) failed", job.Id, job.FileName);
         else log.LogWarning("PDF conversion of job {Job} ({File}) failed: {Message}", job.Id, job.FileName, message);
 
-        // Discard partial work of this attempt, keep the job.
+        // Discard partial work of this attempt, keep the job (re-attached if a failed transaction cleared the tracker).
         foreach (var e in db.ChangeTracker.Entries().Where(e => e.State == EntityState.Added && !ReferenceEquals(e.Entity, job) && !preexisting.Contains(e.Entity)).ToList())
             e.State = EntityState.Detached;
+        if (db.Entry(job).State == EntityState.Detached)
+        {
+            db.Attach(job);
+            db.Entry(job).State = EntityState.Modified;
+        }
         var final = permanent || job.Attempts >= _options.MaxAttempts;
         job.LastError = message.Length > 2000 ? message[..2000] : message;
         job.Permanent = permanent;
@@ -258,9 +267,7 @@ public sealed class PdfQueue(
         else
         {
             job.Status = PdfJobStatus.Queued;
-            // NFR-025: exponential backoff, 30 s, 1, 2, 4… minutes, capped at an hour.
-            var delay = Math.Min(3600, _options.BackoffSeconds * Math.Pow(2, Math.Max(0, job.Attempts - 1)));
-            job.NextAttemptAt = DateTime.UtcNow.AddSeconds(delay);
+            job.NextAttemptAt = DateTime.UtcNow.AddSeconds(BackoffSeconds(job.Attempts, _options.BackoffSeconds));
         }
 
         var record = await db.Records.AsNoTracking().FirstOrDefaultAsync(r => r.Id == job.RecordId);
@@ -290,6 +297,10 @@ public sealed class PdfQueue(
             throw;
         }
     }
+
+    /// <summary>NFR-025: exponential backoff after the n-th failed attempt (30 s, 1, 2, 4… minutes), capped at an hour.</summary>
+    public static double BackoffSeconds(int attempts, int baseSeconds) =>
+        Math.Min(3600, baseSeconds * Math.Pow(2, Math.Max(0, attempts - 1)));
 
     // ------------------------------------------------------------------ retry and sweep
 

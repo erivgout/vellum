@@ -17,6 +17,8 @@ namespace Vellum.Tests;
 [Collection("vellum")]
 public class DocumentControlTests(VellumFixture fx)
 {
+    internal static readonly Lazy<byte[]> SamplePdf = new(() => Vellum.Modules.Pdf.PdfLayout.Render(new Vellum.Modules.Pdf.PdfReport { Title = "Controlled content" }, "Acme"));
+
     internal static async Task<Record> NewDocAsync(IServiceScope s, string title, string type = "procedure", bool? training = false,
         Dictionary<string, object?>? extra = null)
     {
@@ -31,7 +33,8 @@ public class DocumentControlTests(VellumFixture fx)
         var res = await s.ServiceProvider.GetRequiredService<RecordService>().CreateAsync(new CreateRequest
         {
             FormKey = DocKeys.Document, Values = values,
-            Files = [("primary_file", $"{title}.pdf", "application/pdf", new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.4 " + title)))],
+            // A real PDF: renditions are validated, and an effective revision needs one (INV-054).
+            Files = [("primary_file", $"{title}.pdf", "application/pdf", new MemoryStream(SamplePdf.Value))],
         });
         Assert.True(res.Ok, string.Join("; ", res.Errors.Select(e => $"{e.FieldKey}: {e.Message}")));
         return res.Record!;

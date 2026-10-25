@@ -47,9 +47,16 @@ public sealed class PdfReport
     public string? Author { get; init; }
 
     internal List<Action<Section>> Blocks { get; } = [];
+    private readonly List<string> _text = [];
+
+    /// <summary>The report's content as plain text lines (for search, accessibility checks and tests).</summary>
+    public IReadOnlyList<string> PlainText =>
+        new[] { Organization, Context, Reference, Title, Subtitle, Status, Marking }.OfType<string>().Concat(_text).Concat(new[] { Footer, FooterNote }.OfType<string>()).ToList();
 
     public PdfReport Heading(string text, string? sub = null)
     {
+        _text.Add(text);
+        if (sub != null) _text.Add(sub);
         Blocks.Add(s =>
         {
             var p = s.AddParagraph(text, "Heading2");
@@ -61,6 +68,7 @@ public sealed class PdfReport
 
     public PdfReport Text(string text, bool muted = false)
     {
+        _text.Add(text);
         Blocks.Add(s =>
         {
             foreach (var para in text.Replace("\r\n", "\n").Split('\n'))
@@ -74,6 +82,7 @@ public sealed class PdfReport
         var list = fields.ToList();
         if (list.Count == 0) return this;
         columns = Math.Clamp(columns, 1, 4);
+        _text.AddRange(list.Select(f => $"{f.Label}: {f.Value}"));
         Blocks.Add(s => PdfLayout.FieldGrid(s, list, columns, Landscape));
         return this;
     }
@@ -81,6 +90,8 @@ public sealed class PdfReport
     public PdfReport Table(IReadOnlyList<string> headers, IEnumerable<IReadOnlyList<string?>> rows, IReadOnlyList<double>? relativeWidths = null, string? empty = null)
     {
         var data = rows.ToList();
+        _text.Add(string.Join(" | ", headers));
+        _text.AddRange(data.Count == 0 ? [empty ?? "None."] : data.Select(r => string.Join(" | ", r.Select(c => (c ?? "").Replace('\n', ' ')))));
         Blocks.Add(s =>
         {
             if (data.Count == 0) { s.AddParagraph(empty ?? "None.", "Muted"); return; }
@@ -91,6 +102,7 @@ public sealed class PdfReport
 
     public PdfReport Banner(string title, string? text = null, PdfTone tone = PdfTone.Info)
     {
+        _text.Add(text == null ? title : $"{title}: {text}");
         Blocks.Add(s => PdfLayout.Banner(s, title, text, tone, Landscape));
         return this;
     }

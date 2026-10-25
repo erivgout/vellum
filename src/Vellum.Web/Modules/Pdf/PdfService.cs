@@ -41,6 +41,9 @@ public interface IPdfService
     /// <summary>DOC-043: the signature page of a revision (every signature, meaning, time with zone, certification text, content hash).</summary>
     Task<byte[]?> ApprovalManifestAsync(Guid recordId);
 
+    /// <summary>The approval manifest as a <see cref="PdfReport"/> (the template, INT-409), to render or extend.</summary>
+    Task<PdfReport?> BuildApprovalManifestAsync(Guid recordId);
+
     /// <summary>DOC-043: the rendition (marked per SAF-043) followed by the approval manifest. Null without access.</summary>
     Task<byte[]?> ControlledCopyAsync(long renditionId);
 
@@ -210,6 +213,22 @@ public sealed class PdfService(
 
     private async Task<byte[]?> ManifestAsync(Guid recordId, bool auditIt)
     {
+        var report = await BuildApprovalManifestAsync(recordId);
+        if (report == null) return null;
+        var record = await db.Records.AsNoTracking().FirstAsync(r => r.Id == recordId);
+        var formRules = await rules.ForFormAsync(cfg.Current.FormsById[record.FormId].Key);
+        var pdf = PdfLayout.Render(report, Org, formRules?.Profile.Color ?? "#b91c1c", formRules?.Profile.Opacity ?? 14);
+        if (auditIt)
+        {
+            var active = await db.Signatures.CountAsync(s => s.RecordId == recordId && !s.Superseded);
+            audit.Record(recordId, "Approval manifest generated", $"{active} signature(s) in force (DOC-043)");
+            await db.SaveChangesAsync();
+        }
+        return pdf;
+    }
+
+    public async Task<PdfReport?> BuildApprovalManifestAsync(Guid recordId)
+    {
         if (!me.IsSystem && !await access.CanReadAsync(recordId)) return null;
         var snap = await records.LoadAsync(recordId);
         if (snap == null) return null;
@@ -267,13 +286,7 @@ public sealed class PdfService(
                 superseded.Select(s => (IReadOnlyList<string?>)[s.SignerName, s.Meaning, s.PhaseName, When(s.SignedAt, tz),
                     s.SupersededAt is { } at ? When(at, tz) : "–"]), [1.4, 1.2, 1.2, 1.5, 1.5]);
         }
-        var pdf = PdfLayout.Render(report, settings.OrganizationName, formRules?.Profile.Color ?? "#b91c1c", formRules?.Profile.Opacity ?? 14);
-        if (auditIt)
-        {
-            audit.Record(r.Id, "Approval manifest generated", $"{active.Count} signature(s) in force; content SHA-256 {hash[..12]}… (DOC-043)");
-            await db.SaveChangesAsync();
-        }
-        return pdf;
+        return report;
     }
 
     public async Task<byte[]?> ControlledCopyAsync(long renditionId)
