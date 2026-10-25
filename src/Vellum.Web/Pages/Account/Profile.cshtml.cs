@@ -11,7 +11,7 @@ using Vellum.Infrastructure.Auth;
 namespace Vellum.Pages.Account;
 
 /// <summary>PLT-1404 preferences, SEC-612 e-signature certification, SEC §4.3 TOTP enrollment, active sessions.</summary>
-public class ProfileModel(VellumDbContext db, CurrentUser me, UserDirectory dir, AuditService audit, SessionService sessions) : PageModel
+public class ProfileModel(VellumDbContext db, CurrentUser me, UserDirectory dir, AuditService audit) : PageModel
 {
     public User Me { get; private set; } = null!;
     public SystemSettings Settings { get; private set; } = null!;

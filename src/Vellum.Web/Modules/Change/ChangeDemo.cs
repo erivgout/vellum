@@ -99,7 +99,6 @@ internal static class ChangeDemo
 
     public static async Task SeedAsync(DemoContext d)
     {
-        Dictionary<string, object?> Impact(string area, string assessor) => new() { ["area"] = area, ["assessor"] = d.User(assessor) };
         var engineering = await FindTemplateAsync(d, "Engineering change");
         var process = await FindTemplateAsync(d, "Process change");
         var supplier = await FindTemplateAsync(d, "Supplier change");

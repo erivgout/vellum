@@ -12,7 +12,7 @@ namespace Vellum.Pages.Records;
 
 public class RecordModel(
     RecordService records, WorkflowEngine workflow, AccessService access, RecordVmBuilder builder, LockService locks,
-    BehaviorRegistry behaviors, IServiceProvider services, VellumDbContext db, Engine.Audit.AuditService audit) : PageModel
+    BehaviorRegistry behaviors, IServiceProvider services, VellumDbContext db) : PageModel
 {
     public RecordVm Vm { get; private set; } = null!;
 
