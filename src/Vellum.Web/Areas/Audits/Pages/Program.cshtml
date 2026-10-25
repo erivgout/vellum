@@ -53,7 +53,13 @@
                             <td><div class="fw-semibold">@x.Name</div><div class="x-small text-body-tertiary">@(x.Kind?.Label ?? "–")</div></td>
                             <td class="text-nowrap">@if (x.LastAudit != null) { <a href="/records/@x.LastAudit.Id">@x.LastAudit.Number</a><div class="x-small text-body-tertiary">@x.LastDate?.ToString("dd MMM yyyy")</div> } else { <span class="text-body-tertiary">Never</span> }</td>
                             <td>@if (x.LastResult != null) { @Ui.Keyword(x.LastResult) } else { <span class="text-body-tertiary">–</span> }</td>
-                            <td class="text-nowrap small">Every @x.FrequencyMonths mo@if (x.Frequency != null) { <div>@Ui.Keyword(x.Frequency)</div> }</td>
+                            <td class="text-nowrap small">
+                                Every @x.FrequencyMonths mo
+                                @if (x.Frequency != null)
+                                {
+                                    <div>@Ui.Keyword(x.Frequency)</div>
+                                }
+                            </td>
                             <td class="text-nowrap">@if (x.NextDue is { } n) { @Ui.Due(n, x.OpenAudit == null) } else { <span class="text-body-tertiary">Not set</span> }</td>
                             <td class="text-nowrap">
                                 @if (x.OpenAudit != null) { <a href="/records/@x.OpenAudit.Id">@x.OpenAudit.Number</a> @Ui.Phase(x.OpenPhase?.Name, x.OpenAudit.PhaseType, x.OpenAudit.DueDate) }
