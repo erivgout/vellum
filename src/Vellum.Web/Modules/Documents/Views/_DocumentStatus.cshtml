@@ -1,0 +1,15 @@
+@model Vellum.Modules.Documents.DocumentStatusModel
+@foreach (var b in Model.Banners)
+{
+    <div class="vl-banner vl-banner-@b.Tone vl-doc-banner" role="status">
+        <i class="bi @b.Icon" aria-hidden="true"></i>
+        <div class="flex-grow-1 min-w-0">
+            <div class="ttl">@b.Title</div>
+            <div class="small">@b.Text</div>
+        </div>
+        @if (b.Href != null)
+        {
+            <a class="btn btn-sm btn-light flex-shrink-0" href="@b.Href"><i class="bi bi-box-arrow-up-right"></i>@b.LinkText</a>
+        }
+    </div>
+}

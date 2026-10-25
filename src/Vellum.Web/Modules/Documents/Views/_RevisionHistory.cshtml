@@ -1,0 +1,78 @@
+@model Vellum.Modules.Documents.RevisionHistoryModel
+@using Vellum.Modules.Documents
+@{
+    var rows = Model.Rows;
+    string Meanings(IEnumerable<Signature> sigs) => string.Join(", ", sigs.Select(s => s.Meaning).Distinct());
+}
+<div class="vl-banner vl-banner-info">
+    <i class="bi bi-clock-history" aria-hidden="true"></i>
+    <div>
+        <div class="ttl">Revision history</div>
+        <div class="small">Every revision of this document with its reason, approvers and effective date. It is calculated from the records themselves and can't be edited by anyone (DOC-016, DOC-017).</div>
+    </div>
+</div>
+<div class="card vl-revhist" data-paginate="10">
+    <div class="card-header flex-wrap gap-2">
+        <h3 class="card-title-sm"><i class="bi bi-clock-history"></i>@Ui.Plural(rows.Count, "revision")</h3>
+        <div class="ms-auto vl-revhist-search">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input type="search" class="form-control form-control-sm" placeholder="Search revisions…" aria-label="Search revision history" data-paginate-search autocomplete="off" />
+        </div>
+    </div>
+    <div class="vl-table-scroll">
+        <table class="table vl-table vl-table-compact mb-0">
+            <thead>
+                <tr><th scope="col">Rev</th><th scope="col">Status</th><th scope="col">Reason for revision</th><th scope="col">Approvals</th><th scope="col">Effective</th><th scope="col">Related</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var row in rows)
+                {
+                    var r = row.Record;
+                    var current = r.Id == Model.CurrentId;
+                    var approvals = row.Approvals.Where(s => s.Meaning is "Approved" or "Reviewed" or "Released" or "Training gate override").ToList();
+                    var text = $"{r.Revision} {row.Reason} {string.Join(" ", approvals.Select(a => a.SignerName))} {row.ChangeRequestNumber}";
+                    <tr class="@(current ? "is-current" : "")" data-paginate-row data-text="@text.ToLowerInvariant()" data-href="@(row.Readable && !current ? $"/records/{r.Id}" : null)">
+                        <td class="text-nowrap">
+                            @if (row.Readable && !current) { <a href="/records/@r.Id" class="fw-semibold">@r.Revision</a> } else { <span class="fw-semibold">@r.Revision</span> }
+                            @if (current) { <span class="vl-kw vl-kw-info ms-1">This</span> }
+                        </td>
+                        <td class="text-nowrap">
+                            @if (r.IsEffective) { <span class="vl-chip vl-chip-effective"><i class="bi bi-patch-check-fill" aria-hidden="true"></i>Effective</span> }
+                            else if (r.IsArchived && r.ArchiveReason == DocKeys.Superseded) { <span class="vl-chip vl-chip-archived"><i class="bi bi-archive" aria-hidden="true"></i>Superseded</span> }
+                            else if (r.IsArchived) { <span class="vl-chip vl-chip-archived"><i class="bi bi-slash-circle" aria-hidden="true"></i>Obsolete</span> }
+                            else { @Ui.Phase(row.Phase?.Name, r.PhaseType, r.DueDate) }
+                        </td>
+                        <td class="vl-revhist-reason">@(row.Reason ?? "–")</td>
+                        <td>
+                            @if (approvals.Count == 0) { <span class="text-body-tertiary">–</span> }
+                            else
+                            {
+                                <ul class="list-unstyled m-0 small">
+                                    @foreach (var g in approvals.GroupBy(a => a.SignerName))
+                                    {
+                                        <li class="text-nowrap"><i class="bi bi-pen text-body-tertiary" aria-hidden="true"></i> @g.Key <span class="text-body-tertiary">· @Meanings(g)</span></li>
+                                    }
+                                </ul>
+                            }
+                        </td>
+                        <td class="text-nowrap">@(r.EffectiveDate?.ToString("dd MMM yyyy") ?? "–")</td>
+                        <td class="small">
+                            @if (row.ChangeRequestId is { } cr) { <a class="d-block text-nowrap" href="/records/@cr"><i class="bi bi-pencil-square" aria-hidden="true"></i> @row.ChangeRequestNumber</a> }
+                            @foreach (var pr in row.Reviews) { <a class="d-block text-nowrap" href="/records/@pr.Id"><i class="bi bi-calendar2-check" aria-hidden="true"></i> @pr.Number</a> }
+                            @foreach (var o in row.ObsoleteRequests) { <a class="d-block text-nowrap" href="/records/@o.Id"><i class="bi bi-archive" aria-hidden="true"></i> @o.Number</a> }
+                            @if (row.ChangeRequestId == null && row.Reviews.Count == 0 && row.ObsoleteRequests.Count == 0) { <span class="text-body-tertiary">–</span> }
+                        </td>
+                    </tr>
+                }
+                <tr class="d-none" data-paginate-empty><td colspan="6" class="text-center text-body-secondary py-4">No revisions match your search.</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer d-flex align-items-center justify-content-between small text-body-secondary d-none" data-paginate-footer>
+        <span data-paginate-status></span>
+        <span class="d-flex gap-1">
+            <button type="button" class="btn btn-sm btn-light" data-paginate-prev aria-label="Previous page"><i class="bi bi-chevron-left"></i></button>
+            <button type="button" class="btn btn-sm btn-light" data-paginate-next aria-label="Next page"><i class="bi bi-chevron-right"></i></button>
+        </span>
+    </div>
+</div>

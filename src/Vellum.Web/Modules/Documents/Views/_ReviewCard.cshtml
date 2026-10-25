@@ -1,0 +1,38 @@
+@model Vellum.Modules.Documents.ReviewCardModel
+@{
+    var i = Model.Info;
+    var (tone, label) = i.Window switch
+    {
+        "overdue" => ("danger", $"Overdue {-i.DaysLeft}d"),
+        "due30" => ("warning", i.DaysLeft == 0 ? "Due today" : $"Due in {i.DaysLeft}d"),
+        "due60" or "due90" => ("info", $"Due in {i.DaysLeft}d"),
+        "later" => ("success", "On schedule"),
+        _ => ("secondary", "No schedule"),
+    };
+}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title-sm"><i class="bi bi-calendar2-check"></i>Periodic review</h3>
+        <span class="ms-auto">@Ui.KeywordBadge(label, tone)</span>
+    </div>
+    <div class="card-body pt-2">
+        <dl class="vl-kv">
+            <dt>Next review</dt><dd>@(i.NextReview?.ToString("dd MMM yyyy") ?? "Not scheduled")</dd>
+            <dt>Frequency</dt><dd>@(i.Months > 0 ? $"Every {i.Months} months" : "None")</dd>
+            <dt>Last reviewed</dt>
+            <dd>
+                @if (i.LastReview != null) { <a href="/records/@i.LastReview.Id">@i.LastReviewed?.ToString("dd MMM yyyy")</a> }
+                else { <text>Not since release</text> }
+            </dd>
+            <dt>Owner</dt><dd>@Model.Dir.Name(i.OwnerId)</dd>
+        </dl>
+        @if (i.OpenReview != null)
+        {
+            <a class="btn btn-sm btn-light w-100 mt-3" href="/records/@i.OpenReview.Id"><i class="bi bi-arrow-right-circle"></i>Open review @i.OpenReview.Number</a>
+        }
+        else if (i.Window is "overdue" or "due30")
+        {
+            <p class="small text-body-secondary mt-2 mb-0">Start it from Revision control › Start periodic review (DOC-073).</p>
+        }
+    </div>
+</div>

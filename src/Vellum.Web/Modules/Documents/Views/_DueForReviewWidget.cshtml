@@ -1,0 +1,20 @@
+@model Vellum.Modules.Documents.DueForReviewWidgetModel
+<div class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-calendar2-check"></i>My documents due for review</h2>
+        @if (Model.Overdue > 0) { <span class="vl-pill-count hot ms-auto" title="Overdue">@Model.Overdue</span> }
+        <a class="small @(Model.Overdue > 0 ? "ms-2" : "ms-auto")" href="/documents/reviews">Schedule</a>
+    </div>
+    <div class="vl-list">
+        @foreach (var i in Model.Items.Take(5))
+        {
+            <a class="vl-list-item" href="/records/@(i.OpenReview?.Id ?? i.Doc.Id)">
+                <span class="main">
+                    <span class="line1"><span class="num">@i.Doc.Number</span><span class="ttl">@i.Doc.Title</span></span>
+                    <span class="line2 d-block">@(i.OpenReview != null ? $"Review {i.OpenReview.Number} in progress" : $"Rev {i.Doc.Revision} · review by {i.NextReview:dd MMM yyyy}")</span>
+                </span>
+                <span class="aside">@Ui.Due(i.NextReview, compact: true)</span>
+            </a>
+        }
+    </div>
+</div>

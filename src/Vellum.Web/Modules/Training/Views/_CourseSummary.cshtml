@@ -1,0 +1,25 @@
+@model Vellum.Modules.Training.CourseAssignmentsModel
+@{
+    var s = Model.Stats;
+    var c = Model.Course;
+}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title-sm"><i class="bi bi-pie-chart"></i>Training summary</h3>
+        <span class="ms-auto">@(c.Enabled ? Ui.KeywordBadge("Enabled", "success") : Ui.KeywordBadge("Disabled", "secondary"))</span>
+    </div>
+    <div class="card-body pt-2">
+        <div class="d-flex align-items-baseline gap-2"><span class="vl-trn-big">@s.Percent%</span><span class="small text-body-secondary">complete</span></div>
+        <div class="vl-doc-progress mt-2" role="progressbar" aria-label="Course completion" aria-valuenow="@s.Percent" aria-valuemin="0" aria-valuemax="100"><span class="bar" style="width:@(s.Percent)%"></span></div>
+        <dl class="vl-kv mt-3">
+            <dt>Completed</dt><dd>@s.Completed</dd>
+            <dt>Pending</dt><dd>@s.Pending</dd>
+            <dt>Overdue</dt><dd class="@(s.Overdue > 0 ? "text-danger" : "")">@s.Overdue</dd>
+            <dt>Expired</dt><dd>@s.Expired</dd>
+            <dt>Voided</dt><dd>@s.Voided</dd>
+            <dt>Applies to</dt><dd>@Ui.Plural(Model.Applicable, "employee")</dd>
+        </dl>
+        <div class="vl-divider my-2"></div>
+        <div class="small text-body-secondary">@(c.InstructorLed ? "Instructor-led: a coordinator records completion." : "Online: trainees acknowledge with an e-signature (TRN-040).") Due within @c.DueDays days@(c.ExpirationMonths is { } e ? $"; expires after {e} months" + (c.RetrainingDays is { } rd ? $", retraining {rd} days before" : "") : "; doesn't expire").</div>
+    </div>
+</div>

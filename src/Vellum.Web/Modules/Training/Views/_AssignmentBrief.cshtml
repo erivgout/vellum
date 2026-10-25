@@ -1,0 +1,78 @@
+@model Vellum.Modules.Training.AssignmentBriefModel
+@using Vellum.Modules.Training
+@{
+    var m = Model;
+    var c = m.Course;
+    var pending = m.Assignment.PhaseType == PhaseType.Normal;
+}
+<div class="card vl-trn-brief mb-3">
+    <div class="card-body">
+        <div class="d-flex align-items-start gap-3 flex-wrap">
+            <span class="vl-app-tile" style="--app:#0891b2"><i class="bi bi-mortarboard"></i></span>
+            <div class="min-w-0 flex-grow-1">
+                <div class="small text-body-secondary">@(m.IsMine ? "Your training" : $"Training for {m.Dir.Name(m.EmployeeId)}")</div>
+                <div class="fw-semibold vl-trn-brief-title">@(c?.Name ?? m.Assignment.Title)</div>
+                @if (c?.Snapshot.Text("overview") is { } overview) { <p class="small text-body-secondary mb-0 mt-1">@overview</p> }
+            </div>
+            <div class="text-end">
+                @switch (m.PhaseKey)
+                {
+                    case TrainingKeys.Completed: <span class="vl-chip vl-chip-done"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Completed @m.CompletedAt?.ToString("dd MMM yyyy")</span> break;
+                    case TrainingKeys.Expired: <span class="vl-chip vl-chip-archived"><i class="bi bi-clock" aria-hidden="true"></i>Expired @m.ExpiresOn?.ToString("dd MMM yyyy")</span> break;
+                    case TrainingKeys.Voided: <span class="vl-chip vl-chip-void"><i class="bi bi-slash-circle" aria-hidden="true"></i>Voided</span> break;
+                    default: @Ui.Due(m.Due) break;
+                }
+                @if (m.ExpiresOn != null && m.PhaseKey == TrainingKeys.Completed) { <div class="x-small text-body-tertiary mt-1">Valid until @m.ExpiresOn?.ToString("dd MMM yyyy")</div> }
+            </div>
+        </div>
+
+        <div class="row g-2 mt-2">
+            @if (m.SourceDoc != null)
+            {
+                <div class="col-md-6">
+                    <div class="vl-trn-material">
+                        <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+                        <span class="min-w-0 flex-grow-1">
+                            <span class="d-block x-small text-body-tertiary">Source document</span>
+                            @if (m.SourceReadable) { <a class="fw-medium" href="/records/@m.SourceDoc.Id">@m.SourceDoc.Number rev @m.SourceDoc.Revision · @m.SourceDoc.Title</a> }
+                            else { <span class="fw-medium">@m.SourceDoc.Number rev @m.SourceDoc.Revision · @m.SourceDoc.Title</span><span class="d-block x-small text-body-tertiary">Pending revision: read it in the course materials.</span> }
+                        </span>
+                    </div>
+                </div>
+            }
+            @foreach (var a in m.Materials)
+            {
+                <div class="col-md-6">
+                    <a class="vl-trn-material" href="/files/@a.Id?inline=true" target="_blank" rel="noopener">
+                        <i class="bi @Ui.FileIcon(a.FileName)" aria-hidden="true"></i>
+                        <span class="min-w-0 flex-grow-1">
+                            <span class="d-block x-small text-body-tertiary">Course material</span>
+                            <span class="fw-medium text-truncate d-block">@a.FileName</span>
+                        </span>
+                        <i class="bi bi-box-arrow-up-right text-body-tertiary" aria-hidden="true"></i>
+                    </a>
+                </div>
+            }
+            @if (c?.Snapshot.Text("material_link") is { } link)
+            {
+                <div class="col-md-6"><a class="vl-trn-material" href="@link" target="_blank" rel="noopener noreferrer"><i class="bi bi-link-45deg" aria-hidden="true"></i><span class="fw-medium text-truncate">@link</span></a></div>
+            }
+        </div>
+
+        @if (pending)
+        {
+            @if (m.MissingPrerequisites.Count > 0)
+            {
+                <div class="vl-banner vl-banner-warn mt-3 mb-0"><i class="bi bi-diagram-3"></i><div><div class="ttl">Prerequisites first</div><div class="small">Complete @string.Join(", ", m.MissingPrerequisites) before this course (INV-107).</div></div></div>
+            }
+            else if (c?.InstructorLed == true)
+            {
+                <div class="vl-banner vl-banner-info mt-3 mb-0"><i class="bi bi-person-video3"></i><div><div class="ttl">Instructor-led</div><div class="small">Attend the session. Your training coordinator records completion afterwards (TRN-040).</div></div></div>
+            }
+            else if (m.IsMine)
+            {
+                <div class="vl-banner vl-banner-violet mt-3 mb-0"><i class="bi bi-pen"></i><div><div class="ttl">Read, then acknowledge</div><div class="small">Read the material above, then choose <strong>Acknowledge: read and understood</strong> and sign with your password. Your signature confirms you understood the content and will follow it (TRN-040).</div></div></div>
+            }
+        }
+    </div>
+</div>
