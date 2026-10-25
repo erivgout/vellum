@@ -41,17 +41,20 @@
         <div class="vl-table-scroll">
             <table class="table vl-table mb-0">
                 <caption class="visually-hidden">Supplier contacts and their portal access</caption>
-                <thead><tr><th scope="col">Contact</th><th scope="col">Email</th><th scope="col">Portal access</th><th scope="col">Last sign-in</th>@if (m.CanManage) { <th scope="col" class="text-end"><span class="visually-hidden">Actions</span></th> }</tr></thead>
+                <thead><tr><th scope="col">Contact</th><th scope="col">Portal access</th><th scope="col">Last sign-in</th>@if (m.CanManage) { <th scope="col" class="text-end"><span class="visually-hidden">Actions</span></th> }</tr></thead>
                 <tbody>
                     @foreach (var c in m.Contacts)
                     {
                         var (label, tone, icon) = Access(c.Access);
                         <tr>
-                            <td class="col-title"><span class="t">@c.Name</span>@if (c.Role != null) { <span class="d-block x-small text-body-tertiary">@c.Role</span> }</td>
-                            <td class="small">@(c.Email ?? "–")@if (c.Username != null && c.Username != c.Email?.ToLowerInvariant()) { <span class="d-block x-small text-body-tertiary">Username @c.Username</span> }</td>
+                            <td class="col-title">
+                                <span class="t">@c.Name</span>@if (c.Role != null) { <span class="x-small text-body-tertiary"> · @c.Role</span> }
+                                <span class="d-block x-small text-body-secondary text-truncate" style="max-width:260px">@(c.Email ?? "No email")</span>
+                                @if (c.Username != null && c.Username != c.Email?.ToLowerInvariant()) { <span class="d-block x-small text-body-tertiary">Username <span class="mono">@c.Username</span></span> }
+                            </td>
                             <td>
                                 <span class="vp-status @tone"><i class="bi @icon" aria-hidden="true"></i>@label</span>
-                                @if (c.Access == PortalAccess.Invited && c.InviteExpiresAt is { } exp) { <span class="d-block x-small text-body-tertiary mt-1">Link expires @Ui.Time(exp, tz)</span> }
+                                @if (c.Access == PortalAccess.Invited && c.InviteExpiresAt is { } exp) { <span class="d-block x-small text-body-tertiary mt-1">Link valid until @exp.ToString("dd MMM", CultureInfo.InvariantCulture)</span> }
                             </td>
                             <td class="small text-nowrap">@(c.LastLoginAt is { } ll ? Ui.Time(ll, tz) : new Microsoft.AspNetCore.Html.HtmlString("<span class=\"text-body-tertiary\">Never</span>"))</td>
                             @if (m.CanManage)
@@ -101,7 +104,7 @@
         <div class="vl-table-scroll">
             <table class="table vl-table mb-0">
                 <caption class="visually-hidden">Records shared with the supplier portal</caption>
-                <thead><tr><th scope="col">Number</th><th scope="col">Request</th><th scope="col">Portal status</th><th scope="col">Due</th><th scope="col">Updated</th></tr></thead>
+                <thead><tr><th scope="col">Number</th><th scope="col">Request</th><th scope="col">Portal status</th><th scope="col">Due</th></tr></thead>
                 <tbody>
                     @foreach (var (rec, share, kind) in m.Requests)
                     {
@@ -109,9 +112,8 @@
                         <tr data-href="/records/@rec.Id">
                             <td class="col-number"><a href="/records/@rec.Id">@rec.Number</a></td>
                             <td class="col-title"><span class="t">@rec.Title</span><span class="d-block x-small text-body-tertiary"><i class="bi @kind.Icon" aria-hidden="true"></i> @kind.Noun</span></td>
-                            <td><span class="vp-status @Tone(st.Tone)"><i class="bi @st.Icon" aria-hidden="true"></i>@st.Label</span></td>
-                            <td>@(share.DueDate is { } d ? Ui.Due(d, !st.Closed) : new Microsoft.AspNetCore.Html.HtmlString("<span class=\"text-body-tertiary\">–</span>"))</td>
-                            <td class="small text-nowrap">@Ui.Time(share.UpdatedAt, tz)</td>
+                            <td><span class="vp-status @Tone(st.Tone)"><i class="bi @st.Icon" aria-hidden="true"></i>@st.Label</span><span class="d-block x-small text-body-tertiary mt-1">Updated @Ui.Ago(share.UpdatedAt)</span></td>
+                            <td class="text-nowrap">@(share.DueDate is { } d ? Ui.Due(d, !st.Closed) : new Microsoft.AspNetCore.Html.HtmlString("<span class=\"text-body-tertiary\">–</span>"))</td>
                         </tr>
                     }
                 </tbody>

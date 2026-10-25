@@ -69,10 +69,9 @@ public static class PortalKinds
         ResponsePhases = ["assign_to_supplier"], DueField = "response_due",
         Groups =
         [
-            new("The problem", "bi-search", "subject", "description", "requirement"),
+            new("The problem", "bi-search", "description", "requirement"),
             new("Part and lot", "bi-box-seam", "part_number", "part_description", "lot_number", "po_number", "quantity_affected"),
             new("Containment we need from you", "bi-bandaid", "containment_required", "stock_quarantined", "containment_actions"),
-            new("Our request", "bi-envelope-paper", "response_due", "request_message"),
         ],
         Editable = ["sr_containment", "sr_root_cause", "sr_corrective_action", "sr_preventive_action", "sr_implementation_date", "sr_responder"],
         Required = ["sr_root_cause", "sr_corrective_action", "sr_implementation_date"],
