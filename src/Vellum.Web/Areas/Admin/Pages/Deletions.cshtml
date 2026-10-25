@@ -1,0 +1,58 @@
+@page
+@model DeletionsModel
+@{
+    ViewData["Title"] = "Deletion history";
+    var tz = Shell.TimeZone;
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-neutral"><i class="bi bi-trash3"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Deletion history</h1>
+        <p class="vl-page-sub">Every record deletion, with a snapshot of its metadata, the reason and who did it (ADM-1003). Only listed deleters can delete, and records with history are never cascaded away (INV-010).</p>
+    </div>
+</div>
+
+<form class="card mb-3" method="get" role="search">
+    <div class="card-body adm-filters">
+        <div class="adm-filters-grow"><label class="form-label" for="d-q">Number, application, form, user or reason</label><input class="form-control form-control-sm" id="d-q" name="q" value="@Model.Q" /></div>
+        <div><label class="form-label" for="d-from">From</label><input class="form-control form-control-sm" type="date" id="d-from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" /></div>
+        <div><label class="form-label" for="d-to">To</label><input class="form-control form-control-sm" type="date" id="d-to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" /></div>
+        <div class="adm-filters-actions">
+            <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i>Search</button>
+            @if (Model.Filtered) { <a class="btn btn-sm btn-ghost" href="/admin/deletions"><i class="bi bi-x"></i>Clear</a> }
+        </div>
+    </div>
+</form>
+
+<div class="vl-table-wrap">
+    @if (Model.Result.Total == 0)
+    {
+        <div class="vl-empty">
+            <div class="vl-empty-icon tone-ok"><i class="bi bi-trash3"></i></div>
+            <h3>@(Model.Filtered ? "No deletions match" : "No records have been deleted")</h3>
+            <p>@(Model.Filtered ? "Try widening the search." : "When someone with delete rights removes a record, it's listed here with a snapshot of what was removed.")</p>
+        </div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead><tr><th scope="col">Deleted</th><th scope="col">By</th><th scope="col">Record</th><th scope="col">Reason</th><th scope="col">Snapshot</th></tr></thead>
+                <tbody>
+                    @foreach (var d in Model.Result.Items)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@Ui.Time(d.At, tz, false)</td>
+                            <td class="text-nowrap">@if (Shell.Directory.Get(d.UserId) is { } who) { <span class="adm-person">@Ui.Avatar(who, "xs")<span>@d.UserName</span></span> } else { @d.UserName }</td>
+                            <td class="text-nowrap"><span class="fw-semibold">@d.Number@(d.Revision != null ? " rev " + d.Revision : "")</span><span class="d-block x-small text-body-tertiary">@d.AppName › @d.FormName</span></td>
+                            <td class="small">@d.Reason</td>
+                            <td><details><summary class="small">View snapshot</summary><pre class="adm-log">@DeletionsModel.Pretty(d.Snapshot)</pre></details></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model='PagerModel.For(Model.Result, "deletions", Request)' />
+    }
+</div>

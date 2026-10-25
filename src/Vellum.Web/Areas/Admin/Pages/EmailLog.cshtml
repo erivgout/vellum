@@ -1,0 +1,65 @@
+@page "/admin/email-log"
+@model EmailLogModel
+@{
+    ViewData["Title"] = "Email log";
+    var tz = Shell.TimeZone;
+    var exportQuery = string.Join("&", Request.Query.Where(kv => kv.Key is not ("p" or "handler")).Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value.ToString())}"));
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-neutral"><i class="bi bi-envelope"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Email log</h1>
+        <p class="vl-page-sub">Every notification email, its record and delivery status. Mail is queued in the transactional outbox and delivered by a scheduled task (ADM-1002, INV-040).</p>
+    </div>
+    <a class="btn btn-light" href="/admin/email-log?handler=Export@(exportQuery.Length > 0 ? "&" + exportQuery : "")"><i class="bi bi-filetype-csv"></i>Export CSV</a>
+</div>
+
+<form class="card mb-3" method="get" role="search">
+    <div class="card-body adm-filters">
+        <div class="adm-filters-grow"><label class="form-label" for="e-q">Recipient or subject</label><input class="form-control form-control-sm" id="e-q" name="q" value="@Model.Q" /></div>
+        <div><label class="form-label" for="e-status">Status</label>
+            <select class="form-select form-select-sm" id="e-status" name="status" data-autosubmit>
+                <option value="">Any</option>
+                @foreach (var (s, n) in Model.Statuses) { <option value="@s" selected="@(Model.Status == s)">@s (@n)</option> }
+            </select></div>
+        <div><label class="form-label" for="e-from">From</label><input class="form-control form-control-sm" type="date" id="e-from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" /></div>
+        <div><label class="form-label" for="e-to">To</label><input class="form-control form-control-sm" type="date" id="e-to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" /></div>
+        <div class="adm-filters-actions">
+            <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i>Search</button>
+            @if (Model.Filtered) { <a class="btn btn-sm btn-ghost" href="/admin/email-log"><i class="bi bi-x"></i>Clear</a> }
+        </div>
+    </div>
+</form>
+
+<div class="vl-table-wrap">
+    @if (Model.Result.Total == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-envelope-open"></i></div><h3>No email matches</h3><p>@(Model.Filtered ? "Try widening the search." : "Emails appear here as notifications are sent.")</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table vl-table-compact">
+                <thead><tr><th scope="col">Time</th><th scope="col">To</th><th scope="col">Subject</th><th scope="col">Record</th><th scope="col">Status</th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model.Result.Items)
+                    {
+                        var e = r.E;
+                        <tr>
+                            <td class="text-nowrap">@Ui.Time(e.At, tz, false)</td>
+                            <td class="mono small">@e.To</td>
+                            <td class="col-title">
+                                @if (string.IsNullOrEmpty(e.Body)) { <span>@e.Subject</span> }
+                                else { <details class="adm-mail"><summary>@e.Subject</summary><div class="adm-mail-body">@e.Body</div></details> }
+                            </td>
+                            <td class="text-nowrap">@if (e.RecordId is { } rid && r.Number != null) { <a class="fw-semibold" href="/records/@rid">@r.Number</a> } else { <span class="text-body-tertiary">–</span> }</td>
+                            <td>@(e.Status switch { "Delivered" => Ui.KeywordBadge("Delivered", "success"), "Queued" => Ui.KeywordBadge("Queued", "info"), "Failed" => Ui.KeywordBadge("Failed", "danger"), _ => Ui.KeywordBadge(e.Status, null) })</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model='PagerModel.For(Model.Result, "emails", Request)' />
+    }
+</div>

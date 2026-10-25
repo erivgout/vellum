@@ -1,0 +1,68 @@
+@page
+@model Vellum.Areas.Admin.Pages.Groups.IndexModel
+@{
+    ViewData["Title"] = "Groups";
+    (string Key, string Label, int N)[] pills =
+    [
+        ("", "All", Model.All), ("active", "Active", Model.All - Model.Inactive), ("training", "Training", Model.Training), ("inactive", "Inactive", Model.Inactive),
+    ];
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-info"><i class="bi bi-diagram-3"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Groups</h1>
+        <p class="vl-page-sub">Groups carry application roles, phase assignments and notifications. They're made inactive, never deleted (SEC-706).</p>
+    </div>
+    <a class="btn btn-primary" href="/admin/groups/new"><i class="bi bi-plus-lg"></i>New group</a>
+</div>
+
+<form class="vl-toolbar" method="get" role="search">
+    <div class="vl-filter-pills" role="group" aria-label="Filter">
+        @foreach (var p in pills) { <a class="@((Model.Filter ?? "") == p.Key ? "active" : "")" href="@Model.With("filter", p.Key)">@p.Label <span class="vl-pill-count">@p.N</span></a> }
+    </div>
+    @if (Model.Filter != null) { <input type="hidden" name="filter" value="@Model.Filter" /> }
+    <div class="vl-search-input flex-grow-1" style="max-width:320px">
+        <i class="bi bi-search"></i>
+        <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Name, key or description" aria-label="Search groups" />
+    </div>
+    <button class="btn btn-sm btn-light">Apply</button>
+</form>
+
+<div class="vl-table-wrap">
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-diagram-3"></i></div><h3>No groups match</h3><p>Try a different filter, or create a group.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead><tr><th scope="col">Group</th><th scope="col">Members</th><th scope="col" class="numeric">Applications</th><th scope="col">Scope</th><th scope="col">Status</th></tr></thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        <tr data-href="/admin/groups/@r.Group.Id" class="@(r.Group.Inactive ? "adm-row-muted" : "")">
+                            <td class="col-title">
+                                <a class="fw-semibold" href="/admin/groups/@r.Group.Id">@r.Group.Name</a> <span class="mono text-body-tertiary">@r.Group.Key</span>
+                                @if (r.Description != null) { <span class="d-block small text-body-secondary text-truncate">@r.Description</span> }
+                            </td>
+                            <td class="text-nowrap">
+                                @if (r.Active.Count == 0) { <span class="text-body-tertiary">No members</span> }
+                                else { <span class="d-inline-flex align-items-center gap-2">@Ui.Avatars(r.Active, 4)<span class="small text-body-secondary">@(r.Active.Count > 1 ? r.Active.Count.ToString() : "")</span></span> }
+                                @if (r.InactiveMembers > 0) { <span class="d-block x-small text-body-tertiary">+ @r.InactiveMembers inactive</span> }
+                            </td>
+                            <td class="numeric">@(r.Grants == 0 ? "–" : r.Grants.ToString())</td>
+                            <td class="small">@(r.Location ?? "All locations")</td>
+                            <td class="text-nowrap">
+                                @if (r.Group.Inactive) { <span class="vl-kw vl-kw-secondary">Inactive</span> } else { <span class="vl-kw vl-kw-success">Active</span> }
+                                @if (r.Training) { <span class="vl-kw vl-kw-info">Training</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="vl-table-foot"><span>@Ui.Plural(Model.Rows.Count, "group")</span></div>
+    }
+</div>

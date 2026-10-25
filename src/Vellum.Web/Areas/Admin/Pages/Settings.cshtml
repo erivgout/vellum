@@ -1,0 +1,210 @@
+@page
+@model SettingsModel
+@{
+    ViewData["Title"] = "System preferences";
+    var i = Model.Input;
+    var cur = Model.Current;
+    var tz = Shell.TimeZone;
+}
+@{
+    void Mark(string key)
+    {
+        var s = SettingsModel.Sensitive(key);
+        if (s == null) return;
+        <span class="adm-cs" tabindex="0" data-bs-toggle="tooltip" data-bs-title="@s.Effect"><i class="bi bi-shield-lock-fill" aria-hidden="true"></i>Compliance-sensitive<span class="visually-hidden">: @s.Effect</span></span>
+    }
+    void Help(string key, string text)
+    {
+        var s = SettingsModel.Sensitive(key);
+        <div class="form-text">@text@if (s != null) { <span class="adm-ref"> · @s.Reference</span> }</div>
+    }
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-brand"><i class="bi bi-sliders"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">System preferences</h1>
+        <p class="vl-page-sub">One tenant-wide settings record (ADM-101). Every change is recorded in the audit trail.
+            @if (Model.LastChanged is { } lc) { <span class="text-body-tertiary">Last changed @Ui.Time(lc, tz) by @Model.LastChangedBy.</span> }</p>
+    </div>
+    <a class="btn btn-light" href="/admin/compliance"><i class="bi bi-shield-check"></i>Compliance posture</a>
+</div>
+
+<partial name="_Errors" model="Model.Errors" />
+
+@if (cur.RegulatedMode)
+{
+    <div class="vl-banner vl-banner-violet">
+        <i class="bi bi-shield-lock-fill"></i>
+        <div><div class="ttl">Regulated mode is on</div><div class="small">Changes that weaken compliance controls, such as a minimum password length below @ComplianceCatalog.RegulatedMinPasswordLength or a longer session, are rejected (SAF-010). Settings marked <span class="adm-cs adm-cs-inline"><i class="bi bi-shield-lock-fill"></i>Compliance-sensitive</span> need a reason and your password.</div></div>
+    </div>
+}
+else
+{
+    <div class="vl-banner vl-banner-warn">
+        <i class="bi bi-shield-exclamation"></i>
+        <div><div class="ttl">Regulated mode is off</div><div class="small">Compliance-sensitive changes are allowed with a reason and your password, and are recorded in the configuration audit trail (SAF-010).</div></div>
+    </div>
+}
+
+<form method="post" data-adm-settings autocomplete="off">
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-window"></i>Environment</h2></div>
+        <div class="card-body adm-settings">
+            <div class="adm-setting" id="environmentName">
+                <div><label class="form-label" for="s-envname">Environment name</label>@{ Help("environmentName", "Shown in the banner and prefixed to notification subjects outside production."); }</div>
+                <div><input class="form-control" id="s-envname" name="Input.EnvironmentName" value="@i.EnvironmentName" required maxlength="40" /></div>
+            </div>
+            <div class="adm-setting" id="environmentType">
+                <div><label class="form-label" for="s-envtype">Environment type @{ Mark("environmentType"); }</label>@{ Help("environmentType", "Production removes the banner and the [TEST] style subject prefix."); }</div>
+                <div>
+                    <select class="form-select" id="s-envtype" name="Input.EnvironmentType" data-adm-sensitive="Environment type">
+                        @foreach (var t in Enum.GetValues<EnvironmentType>()) { <option value="@t" selected="@(i.EnvironmentType == t)">@t</option> }
+                    </select>
+                </div>
+            </div>
+            <div class="adm-setting" id="bannerText">
+                <div><label class="form-label" for="s-banner">Banner text</label>
+                    <div class="form-text">Non-production environments always show the banner. It can't be turned off (ADM-103, SAF-012).</div></div>
+                <div>
+                    <input class="form-control" id="s-banner" name="Input.BannerText" value="@i.BannerText" maxlength="120" placeholder="Not for production use" />
+                    <div class="adm-banner-preview mt-2" aria-hidden="true"><i class="bi bi-exclamation-triangle-fill"></i><span>@i.EnvironmentName environment</span><span>·</span><span>@(i.BannerText ?? "Not for production use")</span><i class="bi bi-lock-fill ms-auto" title="Always shown outside production"></i></div>
+                </div>
+            </div>
+            <div class="adm-setting" id="organizationName">
+                <div><label class="form-label" for="s-org">Organization name</label><div class="form-text">Shown in the sidebar and on printouts.</div></div>
+                <div><input class="form-control" id="s-org" name="Input.OrganizationName" value="@i.OrganizationName" required maxlength="120" /></div>
+            </div>
+            <div class="adm-setting" id="regulatedMode">
+                <div><label class="form-label" for="s-reg">Regulated mode @{ Mark("regulatedMode"); }</label>@{ Help("regulatedMode", "On for life sciences, food and EHS tenants. Rejects configuration that weakens compliance controls."); }</div>
+                <div class="pt-1">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="s-reg" name="Input.RegulatedMode" value="true" checked="@i.RegulatedMode" data-adm-sensitive="Regulated mode" />
+                        <label class="form-check-label" for="s-reg">Reject weakening changes</label>
+                    </div>
+                    <input type="hidden" name="Input.RegulatedMode" value="false" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-door-open"></i>Sign-in and sessions</h2></div>
+        <div class="card-body adm-settings">
+            <div class="adm-setting" id="sessionIdleMinutes">
+                <div><label class="form-label" for="s-idle">Idle session timeout @{ Mark("sessionIdleMinutes"); }</label>@{ Help("sessionIdleMinutes", "Between 3 and 30 minutes. People are warned two minutes before."); }</div>
+                <div class="input-group adm-num"><input class="form-control" type="number" id="s-idle" name="Input.SessionIdleMinutes" value="@i.SessionIdleMinutes" min="3" max="30" required data-adm-sensitive="Idle session timeout" /><span class="input-group-text">minutes</span></div>
+            </div>
+            <div class="adm-setting" id="sessionAbsoluteHours">
+                <div><label class="form-label" for="s-abs">Absolute session lifetime @{ Mark("sessionAbsoluteHours"); }</label>@{ Help("sessionAbsoluteHours", $"Sessions end after this long even when active. At most {ComplianceCatalog.RegulatedMaxAbsoluteHours} hours in regulated mode."); }</div>
+                <div class="input-group adm-num"><input class="form-control" type="number" id="s-abs" name="Input.SessionAbsoluteHours" value="@i.SessionAbsoluteHours" min="1" max="24" required data-adm-sensitive="Absolute session lifetime" /><span class="input-group-text">hours</span></div>
+            </div>
+            <div class="adm-setting" id="lockoutThreshold">
+                <div><label class="form-label" for="s-lock">Account lockout threshold @{ Mark("lockoutThreshold"); }</label>@{ Help("lockoutThreshold", $"3–10 consecutive failures disable the account and notify the manager. At most {ComplianceCatalog.RegulatedMaxLockoutThreshold} in regulated mode."); }</div>
+                <div class="input-group adm-num"><input class="form-control" type="number" id="s-lock" name="Input.LockoutThreshold" value="@i.LockoutThreshold" min="3" max="10" required data-adm-sensitive="Lockout threshold" /><span class="input-group-text">attempts</span></div>
+            </div>
+            <div class="adm-setting" id="mfaRequired">
+                <div><label class="form-label" for="s-mfa">Require multi-factor authentication @{ Mark("mfaRequired"); }</label>@{ Help("mfaRequired", "Local users enroll an authenticator app at their next sign-in. Turning it off keeps enrolled factors."); }</div>
+                <div class="pt-1">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="s-mfa" name="Input.MfaRequired" value="true" checked="@i.MfaRequired" data-adm-sensitive="MFA required" />
+                        <label class="form-check-label" for="s-mfa">Required for all local users</label>
+                    </div>
+                    <input type="hidden" name="Input.MfaRequired" value="false" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-key"></i>Passwords</h2><span class="ms-auto small text-body-tertiary">Rules are always on and can only be made stricter (SEC-201).</span></div>
+        <div class="card-body adm-settings">
+            <div class="adm-setting" id="passwordMinLength">
+                <div><label class="form-label" for="s-pwlen">Minimum length @{ Mark("passwordMinLength"); }</label>@{ Help("passwordMinLength", $"At least 8; at least {ComplianceCatalog.RegulatedMinPasswordLength} in regulated mode. Upper case, a digit and a special character are always required."); }</div>
+                <div class="input-group adm-num"><input class="form-control" type="number" id="s-pwlen" name="Input.PasswordMinLength" value="@i.PasswordMinLength" min="8" max="128" required data-adm-sensitive="Minimum password length" /><span class="input-group-text">characters</span></div>
+            </div>
+            <div class="adm-setting" id="passwordHistoryCount">
+                <div><label class="form-label" for="s-pwhist">Password history @{ Mark("passwordHistoryCount"); }</label>@{ Help("passwordHistoryCount", "People can't re-use any of their last 3–24 passwords."); }</div>
+                <div class="input-group adm-num"><input class="form-control" type="number" id="s-pwhist" name="Input.PasswordHistoryCount" value="@i.PasswordHistoryCount" min="3" max="24" required data-adm-sensitive="Password history" /><span class="input-group-text">passwords</span></div>
+            </div>
+            <div class="adm-setting" id="passwordExpiryDays">
+                <div><label class="form-label" for="s-pwexp">Expiration @{ Mark("passwordExpiryDays"); }</label>@{ Help("passwordExpiryDays", $"1–365 days ({ComplianceCatalog.RegulatedMaxPasswordExpiryDays} at most in regulated mode). 0 turns it off, which is only allowed while MFA is required (NIST SP 800-63B)."); }</div>
+                <div class="input-group adm-num"><input class="form-control" type="number" id="s-pwexp" name="Input.PasswordExpiryDays" value="@i.PasswordExpiryDays" min="0" max="365" required data-adm-sensitive="Password expiration" /><span class="input-group-text">days</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-pen"></i>Electronic signatures</h2></div>
+        <div class="card-body adm-settings">
+            <div class="adm-setting adm-setting-wide" id="eSignatureCertification">
+                <div><label class="form-label" for="s-cert">Certification statement @{ Mark("eSignatureCertification"); }</label>@{ Help("eSignatureCertification", "Each person acknowledges this before their first electronic signature. Existing acknowledgments are kept."); }</div>
+                <div><textarea class="form-control vl-autogrow" id="s-cert" name="Input.ESignatureCertification" rows="3" required maxlength="4000" data-adm-sensitive="E-signature certification">@i.ESignatureCertification</textarea></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-signpost-2"></i>Records and workflow</h2></div>
+        <div class="card-body adm-settings">
+            <div class="adm-setting" id="lockTimeoutMinutes">
+                <div><label class="form-label" for="s-locktime">Edit lock timeout</label><div class="form-text">Idle edit locks are released after this long (PLT-901).</div></div>
+                <div class="input-group adm-num"><input class="form-control" type="number" id="s-locktime" name="Input.LockTimeoutMinutes" value="@i.LockTimeoutMinutes" min="5" max="480" required /><span class="input-group-text">minutes</span></div>
+            </div>
+            <div class="adm-setting" id="escalateToManagerAfterDays">
+                <div><label class="form-label" for="s-esc">Escalate overdue work to the manager after</label><div class="form-text">Assignees are reminded daily; their reports-to manager is told after this many days (PLT-1207).</div></div>
+                <div class="input-group adm-num"><input class="form-control" type="number" id="s-esc" name="Input.EscalateToManagerAfterDays" value="@i.EscalateToManagerAfterDays" min="1" max="60" required /><span class="input-group-text">days</span></div>
+            </div>
+            <div class="adm-setting" id="systemIdentityName">
+                <div><label class="form-label" for="s-sys">System identity name</label><div class="form-text">How automated actions are attributed in history (SEC-806).</div></div>
+                <div><input class="form-control" id="s-sys" name="Input.SystemIdentityName" value="@i.SystemIdentityName" required maxlength="40" /></div>
+            </div>
+            <div class="adm-setting" id="emptyValueSymbol">
+                <div><label class="form-label" for="s-empty">Empty value symbol</label><div class="form-text">Shown for empty fields in read mode (ADM-104).</div></div>
+                <div><input class="form-control adm-num-sm" id="s-empty" name="Input.EmptyValueSymbol" value="@i.EmptyValueSymbol" required maxlength="5" /></div>
+            </div>
+            <div class="adm-setting" id="globalSearchEnabled">
+                <div><label class="form-label" for="s-search">Global search</label><div class="form-text">Security-trimmed search across every application (PLT §2.15).</div></div>
+                <div class="pt-1">
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="s-search" name="Input.GlobalSearchEnabled" value="true" checked="@i.GlobalSearchEnabled" /><label class="form-check-label" for="s-search">On</label></div>
+                    <input type="hidden" name="Input.GlobalSearchEnabled" value="false" />
+                </div>
+            </div>
+            <div class="adm-setting" id="labels">
+                <div><label class="form-label">Routing action labels</label><div class="form-text">Used on routing buttons and their dialogs (ADM-105).</div></div>
+                <div class="row g-2">
+                    <div class="col-4"><label class="form-label small text-body-secondary" for="s-fwd">Forward</label><input class="form-control" id="s-fwd" name="Input.LabelForward" value="@i.LabelForward" required maxlength="30" /></div>
+                    <div class="col-4"><label class="form-label small text-body-secondary" for="s-back">Back</label><input class="form-control" id="s-back" name="Input.LabelBack" value="@i.LabelBack" required maxlength="30" /></div>
+                    <div class="col-4"><label class="form-label small text-body-secondary" for="s-void">Void</label><input class="form-control" id="s-void" name="Input.LabelVoid" value="@i.LabelVoid" required maxlength="30" /></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-box-arrow-in-right"></i>Sign-in page</h2></div>
+        <div class="card-body adm-settings">
+            <div class="adm-setting adm-setting-wide" id="loginMessage">
+                <div><label class="form-label" for="s-login">Login message</label><div class="form-text">Shown on the sign-in page, for example an authorized-use notice.</div></div>
+                <div><textarea class="form-control vl-autogrow" id="s-login" name="Input.LoginMessage" rows="2" maxlength="1000">@i.LoginMessage</textarea></div>
+            </div>
+        </div>
+    </div>
+
+    @{ var pending = Model.Errors.Count > 0 ? Model.Pending() : []; }
+    <div class="adm-savebar" data-adm-sensitive-panel data-adm-pending="@string.Join("|", pending.Where(p => p.Sensitive).Select(p => p.Label))" data-adm-pending-keys="@string.Join(" ", pending.Select(p => p.Key))">
+        <div class="adm-savebar-inner">
+            <div class="adm-confirm">
+                <div class="adm-confirm-head"><i class="bi bi-shield-lock-fill"></i><span data-adm-sensitive-summary>Changing a compliance-sensitive setting needs a reason and your password.</span></div>
+                <div class="row g-2">
+                    <div class="col-md-7"><label class="visually-hidden" for="s-reason">Reason for the change</label><input class="form-control" id="s-reason" name="Reason" value="@Model.Reason" maxlength="400" placeholder="Reason for the change (recorded in the audit trail)" /></div>
+                    <div class="col-md-5"><label class="visually-hidden" for="s-pw">Your password</label><input class="form-control" type="password" id="s-pw" name="Password" autocomplete="current-password" placeholder="Your password" /></div>
+                </div>
+            </div>
+            <div class="d-flex gap-2 align-self-end">
+                <a class="btn btn-light" href="/admin/settings">Discard</a>
+                <button class="btn btn-primary"><i class="bi bi-check2"></i>Save preferences</button>
+            </div>
+        </div>
+    </div>
+</form>

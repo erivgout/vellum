@@ -1,0 +1,84 @@
+@page
+@model SessionsModel
+@{
+    ViewData["Title"] = "Sessions";
+    var tz = Shell.TimeZone;
+    var people = Model.Rows.Select(r => r.Session.UserId).Distinct().Count();
+    var others = Model.Rows.Count(r => r.Session.UserId != Shell.Me.Id);
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-warn"><i class="bi bi-laptop"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Sessions</h1>
+        <p class="vl-page-sub">Who is signed in right now. Forced sign-outs are recorded in the security log with who did it and who was affected (SEC-403).</p>
+    </div>
+    <form method="post" asp-page-handler="Everyone" class="m-0">
+        <button class="btn btn-outline-danger" disabled="@(others == 0)" data-confirm="Log out every other user now? Your own sessions stay open. People lose unsaved changes."><i class="bi bi-box-arrow-right"></i>Log out all other users</button>
+    </form>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon tone-ok"><i class="bi bi-broadcast"></i></span><div class="vl-stat-value">@Model.Rows.Count(r => !r.Idle)</div><div class="vl-stat-label">Active sessions</div></div></div>
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon tone-info"><i class="bi bi-people-fill"></i></span><div class="vl-stat-value">@people</div><div class="vl-stat-label">People signed in</div></div></div>
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon tone-neutral"><i class="bi bi-hourglass-split"></i></span><div class="vl-stat-value adm-stat-text">@Model.Settings.SessionIdleMinutes min</div><div class="vl-stat-label">Idle timeout · @Model.Settings.SessionAbsoluteHours h lifetime</div></div></div>
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon tone-neutral"><i class="bi bi-door-closed"></i></span><div class="vl-stat-value">@Model.Ended24h</div><div class="vl-stat-label">Sessions ended (24 h)</div></div></div>
+</div>
+
+<form method="post" asp-page-handler="End">
+    <div class="vl-table-wrap">
+        @if (Model.Rows.Count == 0)
+        {
+            <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-laptop"></i></div><h3>No open sessions</h3><p>Nobody is signed in.</p></div>
+        }
+        else
+        {
+            <div class="adm-table-bar">
+                <button class="btn btn-sm btn-light" data-confirm="End the selected sessions?"><i class="bi bi-x-circle"></i>End selected sessions</button>
+                <span class="small text-body-tertiary">Session IDs are truncated; they're never shown or logged in full (SEC-402).</span>
+            </div>
+            <div class="vl-table-scroll">
+                <table class="table vl-table">
+                    <thead>
+                        <tr>
+                            <th class="col-check"><input class="form-check-input" type="checkbox" data-check-all=".adm-sess" aria-label="Select all sessions" /></th>
+                            <th scope="col">User</th><th scope="col">Signed in</th><th scope="col">Last seen</th><th scope="col">IP address</th><th scope="col">Client</th><th scope="col">Session</th><th scope="col"><span class="visually-hidden">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Model.Rows)
+                        {
+                            var s = r.Session;
+                            var mine = s.Id == Shell.Me.SessionId;
+                            var me = s.UserId == Shell.Me.Id;
+                            var client = AdminText.Client(s.UserAgent);
+                            <tr class="@(r.Idle ? "adm-row-muted" : "")">
+                                <td class="col-check">@if (!mine) { <input class="form-check-input adm-sess" type="checkbox" name="ids" value="@s.Id" aria-label="Select session of @(r.User?.DisplayName)" /> }</td>
+                                <td>@if (r.User != null) { <a class="adm-person" href="/admin/users/@r.User.Id">@Ui.Avatar(r.User, "sm")<span class="fw-medium">@r.User.DisplayName</span></a> } else { <span class="text-body-tertiary">Unknown user</span> }</td>
+                                <td class="text-nowrap">@Ui.Time(s.CreatedAt, tz)</td>
+                                <td class="text-nowrap">@Ui.Time(s.LastSeenAt, tz)@if (r.Idle) { <span class="d-block x-small text-body-tertiary">Idle, ends on next request</span> }</td>
+                                <td class="mono">@(s.Ip ?? "–")</td>
+                                <td class="text-nowrap" title="@s.UserAgent"><i class="bi @client.Icon text-body-tertiary"></i> @client.Label</td>
+                                <td class="mono text-body-tertiary">@AdminText.ShortSession(s.Id)</td>
+                                <td class="text-end text-nowrap">
+                                    @if (mine) { <span class="vl-kw vl-kw-success">This session</span> }
+                                    else if (!me && r.User != null)
+                                    {
+                                        <div class="dropdown d-inline-block">
+                                            <button class="btn btn-sm btn-ghost btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @r.User.DisplayName"><i class="bi bi-three-dots"></i></button>
+                                            <div class="dropdown-menu dropdown-menu-end">
+                                                <button class="dropdown-item" name="userId" value="@r.User.Id" formaction="?handler=LogoutUser" data-confirm="Log @r.User.DisplayName out of every session?"><i class="bi bi-box-arrow-right"></i>Log out @r.User.DisplayName</button>
+                                                <button class="dropdown-item text-danger" name="userId" value="@r.User.Id" formaction="?handler=Kick" data-confirm="Kick @r.User.DisplayName out? The account is disabled until an administrator unlocks it (SEC-403)."><i class="bi bi-door-open"></i>Kick out and disable</button>
+                                            </div>
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="vl-table-foot"><span>@Ui.Plural(Model.Rows.Count, "session") · @Ui.Plural(people, "person")</span></div>
+        }
+    </div>
+</form>

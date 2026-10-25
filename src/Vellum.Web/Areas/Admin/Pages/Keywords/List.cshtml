@@ -1,0 +1,152 @@
+@page "/admin/keywords/{key}"
+@model Vellum.Areas.Admin.Pages.Keywords.ListModel
+@{
+    var list = Model.List;
+    ViewData["Title"] = list.Name;
+    var colors = Vellum.Areas.Admin.Pages.Keywords.ListModel.Colors;
+    var apps = Model.Uses.Select(u => u.App).DistinctBy(a => a.Id).ToList();
+    var totalValues = Model.Counts.Values.Sum();
+}
+@section Crumbs { <a href="/admin/keywords">Keyword lists</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="current">@list.Name</span> }
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-brand"><i class="bi bi-tags"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title d-flex align-items-center gap-2 flex-wrap">@list.Name @if (Model.Uses.Count == 0) { <span class="vl-kw vl-kw-warning">Orphaned</span> }</h1>
+        <p class="vl-page-sub"><span class="mono">@list.Key</span> · @Ui.Plural(Model.Ordered.Count(k => !k.Disabled), "enabled keyword") · used on @Ui.Plural(totalValues, "record")</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xxl-8 min-w-0">
+        <div class="card" id="keywords">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-list-ol"></i>Keywords</h2><span class="ms-auto small text-body-tertiary">Disabled keywords still show on existing records but aren't offered for new values.</span></div>
+            <div class="vl-table-scroll">
+                <table class="table vl-table vl-table-compact mb-0">
+                    <thead><tr><th scope="col" class="adm-col-order"><span class="visually-hidden">Order</span></th><th scope="col">Keyword</th><th scope="col">Key</th><th scope="col" class="numeric">Records</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                    <tbody>
+                        @for (var n = 0; n < Model.Ordered.Count; n++)
+                        {
+                            var k = Model.Ordered[n];
+                            var used = Model.Counts.GetValueOrDefault(k.Id);
+                            if (Model.Edit == k.Id)
+                            {
+                                var label = Model.EditLabel ?? k.Label;
+                                var color = Model.Edit == k.Id && Model.RowErrors.Count > 0 ? Model.EditColor : k.Color;
+                                var isCustom = color != null && color.StartsWith('#');
+                                <tr class="adm-edit-row" id="kw-@k.Id">
+                                    <td colspan="6">
+                                        <form method="post" asp-page-handler="Update" asp-route-key="@list.Key" class="adm-kw-edit" data-adm-rename>
+                                            <input type="hidden" name="keywordId" value="@k.Id" />
+                                            <partial name="_Errors" model="(IReadOnlyList<string>)Model.RowErrors" />
+                                            <div class="row g-2 align-items-end">
+                                                <div class="col-md-5">
+                                                    <label class="form-label" for="kw-label">Text</label>
+                                                    <input class="form-control" id="kw-label" name="label" value="@label" data-original="@k.Label" data-adm-kw-label required maxlength="200" autofocus />
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label" for="kw-color">Color</label>
+                                                    <select class="form-select" id="kw-color" name="color" data-adm-color>
+                                                        @foreach (var (v, l) in colors) { <option value="@v" selected="@(!isCustom && (color ?? "") == v)">@l</option> }
+                                                        <option value="custom" selected="@isCustom">Custom…</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-2" data-adm-custom-color hidden="@(!isCustom)">
+                                                    <label class="form-label" for="kw-hex">Hex</label>
+                                                    <input class="form-control mono" id="kw-hex" name="customColor" value="@(isCustom ? color : "")" placeholder="#0d9488" maxlength="7" />
+                                                </div>
+                                                <div class="col-md-2"><span class="form-label">Preview</span><div class="adm-kw-sample" data-adm-kw-preview>@Ui.KeywordBadge(label, color)</div></div>
+                                            </div>
+                                            <div class="vl-banner vl-banner-warn mt-3 mb-0" data-adm-rename-warning hidden="@(!(Model.NeedsConfirm || (used > 0 && label != k.Label)))">
+                                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                                <div>
+                                                    <div class="ttl">Renaming changes this label on @Ui.Plural(used, "record"), including historical ones</div>
+                                                    <div class="small">Records store the keyword's ID, so every record shows the new text (ADM-607). If the meaning changes, disable “@k.Label” and add a new keyword instead.</div>
+                                                    @if (used > 0)
+                                                    {
+                                                        <div class="form-check mt-2">
+                                                            <input class="form-check-input" type="checkbox" id="kw-confirm" name="confirmRename" value="true" data-adm-confirm-rename />
+                                                            <label class="form-check-label small fw-medium" for="kw-confirm">I understand. Rename it everywhere.</label>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+                                            <div class="d-flex gap-2 mt-3">
+                                                <button class="btn btn-primary btn-sm"><i class="bi bi-check2"></i>Save keyword</button>
+                                                <a class="btn btn-light btn-sm" href="/admin/keywords/@list.Key#kw-@k.Id">Cancel</a>
+                                            </div>
+                                        </form>
+                                    </td>
+                                </tr>
+                                continue;
+                            }
+                            <tr id="kw-@k.Id" class="@(k.Disabled ? "adm-row-muted" : "")">
+                                <td class="adm-col-order">
+                                    <div class="adm-order">
+                                        <form method="post" asp-page-handler="Move" asp-route-key="@list.Key" class="m-0"><input type="hidden" name="keywordId" value="@k.Id" /><input type="hidden" name="delta" value="-1" /><button class="btn btn-ghost btn-sm btn-icon" disabled="@(n == 0)" aria-label="Move @k.Label up"><i class="bi bi-chevron-up"></i></button></form>
+                                        <form method="post" asp-page-handler="Move" asp-route-key="@list.Key" class="m-0"><input type="hidden" name="keywordId" value="@k.Id" /><input type="hidden" name="delta" value="1" /><button class="btn btn-ghost btn-sm btn-icon" disabled="@(n == Model.Ordered.Count - 1)" aria-label="Move @k.Label down"><i class="bi bi-chevron-down"></i></button></form>
+                                    </div>
+                                </td>
+                                <td>@Ui.Keyword(k)</td>
+                                <td class="mono text-body-tertiary">@k.Key</td>
+                                <td class="numeric">@(used == 0 ? "–" : used.ToString("N0"))</td>
+                                <td>@if (k.Disabled) { <span class="adm-status off"><i class="bi bi-slash-circle"></i>Disabled</span> } else { <span class="adm-status ok"><i class="bi bi-check-circle-fill"></i>Enabled</span> }</td>
+                                <td class="text-end text-nowrap">
+                                    <a class="btn btn-sm btn-light" href="/admin/keywords/@list.Key?edit=@k.Id#kw-@k.Id"><i class="bi bi-pencil"></i>Edit</a>
+                                    <form method="post" asp-page-handler="Toggle" asp-route-key="@list.Key" class="d-inline">
+                                        <input type="hidden" name="keywordId" value="@k.Id" /><input type="hidden" name="disabled" value="@(k.Disabled ? "false" : "true")" />
+                                        @if (k.Disabled) { <button class="btn btn-sm btn-light">Enable</button> }
+                                        else { <button class="btn btn-sm btn-ghost" data-confirm="Disable “@k.Label”? It stays on @Ui.Plural(used, "existing record") but won't be offered for new values.">Disable</button> }
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <form method="post" asp-page-handler="Add" asp-route-key="@list.Key" class="card-footer adm-kw-add">
+                <div class="flex-grow-1 min-w-0"><label class="form-label" for="add-label">New keyword</label><input class="form-control form-control-sm" id="add-label" name="label" required maxlength="200" placeholder="Keyword text" data-adm-slug-source="#add-key" /></div>
+                <div style="width:180px"><label class="form-label" for="add-key">Key</label><input class="form-control form-control-sm mono" id="add-key" name="keywordKey" maxlength="64" placeholder="from the text" /></div>
+                <div style="width:150px"><label class="form-label" for="add-color">Color</label>
+                    <select class="form-select form-select-sm" id="add-color" name="color" data-adm-color>
+                        @foreach (var (v, l) in colors) { <option value="@v">@l</option> }
+                        <option value="custom">Custom…</option>
+                    </select>
+                </div>
+                <div style="width:110px" data-adm-custom-color hidden><label class="form-label" for="add-hex">Hex</label><input class="form-control form-control-sm mono" id="add-hex" name="customColor" placeholder="#0d9488" maxlength="7" /></div>
+                <button class="btn btn-sm btn-primary"><i class="bi bi-plus-lg"></i>Add keyword</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-xxl-4">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-diagram-2"></i>Used by</h2><span class="vl-pill-count">@Model.Uses.Count</span></div>
+            @if (Model.Uses.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon tone-warn"><i class="bi bi-link-45deg"></i></div><h3>Orphaned list</h3><p>No form field uses this list (ADM-606).</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var u in Model.Uses.OrderBy(u => u.App.Name).ThenBy(u => u.Form.Name))
+                    {
+                        <div class="vl-list-item py-2">
+                            <span class="vl-app-tile sm" style="--app:@u.App.Color"><i class="bi @u.App.Icon"></i></span>
+                            <span class="main"><span class="d-block fw-medium">@u.Field.Label</span><span class="line2 d-block">@u.App.Name › @u.Form.Name · <span class="mono">@u.Field.Key</span>@(u.Field.Type == FieldType.KeywordMulti ? " · multi-value" : "")</span></span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        <form method="post" asp-page-handler="Details" asp-route-key="@list.Key" class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-sliders"></i>List details</h2></div>
+            <div class="card-body d-grid gap-3">
+                <div><label class="form-label" for="l-name">Display name</label><input class="form-control" id="l-name" name="name" value="@list.Name" required maxlength="200" /></div>
+                <div><label class="form-label" for="l-desc">Description</label><textarea class="form-control vl-autogrow" id="l-desc" name="description" rows="2" maxlength="400">@list.Description</textarea></div>
+                <div class="small text-body-tertiary">Parent applications: @(apps.Count == 0 ? "none" : string.Join(", ", apps.Select(a => a.Name))) (derived from the fields that use the list, ADM-603).</div>
+            </div>
+            <div class="card-footer d-flex justify-content-end"><button class="btn btn-light"><i class="bi bi-check2"></i>Save details</button></div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,96 @@
+@page
+@model Vellum.Areas.Admin.Pages.Audit.ConfigModel
+@{
+    ViewData["Title"] = "Configuration audit";
+    var tz = Shell.TimeZone;
+}
+@section Crumbs { <a href="/admin/audit">Audit trail</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="current">Configuration audit</span> }
+@{
+    void DiffTable(List<AdminJson.DiffRow> rows)
+    {
+        <table class="table adm-diff-table">
+            <thead><tr><th scope="col">Field</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
+            <tbody>
+                @foreach (var d in rows)
+                {
+                    <tr class="adm-diff-@d.Kind">
+                        <th scope="row">@AdminJson.Humanize(d.Path)</th>
+                        <td>@if (d.Before == null) { <span class="text-body-tertiary">–</span> } else { <span class="old">@d.Before</span> }</td>
+                        <td>@if (d.After == null) { <span class="text-body-tertiary">–</span> } else { <span class="new">@d.After</span> }</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-neutral"><i class="bi bi-file-diff"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Configuration audit</h1>
+        <p class="vl-page-sub">Every configuration and profile change, with the before and after. Append-only: the database refuses updates and deletes (INV-145).</p>
+    </div>
+</div>
+
+<form class="card mb-3" method="get" role="search">
+    <div class="card-body adm-filters">
+        <div><label class="form-label" for="c-type">Object</label>
+            <select class="form-select form-select-sm" id="c-type" name="type" data-autosubmit>
+                <option value="">All objects</option>
+                @foreach (var (t, n) in Model.Types) { <option value="@t" selected="@(Model.Type == t)">@Vellum.Areas.Admin.Pages.Audit.ConfigModel.Label(t) (@n)</option> }
+            </select></div>
+        <div><label class="form-label" for="c-user">Changed by</label><input class="form-control form-control-sm" id="c-user" name="user" value="@Model.UserFilter" placeholder="Name" /></div>
+        <div class="adm-filters-grow"><label class="form-label" for="c-key">Key or action</label><input class="form-control form-control-sm" id="c-key" name="key" value="@Model.Key" placeholder="e.g. capa, priority, Renamed" /></div>
+        <div><label class="form-label" for="c-from">From</label><input class="form-control form-control-sm" type="date" id="c-from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" /></div>
+        <div><label class="form-label" for="c-to">To</label><input class="form-control form-control-sm" type="date" id="c-to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" /></div>
+        <div class="adm-filters-actions">
+            <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i>Search</button>
+            @if (Model.Filtered) { <a class="btn btn-sm btn-ghost" href="/admin/audit/config"><i class="bi bi-x"></i>Clear</a> }
+        </div>
+    </div>
+</form>
+
+@if (Model.Result.Total == 0)
+{
+    <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-file-diff"></i></div><h3>No configuration changes match</h3><p>Try a different filter.</p></div></div>
+}
+else
+{
+    <div class="adm-cfg-list">
+        @foreach (var c in Model.Result.Items)
+        {
+            var diff = AdminJson.Diff(c.Before, c.After);
+            var created = c.Before == null && c.After != null;
+            var removed = c.After == null && c.Before != null;
+            <article class="card adm-cfg">
+                <div class="adm-cfg-head">
+                    <span class="adm-ev-icon tone-neutral"><i class="bi @Vellum.Areas.Admin.Pages.Audit.ConfigModel.Icon(c.ObjectType)"></i></span>
+                    <div class="min-w-0 flex-grow-1">
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            <span class="fw-semibold">@Vellum.Areas.Admin.Pages.Audit.ConfigModel.Label(c.ObjectType)</span>
+                            <span class="mono text-body-secondary">@c.ObjectKey</span>
+                            <span class="adm-action @(created ? "tone-ok" : removed ? "tone-bad" : "tone-info")">@c.Action</span>
+                        </div>
+                        <div class="small text-body-tertiary">@c.UserName · @Ui.Time(c.At, tz, false)@(diff.Count > 0 && !created ? $" · {Ui.Plural(diff.Count, "change")}" : "")</div>
+                        @if (c.Reason != null) { <div class="small mt-1"><i class="bi bi-chat-left-quote text-body-tertiary"></i> @c.Reason</div> }
+                    </div>
+                </div>
+                @if (diff.Count > 0)
+                {
+                    @if (created || removed || diff.Count > 8)
+                    {
+                        <details class="adm-cfg-body">
+                            <summary>@(created ? $"Show the {Ui.Plural(diff.Count, "initial value")}" : removed ? "Show what was removed" : $"Show all {diff.Count} changes")</summary>
+                            @{ DiffTable(diff); }
+                        </details>
+                    }
+                    else
+                    {
+                        <div class="adm-cfg-body">@{ DiffTable(diff); }</div>
+                    }
+                }
+            </article>
+        }
+    </div>
+    <div class="vl-table-wrap mt-3"><partial name="_Pager" model='PagerModel.For(Model.Result, "entries", Request)' /></div>
+}

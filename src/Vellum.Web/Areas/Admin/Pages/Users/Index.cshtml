@@ -1,0 +1,112 @@
+@page
+@model Vellum.Areas.Admin.Pages.Users.IndexModel
+@{
+    ViewData["Title"] = "Users";
+    var tz = Shell.TimeZone;
+    var filtered = !string.IsNullOrWhiteSpace(Model.Q) || Model.Mfa != null || Model.Admin != null;
+    (string Key, string Label, int N)[] pills =
+    [
+        ("", "All", Model.Total),
+        ("active", "Active", Model.Counts.GetValueOrDefault(UserStatus.Active)),
+        ("disabled", "Disabled", Model.Counts.GetValueOrDefault(UserStatus.Disabled)),
+        ("inactive", "Inactive", Model.Counts.GetValueOrDefault(UserStatus.Inactive)),
+    ];
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-info"><i class="bi bi-people"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Users</h1>
+        <p class="vl-page-sub">Accounts, status, sign-in security and group membership (SEC §4.7).</p>
+    </div>
+    <a class="btn btn-primary" href="/admin/users/new"><i class="bi bi-person-plus"></i>New user</a>
+</div>
+
+<form class="vl-toolbar" method="get" role="search">
+    <div class="vl-filter-pills" role="group" aria-label="Status">
+        @foreach (var p in pills)
+        {
+            <a class="@((Model.Status ?? "") == p.Key ? "active" : "")" href="@Model.With("status", p.Key)">@p.Label <span class="vl-pill-count">@p.N</span></a>
+        }
+    </div>
+    @if (Model.Status != null) { <input type="hidden" name="status" value="@Model.Status" /> }
+    <div class="vl-search-input flex-grow-1" style="max-width:320px">
+        <i class="bi bi-search"></i>
+        <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Name, username, email, title…" aria-label="Search users" />
+    </div>
+    <select class="form-select form-select-sm w-auto" name="mfa" aria-label="MFA status" data-autosubmit>
+        <option value="">MFA: any</option>
+        <option value="on" selected="@(Model.Mfa == "on")">MFA: active</option>
+        <option value="off" selected="@(Model.Mfa == "off")">MFA: not enrolled</option>
+    </select>
+    <select class="form-select form-select-sm w-auto" name="admin" aria-label="Role" data-autosubmit>
+        <option value="">Everyone</option>
+        <option value="1" selected="@(Model.Admin == 1)">Administrators</option>
+    </select>
+    <button class="btn btn-sm btn-light" type="submit">Apply</button>
+    @if (filtered) { <a class="btn btn-sm btn-ghost" href="/admin/users@(Model.Status != null ? "?status=" + Model.Status : "")"><i class="bi bi-x"></i>Clear</a> }
+</form>
+
+<div class="vl-table-wrap">
+    @if (Model.Result.Total == 0)
+    {
+        <div class="vl-empty">
+            <div class="vl-empty-icon"><i class="bi bi-person-slash"></i></div>
+            <h3>No users match</h3>
+            <p>@(filtered ? "Try a different search or filter." : "There are no users with this status.")</p>
+        </div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Person</th>
+                        <th scope="col">Title and department</th>
+                        <th scope="col">Location</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">MFA</th>
+                        <th scope="col">Last sign-in</th>
+                        <th scope="col"><span class="visually-hidden">Flags</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in Model.Result.Items)
+                    {
+                        var info = Shell.Directory.Get(u.Id);
+                        <tr data-href="/admin/users/@u.Id" class="@(u.Status == UserStatus.Inactive ? "adm-row-muted" : "")">
+                            <td>
+                                <a class="adm-person" href="/admin/users/@u.Id">
+                                    @Ui.Avatar(info, "md")
+                                    <span class="min-w-0">
+                                        <span class="d-block fw-semibold text-truncate">@u.DisplayName</span>
+                                        <span class="d-block small text-body-tertiary text-truncate">@u.Username · @u.Email</span>
+                                    </span>
+                                </a>
+                            </td>
+                            <td><span class="d-block">@(u.JobTitle ?? "–")</span><span class="small text-body-tertiary">@u.Department</span></td>
+                            <td class="text-nowrap">@(u.PrimaryLocationId is { } l && Model.Locations.TryGetValue(l, out var loc) ? loc.Name : "–")</td>
+                            <td>
+                                @AdminText.StatusBadge(u.Status, u.StatusReason)
+                                @if (u.Status == UserStatus.Disabled && u.StatusReason != null) { <span class="d-block x-small text-body-tertiary text-truncate adm-reason" title="@u.StatusReason">@u.StatusReason</span> }
+                            </td>
+                            <td class="text-nowrap">
+                                @if (u.MfaEnrolled) { <span class="adm-status ok"><i class="bi bi-shield-fill-check"></i>Active</span> }
+                                else { <span class="adm-status @(Model.MfaRequired ? "warn" : "off")"><i class="bi bi-shield"></i>Not enrolled</span> }
+                            </td>
+                            <td class="text-nowrap">@if (u.LastLoginAt is { } ll) { @Ui.Time(ll, tz) } else { <span class="text-body-tertiary">Never</span> }</td>
+                            <td class="text-nowrap text-end">
+                                @if (u.IsAdministrator) { <span class="vl-kw vl-kw-violet" title="Administrator">Admin</span> }
+                                @if (u.IsExternal) { <span class="vl-kw vl-kw-info" title="External user (SEC-804)">External</span> }
+                                @if (u.MustChangePassword) { <span class="adm-flag" title="Must change password at next sign-in"><i class="bi bi-key-fill"></i></span> }
+                                @if (u.FailedLoginCount > 0 && u.Status == UserStatus.Active) { <span class="adm-flag warn" title="@u.FailedLoginCount failed sign-in attempts"><i class="bi bi-exclamation-triangle-fill"></i>@u.FailedLoginCount</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <partial name="_Pager" model='PagerModel.For(Model.Result, Model.Result.Total == 1 ? "user" : "users", Request)' />
+    }
+</div>

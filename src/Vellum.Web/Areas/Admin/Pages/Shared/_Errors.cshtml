@@ -1,0 +1,18 @@
+@model IReadOnlyList<string>
+@if (Model.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert">
+        <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>
+        <div>
+            @if (Model.Count == 1)
+            {
+                <div class="ttl">@Model[0]</div>
+            }
+            else
+            {
+                <div class="ttl">Fix these @Model.Count problems</div>
+                <ul>@foreach (var e in Model) { <li>@e</li> }</ul>
+            }
+        </div>
+    </div>
+}

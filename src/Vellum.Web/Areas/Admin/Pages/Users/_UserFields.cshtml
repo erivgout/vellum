@@ -1,0 +1,113 @@
+@model Vellum.Areas.Admin.Pages.Users.UserFormVm
+@{
+    var i = Model.Input;
+    var mgr = Shell.Directory.Get(i.ReportsToId);
+    var zones = UserAdminService.TimeZones.Contains(i.TimeZone ?? "UTC") ? UserAdminService.TimeZones : UserAdminService.TimeZones.Append(i.TimeZone!).ToArray();
+}
+<fieldset class="adm-fieldset">
+    <legend class="adm-legend"><i class="bi bi-person-vcard"></i>Identity</legend>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label" for="u-username">Username @if (Model.IsNew) { <span class="req">*</span> }</label>
+            @if (Model.IsNew)
+            {
+                <input class="form-control" id="u-username" name="Input.Username" value="@i.Username" required maxlength="40" autocomplete="off" spellcheck="false" pattern="[a-z0-9][a-z0-9._\-]{1,39}" aria-describedby="u-username-help" />
+                <div class="form-text" id="u-username-help">Lowercase letters, digits, dots, dashes. It can't be changed later.</div>
+            }
+            else
+            {
+                <input class="form-control" id="u-username" value="@i.Username" readonly aria-describedby="u-username-help" />
+                <div class="form-text" id="u-username-help">Usernames never change, so the audit trail stays attributable (SAF-060).</div>
+            }
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="u-email">Email <span class="req">*</span></label>
+            <input class="form-control" type="email" id="u-email" name="Input.Email" value="@i.Email" required maxlength="254" autocomplete="off" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="u-first">First name <span class="req">*</span></label>
+            <input class="form-control" id="u-first" name="Input.FirstName" value="@i.FirstName" required maxlength="100" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="u-last">Last name <span class="req">*</span></label>
+            <input class="form-control" id="u-last" name="Input.LastName" value="@i.LastName" required maxlength="100" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="u-display">Display name</label>
+            <input class="form-control" id="u-display" name="Input.DisplayName" value="@i.DisplayName" maxlength="200" placeholder="First and last name" />
+        </div>
+    </div>
+</fieldset>
+
+<fieldset class="adm-fieldset">
+    <legend class="adm-legend"><i class="bi bi-building"></i>Organization</legend>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label" for="u-title">Title</label>
+            <input class="form-control" id="u-title" name="Input.JobTitle" value="@i.JobTitle" maxlength="200" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="u-dept">Department</label>
+            <input class="form-control" id="u-dept" name="Input.Department" value="@i.Department" maxlength="200" list="u-depts" />
+            <datalist id="u-depts">@foreach (var d in Model.Departments) { <option value="@d"></option> }</datalist>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="u-loc">Primary location</label>
+            <select class="form-select" id="u-loc" name="Input.PrimaryLocationId" aria-describedby="u-loc-help">
+                <option value="">None</option>
+                @foreach (var l in Model.Locations.Where(l => !l.Disabled || l.Id == i.PrimaryLocationId))
+                {
+                    <option value="@l.Id" selected="@(l.Id == i.PrimaryLocationId)">@l.Path@(l.Disabled ? " (disabled)" : "")</option>
+                }
+            </select>
+            <div class="form-text" id="u-loc-help">Copied to records this person creates. Disabled locations can't be picked (ADM-404).</div>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="u-tz">Time zone</label>
+            <select class="form-select" id="u-tz" name="Input.TimeZone" aria-describedby="u-tz-help">
+                @if (Model.IsNew) { <option value="">Use the location's time zone</option> }
+                @foreach (var z in zones) { <option value="@z" selected="@(i.TimeZone == z)">@z.Replace('_', ' ')</option> }
+            </select>
+            <div class="form-text" id="u-tz-help">Times are stored in UTC and shown in this zone.</div>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" id="u-mgr-label">Reports to</label>
+            <div class="vl-picker" data-picker="users" data-name="Input.ReportsToId" data-multi="false">
+                <div class="vl-picker-box">
+                    @if (mgr != null)
+                    {
+                        <span class="vl-token">@Ui.Avatar(mgr, "xs")<span class="t">@mgr.DisplayName</span><button type="button" class="x" aria-label="Remove @mgr.DisplayName">×</button><input type="hidden" name="Input.ReportsToId" value="@mgr.Id" /></span>
+                    }
+                    <input type="text" placeholder="@(mgr == null ? "Search people…" : "")" autocomplete="off" aria-labelledby="u-mgr-label" />
+                </div>
+                <div class="vl-picker-menu"></div>
+            </div>
+            <div class="form-text">Escalations and lockout notices go to this person (SEC-702).</div>
+        </div>
+    </div>
+</fieldset>
+
+<fieldset class="adm-fieldset mb-0">
+    <legend class="adm-legend"><i class="bi bi-person-badge"></i>License and rights</legend>
+    <div class="row g-3 align-items-start">
+        <div class="col-md-4">
+            <label class="form-label" for="u-license">License</label>
+            <select class="form-select" id="u-license" name="Input.License">
+                @foreach (var lt in Enum.GetValues<LicenseType>()) { <option value="@lt" selected="@(i.License == lt)">@lt</option> }
+            </select>
+        </div>
+        <div class="col-md-8 d-grid gap-2 pt-md-4">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="u-ext" name="Input.IsExternal" value="true" checked="@i.IsExternal" />
+                <label class="form-check-label" for="u-ext">External user <span class="text-body-tertiary small">(supplier, contract auditor; SEC-804)</span></label>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch" id="u-admin" name="Input.IsAdministrator" value="true" checked="@i.IsAdministrator" disabled="@(Model.IsSelf && i.IsAdministrator)" />
+                <label class="form-check-label" for="u-admin">Administrator <span class="text-body-tertiary small">(manages every application and setting)</span></label>
+                @if (Model.IsSelf && i.IsAdministrator) { <input type="hidden" name="Input.IsAdministrator" value="true" /> <div class="form-text">You can't remove your own administrator rights.</div> }
+            </div>
+        </div>
+    </div>
+</fieldset>
+<input type="hidden" name="Input.IsExternal" value="false" />
+<input type="hidden" name="Input.IsAdministrator" value="false" />

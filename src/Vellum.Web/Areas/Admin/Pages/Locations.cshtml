@@ -1,0 +1,117 @@
+@page
+@model LocationsModel
+@{
+    ViewData["Title"] = "Locations";
+    var editing = Model.Selected != null || Model.New;
+    var i = Model.Input;
+    var zones = UserAdminService.TimeZones.Contains(i.TimeZone ?? "UTC") ? UserAdminService.TimeZones : UserAdminService.TimeZones.Append(i.TimeZone!).ToArray();
+    // Exclude the selected location and its descendants from the parent list (no cycles).
+    var excluded = new HashSet<int>();
+    if (Model.Selected != null)
+    {
+        var stack = new Stack<int>([Model.Selected.Id]);
+        while (stack.Count > 0) { var id = stack.Pop(); excluded.Add(id); foreach (var c in Model.All.Where(l => l.ParentId == id)) stack.Push(c.Id); }
+    }
+}
+
+@functions {
+    private async Task Tree(int? parentId, int depth)
+    {
+        var kids = Model.Children(parentId).ToList();
+        if (kids.Count == 0) return;
+        <ul class="adm-tree@(depth == 0 ? " root" : "")" role="@(depth == 0 ? "tree" : "group")">
+            @foreach (var l in kids)
+            {
+                var sel = Model.Selected?.Id == l.Id;
+                var hasKids = Model.Children(l.Id).Any();
+                <li role="treeitem" aria-selected="@(sel ? "true" : "false")" aria-expanded="@(hasKids ? "true" : null)">
+                    <a class="adm-tree-node @(sel ? "active" : "") @(l.Disabled ? "disabled" : "")" href="/admin/locations?id=@l.Id">
+                        <i class="bi @(depth == 0 ? "bi-globe2" : hasKids ? "bi-diagram-2" : "bi-geo-alt")"></i>
+                        <span class="adm-tree-name">@l.Name</span>
+                        <span class="mono adm-tree-code">@l.Code</span>
+                        @if (l.Disabled) { <span class="vl-kw vl-kw-secondary">Disabled</span> }
+                        <span class="adm-tree-meta">
+                            @if (Model.Users.GetValueOrDefault(l.Id) is var n and > 0) { <span title="@Ui.Plural(n, "person") based here"><i class="bi bi-person"></i>@n</span> }
+                            <span class="d-none d-md-inline" title="Time zone">@l.TimeZone.Replace('_', ' ')</span>
+                        </span>
+                    </a>
+                    @{ await Tree(l.Id, depth + 1); }
+                </li>
+            }
+        </ul>
+    }
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-info"><i class="bi bi-geo-alt"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Locations</h1>
+        <p class="vl-page-sub">The organization hierarchy. Records and users carry locations; disabled locations can't be picked for new ones (ADM-404).</p>
+    </div>
+    <a class="btn btn-primary" href="/admin/locations?new=true"><i class="bi bi-plus-lg"></i>New location</a>
+</div>
+
+<partial name="_Errors" model="Model.Errors" />
+
+<div class="row g-4">
+    <div class="@(editing ? "col-xxl-7" : "col-12") min-w-0">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-diagram-2"></i>Hierarchy</h2><span class="vl-pill-count">@Model.All.Count</span></div>
+            <div class="card-body">
+                @if (Model.All.Count == 0)
+                {
+                    <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-geo-alt"></i></div><h3>No locations yet</h3><p>Start with a top-level location such as “Global”.</p></div>
+                }
+                else { await Tree(null, 0); }
+            </div>
+        </div>
+    </div>
+    @if (editing)
+    {
+        <div class="col-xxl-5">
+            <form method="post" asp-page-handler="Save" asp-route-id="@Model.Selected?.Id" class="card adm-sticky">
+                <div class="card-header">
+                    <h2 class="card-title-sm"><i class="bi @(Model.Selected != null ? "bi-pencil" : "bi-plus-lg")"></i>@(Model.Selected != null ? Model.Selected.Name : "New location")</h2>
+                    <a class="ms-auto btn btn-sm btn-ghost btn-icon" href="/admin/locations" aria-label="Close editor"><i class="bi bi-x-lg"></i></a>
+                </div>
+                <div class="card-body d-grid gap-3">
+                    @if (Model.Selected != null)
+                    {
+                        <div class="adm-path"><i class="bi bi-signpost-split"></i>@Model.Selected.Path</div>
+                        <div class="d-flex gap-3 small text-body-secondary">
+                            <span><i class="bi bi-person"></i> @Ui.Plural(Model.Users.GetValueOrDefault(Model.Selected.Id), "person")</span>
+                            <span><i class="bi bi-file-earmark-text"></i> @Ui.Plural(Model.Records.GetValueOrDefault(Model.Selected.Id), "record")</span>
+                        </div>
+                    }
+                    <div>
+                        <label class="form-label" for="l-parent">Parent</label>
+                        <select class="form-select" id="l-parent" name="Input.ParentId">
+                            <option value="">None (top level)</option>
+                            @foreach (var l in Model.All.Where(l => !excluded.Contains(l.Id)).OrderBy(l => l.Path)) { <option value="@l.Id" selected="@(l.Id == i.ParentId)">@l.Path</option> }
+                        </select>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-8"><label class="form-label" for="l-name">Name <span class="req">*</span></label><input class="form-control" id="l-name" name="Input.Name" value="@i.Name" required maxlength="120" /></div>
+                        <div class="col-4"><label class="form-label" for="l-code">Code <span class="req">*</span></label><input class="form-control mono text-uppercase" id="l-code" name="Input.Code" value="@i.Code" required maxlength="12" /></div>
+                    </div>
+                    <div>
+                        <label class="form-label" for="l-tz">Time zone</label>
+                        <select class="form-select" id="l-tz" name="Input.TimeZone" aria-describedby="l-tz-help">
+                            @foreach (var z in zones) { <option value="@z" selected="@(i.TimeZone == z)">@z.Replace('_', ' ')</option> }
+                        </select>
+                        <div class="form-text" id="l-tz-help">New users at this location inherit it (ADM-303).</div>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="l-disabled" name="Input.Disabled" value="true" checked="@i.Disabled" />
+                        <label class="form-check-label" for="l-disabled">Disabled <span class="text-body-tertiary small">(existing records keep it)</span></label>
+                        <input type="hidden" name="Input.Disabled" value="false" />
+                    </div>
+                </div>
+                <div class="card-footer d-flex gap-2 justify-content-end">
+                    @if (Model.Selected != null) { <a class="btn btn-light me-auto" href="/admin/locations?new=true&amp;parent=@Model.Selected.Id"><i class="bi bi-plus-lg"></i>Add sub-location</a> }
+                    <button class="btn btn-primary"><i class="bi bi-check2"></i>@(Model.Selected != null ? "Save location" : "Create location")</button>
+                </div>
+            </form>
+        </div>
+    }
+</div>

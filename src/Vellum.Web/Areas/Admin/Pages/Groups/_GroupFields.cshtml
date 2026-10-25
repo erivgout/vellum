@@ -1,0 +1,46 @@
+@model Vellum.Areas.Admin.Pages.Groups.GroupFormVm
+@{
+    var i = Model.Input;
+}
+<div class="row g-3">
+    <div class="col-md-7">
+        <label class="form-label" for="g-name">Display name <span class="req">*</span></label>
+        <input class="form-control" id="g-name" name="Input.Name" value="@i.Name" required maxlength="200" data-adm-slug-source="#g-key" />
+    </div>
+    <div class="col-md-5">
+        <label class="form-label" for="g-key">Key</label>
+        @if (Model.IsNew)
+        {
+            <input class="form-control mono" id="g-key" name="Input.Key" value="@i.Key" maxlength="64" pattern="[a-z0-9][a-z0-9_\-]{0,63}" placeholder="from the name" aria-describedby="g-key-help" />
+            <div class="form-text" id="g-key-help">Used by configuration, e.g. <code>@@qa-approvers</code>. Can't change later.</div>
+        }
+        else
+        {
+            <input class="form-control mono" id="g-key" value="@i.Key" readonly aria-describedby="g-key-help" />
+            <div class="form-text" id="g-key-help">Keys are stable so configuration keeps working.</div>
+        }
+    </div>
+    <div class="col-12">
+        <label class="form-label" for="g-desc">Description</label>
+        <textarea class="form-control vl-autogrow" id="g-desc" name="Input.Description" rows="2" maxlength="400">@i.Description</textarea>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label" for="g-loc">Location scope</label>
+        <select class="form-select" id="g-loc" name="Input.LocationId">
+            <option value="">All locations</option>
+            @foreach (var l in Model.Locations) { <option value="@l.Id" selected="@(l.Id == i.LocationId)">@l.Path</option> }
+        </select>
+    </div>
+    <div class="col-md-6 d-grid gap-2 pt-md-4">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="g-train" name="Input.IsTrainingGroup" value="true" checked="@i.IsTrainingGroup" />
+            <label class="form-check-label" for="g-train">Training group <span class="text-body-tertiary small">(users only)</span></label>
+        </div>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="g-inactive" name="Input.Inactive" value="true" checked="@i.Inactive" />
+            <label class="form-check-label" for="g-inactive">Inactive <span class="text-body-tertiary small">(can't be picked, assigned or notified)</span></label>
+        </div>
+    </div>
+</div>
+<input type="hidden" name="Input.IsTrainingGroup" value="false" />
+<input type="hidden" name="Input.Inactive" value="false" />

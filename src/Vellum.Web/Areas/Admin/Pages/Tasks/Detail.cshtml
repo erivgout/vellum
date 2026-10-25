@@ -1,0 +1,118 @@
+@page "/admin/tasks/{key}"
+@model Vellum.Areas.Admin.Pages.Tasks.DetailModel
+@{
+    var t = Model.Profile;
+    ViewData["Title"] = t.Name;
+    var tz = Shell.TimeZone;
+    var now = DateTime.UtcNow;
+    var running = t.LeaseUntil > now;
+    var (amount, unit) = t.IntervalMinutes % 1440 == 0 ? (t.IntervalMinutes / 1440, "days") : t.IntervalMinutes % 60 == 0 ? (t.IntervalMinutes / 60, "hours") : (t.IntervalMinutes, "minutes");
+    (string Key, string Label)[] pills = [("", "All runs"), ("Succeeded", "Succeeded"), ("Failed", "Failed")];
+}
+@section Crumbs { <a href="/admin/tasks">Scheduled tasks</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="current">@t.Name</span> }
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-ok"><i class="bi bi-stopwatch"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title d-flex align-items-center gap-2 flex-wrap">@t.Name
+            @if (running) { @AdminText.Outcome("Running") } else if (!t.Enabled) { <span class="vl-kw vl-kw-secondary">Disabled</span> } else { <span class="vl-kw vl-kw-success">Enabled</span> }
+        </h1>
+        <p class="vl-page-sub">@t.Description <span class="mono text-body-tertiary">· @t.Key</span></p>
+    </div>
+    <div class="d-flex gap-2">
+        <form method="post" asp-page-handler="Toggle" asp-route-key="@t.Key" class="m-0">
+            <input type="hidden" name="enabled" value="@(t.Enabled ? "false" : "true")" />
+            @if (t.Enabled) { <button class="btn btn-light" data-confirm="Disable @t.Name? It won't run until you enable it again."><i class="bi bi-pause-fill"></i>Disable</button> }
+            else { <button class="btn btn-light"><i class="bi bi-play"></i>Enable</button> }
+        </form>
+        <form method="post" asp-page-handler="Run" asp-route-key="@t.Key" class="m-0" data-adm-busy>
+            <button class="btn btn-primary" disabled="@(!t.Enabled || running)" data-confirm="Run @t.Name now? The next scheduled run moves forward."><i class="bi bi-play-fill"></i>Run now</button>
+        </form>
+    </div>
+</div>
+
+@if (t.Enabled && t.LastOutcome == "Failed")
+{
+    <div class="vl-banner vl-banner-bad"><i class="bi bi-exclamation-octagon-fill"></i><div><div class="ttl">The last run failed</div><div class="small">Administrators are notified after each failure until the task succeeds or is disabled (ADM-804). See the log below.</div></div></div>
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon tone-info"><i class="bi bi-calendar-check"></i></span><div class="vl-stat-value adm-stat-text">@AdminText.Interval(t.IntervalMinutes)</div><div class="vl-stat-label">Schedule</div></div></div>
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon tone-neutral"><i class="bi bi-clock"></i></span><div class="vl-stat-value adm-stat-text">@(t.LastRunAt is { } lr ? Ui.Ago(lr) : "Never")</div><div class="vl-stat-label">Last run · @(t.LastOutcome ?? "–")</div></div></div>
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon @(Model.Failed > 0 ? "tone-warn" : "tone-ok")"><i class="bi bi-list-check"></i></span><div class="vl-stat-value">@Model.Total</div><div class="vl-stat-label">Runs · @Model.Failed failed</div></div></div>
+    <div class="col-6 col-xl-3"><div class="vl-stat"><span class="vl-stat-icon tone-neutral"><i class="bi bi-speedometer"></i></span><div class="vl-stat-value adm-stat-text">@(Model.AvgSeconds is { } a ? (a < 1 ? "< 1 s" : $"{a:0.#} s") : "–")</div><div class="vl-stat-label">Average duration</div></div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xxl-8 min-w-0">
+        <div class="vl-table-wrap">
+            <div class="adm-table-bar">
+                <span class="fw-semibold"><i class="bi bi-clock-history text-body-tertiary"></i> Run history</span>
+                <div class="vl-filter-pills ms-auto" role="group" aria-label="Outcome">
+                    @foreach (var (k, l) in pills) { <a class="@((Model.Outcome ?? "") == k ? "active" : "")" href="@Model.With("outcome", k)">@l</a> }
+                </div>
+            </div>
+            @if (Model.Runs.Total == 0)
+            {
+                <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-hourglass"></i></div><h3>No runs yet</h3><p>@(t.Enabled ? "The scheduler runs it when it's due, or use Run now." : "Enable the task to schedule it.")</p></div>
+            }
+            else
+            {
+                <div class="vl-table-scroll">
+                    <table class="table vl-table vl-table-compact">
+                        <thead><tr><th scope="col">Started</th><th scope="col">Outcome</th><th scope="col">Duration</th><th scope="col" class="numeric">Records</th><th scope="col">Log</th></tr></thead>
+                        <tbody>
+                            @foreach (var r in Model.Runs.Items)
+                            {
+                                var lines = (r.Log ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                                <tr>
+                                    <td class="text-nowrap">@Ui.Time(r.StartedAt, tz, false)@if (r.Manual) { <span class="vl-kw ms-1">Manual</span> }</td>
+                                    <td>@AdminText.Outcome(r.Outcome)</td>
+                                    <td class="text-nowrap tabular">@(r.EndedAt is { } e ? ((e - r.StartedAt).TotalSeconds < 1 ? "< 1 s" : $"{(e - r.StartedAt).TotalSeconds:0.#} s") : "–")</td>
+                                    <td class="numeric">@r.RecordsAffected</td>
+                                    <td class="adm-log-cell">
+                                        @if (lines.Length == 0) { <span class="text-body-tertiary">–</span> }
+                                        else
+                                        {
+                                            <details>
+                                                <summary class="small">@(lines[^1].Length > 9 && lines[^1][2] == ':' ? lines[^1][9..] : lines[^1])</summary>
+                                                <pre class="adm-log">@r.Log</pre>
+                                            </details>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <partial name="_Pager" model='PagerModel.For(Model.Runs, "runs", Request)' />
+            }
+        </div>
+    </div>
+    <div class="col-xxl-4">
+        <form method="post" asp-page-handler="Interval" asp-route-key="@t.Key" class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-calendar-range"></i>Schedule</h2></div>
+            <div class="card-body d-grid gap-3">
+                <div>
+                    <label class="form-label" for="t-amount">Run every</label>
+                    <div class="input-group">
+                        <input class="form-control" type="number" id="t-amount" name="amount" value="@amount" min="1" max="43200" required />
+                        <select class="form-select" name="unit" aria-label="Unit" style="max-width:9rem">
+                            <option value="minutes" selected="@(unit == "minutes")">minutes</option>
+                            <option value="hours" selected="@(unit == "hours")">hours</option>
+                            <option value="days" selected="@(unit == "days")">days</option>
+                        </select>
+                    </div>
+                    <div class="form-text">Between 1 minute and 30 days, in the system time zone (ADM-801).</div>
+                </div>
+                <dl class="vl-kv">
+                    <dt>Next run</dt><dd>@(t.Enabled && t.NextRunAt is { } nr ? (nr <= now ? "Due now" : nr.ToString("dd MMM yyyy HH:mm") + " UTC") : "–")</dd>
+                    <dt>Runs as</dt><dd>System identity</dd>
+                    <dt>Concurrency</dt><dd>One run at a time</dd>
+                    <dt>Missed runs</dt><dd>Caught up once</dd>
+                </dl>
+            </div>
+            <div class="card-footer d-flex justify-content-end"><button class="btn btn-light"><i class="bi bi-check2"></i>Save schedule</button></div>
+        </form>
+    </div>
+</div>

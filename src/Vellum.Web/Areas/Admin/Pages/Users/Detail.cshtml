@@ -1,0 +1,359 @@
+@page "/admin/users/{id:int}"
+@model Vellum.Areas.Admin.Pages.Users.DetailModel
+@{
+    var u = Model.U;
+    var info = Shell.Directory.Get(u.Id);
+    ViewData["Title"] = u.DisplayName;
+    var tz = Shell.TimeZone;
+    var first = u.FirstName.Length > 0 ? u.FirstName : u.DisplayName;
+    var active = u.Status == UserStatus.Active;
+    var reassignable = Shell.Directory.All.Where(x => x.Status == UserStatus.Active && x.Id != u.Id).Select(x => x.Id);
+}
+@section Crumbs { <a href="/admin/users">Users</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="current">@u.DisplayName</span> }
+
+<div class="vl-page-head align-items-center">
+    @Ui.Avatar(info, "xl")
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title d-flex align-items-center flex-wrap gap-2">@u.DisplayName
+            @AdminText.StatusBadge(u.Status, u.StatusReason)
+            @if (u.IsAdministrator) { <span class="vl-kw vl-kw-violet">Administrator</span> }
+            @if (u.IsExternal) { <span class="vl-kw vl-kw-info">External</span> }
+            @if (Model.IsSelf) { <span class="vl-kw">You</span> }
+        </h1>
+        <p class="vl-page-sub text-truncate">@u.Username · @u.Email@(u.JobTitle != null ? " · " + u.JobTitle : "")@(u.Department != null ? " · " + u.Department : "")</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        @if (u.Status == UserStatus.Disabled)
+        {
+            <form method="post" asp-page-handler="Unlock" asp-route-id="@u.Id" class="m-0"><button class="btn btn-primary"><i class="bi bi-unlock"></i>Unlock</button></form>
+        }
+        @if (u.Status == UserStatus.Inactive)
+        {
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#m-reactivate"><i class="bi bi-person-check"></i>Reactivate</button>
+        }
+        else
+        {
+            <button class="btn btn-light" type="button" data-bs-toggle="modal" data-bs-target="#m-password"><i class="bi bi-key"></i>Reset password</button>
+        }
+        <div class="dropdown">
+            <button class="btn btn-light btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions"><i class="bi bi-three-dots"></i></button>
+            <div class="dropdown-menu dropdown-menu-end" style="min-width:250px">
+                <a class="dropdown-item" href="/admin/access/users/@u.Id"><i class="bi bi-key"></i>What can @first do?</a>
+                <a class="dropdown-item" href="/admin/security-log?user=@u.Username"><i class="bi bi-shield-exclamation"></i>Security events</a>
+                <a class="dropdown-item" href="/admin/audit?scope=global&amp;q=@Uri.EscapeDataString(u.Username)"><i class="bi bi-clock-history"></i>Audit entries</a>
+                @if (!Model.IsSelf && u.Status != UserStatus.Inactive)
+                {
+                    <div class="dropdown-divider"></div>
+                    <form method="post" asp-page-handler="Logout" asp-route-id="@u.Id" class="m-0"><button class="dropdown-item" data-confirm="Sign @u.DisplayName out of every session now?"><i class="bi bi-box-arrow-right"></i>Sign out everywhere</button></form>
+                    @if (active)
+                    {
+                        <form method="post" asp-page-handler="Kick" asp-route-id="@u.Id" class="m-0"><button class="dropdown-item" data-confirm="Kick @u.DisplayName out? Their sessions end and the account stays disabled until an administrator unlocks it (SEC-403)."><i class="bi bi-door-open"></i>Kick out (sign out and disable)</button></form>
+                    }
+                }
+                @if (u.MfaEnrolled)
+                {
+                    <form method="post" asp-page-handler="RemoveMfa" asp-route-id="@u.Id" class="m-0"><button class="dropdown-item" data-confirm="Remove @u.DisplayName's authenticator? Their sessions end immediately and they must reset their password at next sign-in (SEC-305)."><i class="bi bi-phone"></i>Remove MFA factor</button></form>
+                }
+                @if (!Model.IsSelf)
+                {
+                    <div class="dropdown-divider"></div>
+                    @if (active) { <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#m-disable"><i class="bi bi-lock"></i>Disable…</button> }
+                    @if (u.Status != UserStatus.Inactive) { <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#m-inactivate"><i class="bi bi-person-dash"></i>Inactivate…</button> }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<partial name="_Errors" model="Model.Errors" />
+
+@if (u.Status == UserStatus.Disabled)
+{
+    <div class="vl-banner vl-banner-warn">
+        <i class="bi bi-lock-fill"></i>
+        <div class="flex-grow-1"><div class="ttl">This account is disabled@(u.StatusReason != null ? ": " + u.StatusReason : "")</div>
+            <div class="small">@first can't sign in, but can still be assigned work (shown with a warning badge, SEC-704). Unlock to restore access; the failed sign-in count resets.</div></div>
+    </div>
+}
+else if (u.Status == UserStatus.Inactive)
+{
+    <div class="vl-banner vl-banner-info">
+        <i class="bi bi-person-dash-fill"></i>
+        <div class="flex-grow-1"><div class="ttl">This account is inactive@(u.StatusReason != null ? ": " + u.StatusReason : "")</div>
+            <div class="small">@first can't sign in and gets no new assignments or notifications (INV-073). Group memberships are kept as inactive memberships and come back on reactivation (SEC-705).</div></div>
+    </div>
+}
+@if (u.Status != UserStatus.Active && Model.Assignments.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad">
+        <i class="bi bi-inbox-fill"></i>
+        <div class="flex-grow-1"><div class="ttl">@(Model.Assignments.Count == 1 ? "1 open assignment needs" : $"{Model.Assignments.Count} open assignments need") a new owner</div><div class="small">Work assigned to @first won't move while the account is @u.Status.ToString().ToLowerInvariant(). Reassign it below.</div></div>
+        <a class="btn btn-sm btn-light" href="#assignments">Reassign work</a>
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-xxl-8 min-w-0">
+        <form method="post" asp-page-handler="Profile" asp-route-id="@u.Id" class="card mb-4" autocomplete="off">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-person-vcard"></i>Profile</h2><span class="ms-auto small text-body-tertiary">Changes are recorded in the audit trail field by field.</span></div>
+            <div class="card-body"><partial name="_UserFields" model="Model.Form" /></div>
+            <div class="card-footer d-flex justify-content-end gap-2">
+                <a class="btn btn-light" href="/admin/users/@u.Id">Discard changes</a>
+                <button class="btn btn-primary"><i class="bi bi-check2"></i>Save profile</button>
+            </div>
+        </form>
+
+        <div class="card" id="assignments">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-inbox"></i>Open assignments</h2><span class="vl-pill-count @(u.Status != UserStatus.Active && Model.Assignments.Count > 0 ? "hot" : "")">@Model.Assignments.Count</span></div>
+            @if (Model.Assignments.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-inbox"></i></div><h3>No open assignments</h3><p>@first has no work waiting in any phase.</p></div>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="Reassign" asp-route-id="@u.Id">
+                    <div class="vl-table-scroll">
+                        <table class="table vl-table vl-table-compact">
+                            <thead>
+                                <tr>
+                                    <th class="col-check"><input class="form-check-input" type="checkbox" data-check-all=".adm-asg" checked aria-label="Select all assignments" /></th>
+                                    <th scope="col">Record</th>
+                                    <th scope="col">Phase</th>
+                                    <th scope="col">Due</th>
+                                    <th scope="col">Assigned</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var a in Model.Assignments)
+                                {
+                                    var form = Model.Config.FormsById.GetValueOrDefault(a.FormId);
+                                    <tr>
+                                        <td class="col-check"><input class="form-check-input adm-asg" type="checkbox" name="assignments" value="@a.Id" checked aria-label="Select @a.Number" /></td>
+                                        <td class="col-title">
+                                            <a class="fw-semibold" href="/records/@a.RecordId">@a.Number</a>
+                                            <span class="d-block small text-body-secondary text-truncate">@(form?.Name) · @a.Title</span>
+                                        </td>
+                                        <td>@Ui.Phase(a.Phase, PhaseType.Normal, a.Due)@if (a.Status == AssignmentStatus.Waiting) { <span class="d-block x-small text-body-tertiary">Waiting (sequential)</span> }</td>
+                                        <td>@Ui.Due(a.Due)</td>
+                                        <td class="text-nowrap">@Ui.Time(a.AssignedAt, tz)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer adm-reassign">
+                        <div class="flex-grow-1 min-w-0" style="max-width:340px">
+                            <label class="form-label" id="ra-to-label">Reassign selected to</label>
+                            <div class="vl-picker" data-picker="users" data-name="toUserId" data-multi="false" data-allowed="@string.Join(",", reassignable)">
+                                <div class="vl-picker-box"><input type="text" placeholder="Search active people…" autocomplete="off" aria-labelledby="ra-to-label" /></div>
+                                <div class="vl-picker-menu"></div>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <label class="form-label" for="ra-comment">Comment</label>
+                            <input class="form-control" id="ra-comment" name="comment" maxlength="400" placeholder="Reassigned from @u.DisplayName by an administrator." />
+                        </div>
+                        <button class="btn btn-primary"><i class="bi bi-person-gear"></i>Reassign</button>
+                    </div>
+                    <div class="px-3 pb-3 small text-body-tertiary">Each record is reassigned through the workflow engine and recorded in its audit trail. Co-assignees keep their assignments. Only active people can receive work (INV-073).</div>
+                </form>
+            }
+        </div>
+    </div>
+
+    <div class="col-xxl-4">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-shield-lock"></i>Account</h2></div>
+            <div class="card-body">
+                <dl class="vl-kv">
+                    <dt>Status</dt><dd>@AdminText.StatusBadge(u.Status, u.StatusReason)</dd>
+                    <dt>Location</dt><dd>@(Model.Location ?? "–")</dd>
+                    <dt>Reports to</dt><dd>@(u.ReportsToId is { } m ? Shell.Directory.Name(m) : "–")</dd>
+                    <dt>Created</dt><dd>@Ui.Time(u.CreatedAt, tz, false)</dd>
+                    <dt>Last sign-in</dt><dd>@if (u.LastLoginAt is { } ll) { @Ui.Time(ll, tz) } else { <span class="text-body-tertiary">Never</span> }</dd>
+                    <dt>Password changed</dt><dd>@if (u.PasswordChangedAt is { } pc) { @Ui.Time(pc, tz) } else { <text>–</text> }</dd>
+                    <dt>Next sign-in</dt><dd>@(u.MustChangePassword ? "Must choose a new password" : "Normal")</dd>
+                    <dt>Failed sign-ins</dt><dd class="@(u.FailedLoginCount > 0 ? "text-danger" : "")">@u.FailedLoginCount of @Model.Settings.LockoutThreshold</dd>
+                    <dt>MFA</dt><dd>@if (u.MfaEnrolled) { <span class="adm-status ok"><i class="bi bi-shield-fill-check"></i>Active · authenticator app</span> } else { <span class="adm-status @(Model.Settings.MfaRequired ? "warn" : "off")"><i class="bi bi-shield"></i>Not enrolled@(Model.Settings.MfaRequired ? " (enrolls at next sign-in)" : "")</span> }</dd>
+                    <dt>E-signature</dt><dd>@if (u.ESignatureCertifiedAt is { } ec) { <span>Certified @ec.ToString("dd MMM yyyy")</span> } else { <span class="text-body-tertiary">Not certified yet</span> }</dd>
+                    <dt>License</dt><dd>@u.License@(u.IsExternal ? " · external" : "")</dd>
+                </dl>
+                @if (u.FailedLoginCount > 0 && active)
+                {
+                    <form method="post" asp-page-handler="Unlock" asp-route-id="@u.Id" class="mt-3"><button class="btn btn-sm btn-light w-100"><i class="bi bi-arrow-counterclockwise"></i>Reset failed sign-in count</button></form>
+                }
+            </div>
+        </div>
+
+        <div class="card mb-4" id="groups">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-diagram-3"></i>Groups</h2><span class="vl-pill-count">@Model.MemberOf.Count</span></div>
+            @if (u.Status == UserStatus.Inactive && Model.MemberOf.Count > 0)
+            {
+                <div class="px-3 pt-3"><div class="vl-prompt"><i class="bi bi-info-circle"></i><div class="small">Inactive membership: these groups don't count for @first until the account is reactivated.</div></div></div>
+            }
+            @if (Model.MemberOf.Count == 0)
+            {
+                <div class="vl-empty py-3"><p>Not a member of any group.</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var g in Model.MemberOf)
+                    {
+                        <div class="vl-list-item py-2">
+                            <span class="adm-group-dot"><i class="bi bi-people-fill"></i></span>
+                            <span class="main"><a class="fw-medium" href="/admin/groups/@g.Id">@g.Name</a>@if (g.Inactive) { <span class="vl-kw vl-kw-secondary ms-2">Inactive group</span> }</span>
+                            <form method="post" asp-page-handler="RemoveGroup" asp-route-id="@u.Id" class="m-0">
+                                <input type="hidden" name="groupId" value="@g.Id" />
+                                <button class="btn btn-sm btn-ghost btn-icon" data-confirm="Remove @u.DisplayName from @g.Name?" aria-label="Remove from @g.Name"><i class="bi bi-x-lg"></i></button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            }
+            @if (u.Status != UserStatus.Inactive && Model.OtherGroups.Count > 0)
+            {
+                <form method="post" asp-page-handler="AddGroups" asp-route-id="@u.Id" class="card-footer d-flex gap-2 align-items-start">
+                    <select class="form-select form-select-sm" name="groupIds" multiple size="4" aria-label="Groups to add">
+                        @foreach (var g in Model.OtherGroups) { <option value="@g.Id">@g.Name</option> }
+                    </select>
+                    <button class="btn btn-sm btn-light text-nowrap"><i class="bi bi-plus-lg"></i>Add</button>
+                </form>
+            }
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-laptop"></i>Sessions</h2><span class="vl-pill-count">@Model.Sessions.Count</span></div>
+            @if (Model.Sessions.Count == 0)
+            {
+                <div class="vl-empty py-3"><p>Not signed in anywhere.</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var s in Model.Sessions)
+                    {
+                        var client = AdminText.Client(s.Session.UserAgent);
+                        var current = s.Session.Id == Shell.Me.SessionId;
+                        <div class="vl-list-item py-2">
+                            <i class="bi @client.Icon fs-5 text-body-tertiary"></i>
+                            <span class="main">
+                                <span class="d-block fw-medium">@client.Label <span class="text-body-tertiary fw-normal small">· @s.Session.Ip</span></span>
+                                <span class="line2 d-block">Signed in @Ui.Ago(s.Session.CreatedAt) · active @Ui.Ago(s.Session.LastSeenAt)@(s.Idle ? " · idle" : "")</span>
+                            </span>
+                            @if (current) { <span class="vl-kw vl-kw-success">This session</span> }
+                            else
+                            {
+                                <form method="post" asp-page-handler="EndSession" asp-route-id="@u.Id" class="m-0"><input type="hidden" name="sessionId" value="@s.Session.Id" /><button class="btn btn-sm btn-light" data-confirm="End this session?">End</button></form>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-shield-exclamation"></i>Recent security events</h2><a class="ms-auto small" href="/admin/security-log?user=@u.Username">View all</a></div>
+            @if (Model.Events.Count == 0)
+            {
+                <div class="vl-empty py-3"><p>No security events yet.</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var e in Model.Events)
+                    {
+                        <div class="vl-list-item py-2">
+                            <span class="adm-ev-icon @(e.Success ? "tone-ok" : "tone-bad")"><i class="bi @(e.Success ? "bi-check-lg" : "bi-x-lg")"></i></span>
+                            <span class="main"><span class="d-block fw-medium small">@e.Kind</span><span class="line2 d-block">@(e.Detail ?? e.Ip ?? "–")</span></span>
+                            <span class="small text-body-tertiary text-nowrap">@Ui.Time(e.At, tz)</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@* ---------------------------------------------------------------- dialogs *@
+<div class="modal fade" id="m-password" tabindex="-1" aria-labelledby="m-password-title" data-autoshow="@(Model.OpenModal == "password" ? "true" : "false")">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="post" asp-page-handler="Password" asp-route-id="@u.Id" class="modal-content" autocomplete="off">
+            <div class="modal-header"><h2 class="modal-title" id="m-password-title">Reset @first's password</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body d-grid gap-3">
+                <partial name="_Errors" model="(IReadOnlyList<string>)Model.ModalErrors" />
+                <p class="small text-body-secondary mb-0">Set a temporary password and give it to @first over a separate channel. Their other sessions end, and the password policy applies as it does for everyone (SEC-201).</p>
+                <div>
+                    <label class="form-label" for="pw-new">Temporary password</label>
+                    <div class="input-group">
+                        <input class="form-control mono" type="password" id="pw-new" name="password" required autocomplete="new-password" spellcheck="false" />
+                        <button class="btn btn-light" type="button" data-adm-reveal="#pw-new" aria-label="Show password"><i class="bi bi-eye"></i></button>
+                        <button class="btn btn-light" type="button" data-adm-genpw="#pw-new" data-adm-min="@Model.Settings.PasswordMinLength"><i class="bi bi-magic"></i>Generate</button>
+                    </div>
+                </div>
+                <ul class="adm-policy">@foreach (var rule in Model.Policy) { <li><i class="bi bi-check2"></i>@rule</li> }</ul>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="pw-must" name="mustChange" value="true" checked />
+                    <label class="form-check-label" for="pw-must">Require a new password at next sign-in <span class="vl-kw vl-kw-success ms-1">Recommended</span></label>
+                    <input type="hidden" name="mustChange" value="false" />
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary"><i class="bi bi-key"></i>Set password</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="m-disable" tabindex="-1" aria-labelledby="m-disable-title">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="post" asp-page-handler="Disable" asp-route-id="@u.Id" class="modal-content">
+            <div class="modal-header"><h2 class="modal-title" id="m-disable-title">Disable @u.DisplayName</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body d-grid gap-3">
+                <ul class="adm-effects">
+                    <li><i class="bi bi-box-arrow-right"></i>Ends @Ui.Plural(Model.Sessions.Count, "open session") now</li>
+                    <li><i class="bi bi-slash-circle"></i>Blocks sign-in until an administrator unlocks the account</li>
+                    <li><i class="bi bi-inbox"></i>Keeps @Ui.Plural(Model.Assignments.Count, "open assignment"); @first stays assignable with a warning badge</li>
+                </ul>
+                <div><label class="form-label" for="dis-reason">Reason <span class="req">*</span></label><input class="form-control" id="dis-reason" name="reason" required maxlength="300" placeholder="For example: extended leave" /></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-ink"><i class="bi bi-lock"></i>Disable account</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="m-inactivate" tabindex="-1" aria-labelledby="m-inactivate-title">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="post" asp-page-handler="Inactivate" asp-route-id="@u.Id" class="modal-content">
+            <div class="modal-header"><h2 class="modal-title" id="m-inactivate-title">Inactivate @u.DisplayName</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body d-grid gap-3">
+                <p class="small text-body-secondary mb-0">Use this when someone leaves the organization. Their history stays attributable to them (SAF-060).</p>
+                <ul class="adm-effects">
+                    <li><i class="bi bi-box-arrow-right"></i>Ends @Ui.Plural(Model.Sessions.Count, "open session") at once (SEC-405)</li>
+                    <li><i class="bi bi-bell-slash"></i>No new assignments or notifications (INV-073)</li>
+                    <li><i class="bi bi-diagram-3"></i>@Ui.Plural(Model.MemberOf.Count, "group membership") become inactive memberships</li>
+                    @if (Model.Delegations > 0) { <li><i class="bi bi-people"></i>Ends @Ui.Plural(Model.Delegations, "delegation")</li> }
+                    <li class="@(Model.Assignments.Count > 0 ? "warn" : "")"><i class="bi bi-inbox"></i>@(Model.Assignments.Count > 0 ? $"{Ui.Plural(Model.Assignments.Count, "open assignment")} will need reassigning; you'll get the list next" : "No open assignments to reassign")</li>
+                </ul>
+                <div><label class="form-label" for="ina-reason">Reason <span class="req">*</span></label><input class="form-control" id="ina-reason" name="reason" required maxlength="300" placeholder="For example: left the company on 31 Oct" /></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-danger"><i class="bi bi-person-dash"></i>Inactivate</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="m-reactivate" tabindex="-1" aria-labelledby="m-reactivate-title">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="post" asp-page-handler="Reactivate" asp-route-id="@u.Id" class="modal-content">
+            <div class="modal-header"><h2 class="modal-title" id="m-reactivate-title">Reactivate @u.DisplayName</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body d-grid gap-3">
+                <ul class="adm-effects">
+                    <li><i class="bi bi-person-check"></i>@first can sign in again and receive assignments</li>
+                    <li><i class="bi bi-diagram-3"></i>Restores @Ui.Plural(Model.MemberOf.Count, "group membership") (SEC-705)</li>
+                </ul>
+                <div><label class="form-label" for="rea-reason">Reason</label><input class="form-control" id="rea-reason" name="reason" maxlength="300" placeholder="For example: rehired" /></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary"><i class="bi bi-person-check"></i>Reactivate</button></div>
+        </form>
+    </div>
+</div>
+
+<script type="application/json" id="vl-directory">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Shell.Directory.All.Where(x => x.Status != UserStatus.Inactive && x.Id != u.Id).Select(x => new { id = x.Id, name = x.DisplayName, initials = x.Initials, title = x.JobTitle, hue = x.Hue })))</script>

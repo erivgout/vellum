@@ -1,0 +1,78 @@
+@page "/admin/access/users/{id:int}"
+@model Vellum.Areas.Admin.Pages.Access.UserModel
+@{
+    var u = Model.Person;
+    ViewData["Title"] = $"What can {u.DisplayName} do?";
+    var first = u.DisplayName.Split(' ')[0];
+    var open = Model.Rows.Count(r => r.CanOpen);
+}
+@section Crumbs { <a href="/admin/access">Access report</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="current">@u.DisplayName</span> }
+
+<div class="vl-page-head align-items-center">
+    @Ui.Avatar(u, "xl")
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title d-flex align-items-center gap-2 flex-wrap">What can @first do? @AdminText.StatusBadge(u.Status)</h1>
+        <p class="vl-page-sub">@u.DisplayName · @u.Username@(u.JobTitle != null ? " · " + u.JobTitle : "") · opens @Ui.Plural(open, "application")</p>
+    </div>
+    <a class="btn btn-light" href="/admin/users/@u.Id"><i class="bi bi-person"></i>User profile</a>
+</div>
+
+@if (u.IsAdmin)
+{
+    <div class="vl-banner vl-banner-violet"><i class="bi bi-shield-lock-fill"></i><div class="small"><strong>@first is an administrator</strong> and manages every application, record and setting (SEC-505). Grants don't change that.</div></div>
+}
+@if (u.Status != UserStatus.Active)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-lock-fill"></i><div class="small">The account is @u.Status.ToString().ToLowerInvariant(), so @first can't sign in. The roles below apply again if the account becomes active.</div></div>
+}
+
+<div class="row g-4">
+    <div class="col-xxl-8 min-w-0">
+        <div class="vl-table-wrap">
+            <div class="adm-table-title"><i class="bi bi-grid"></i>Effective access by application</div>
+            <div class="vl-table-scroll">
+                <table class="table vl-table">
+                    <thead><tr><th scope="col">Application</th><th scope="col">Role</th><th scope="col">Comes from</th><th scope="col">Form overrides</th><th scope="col">Designer</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in Model.Rows)
+                        {
+                            <tr class="@(r.CanOpen ? "" : "adm-row-muted")">
+                                <td class="text-nowrap"><a class="adm-person" href="/admin/access/apps/@r.App.Key"><span class="vl-app-tile sm" style="--app:@r.App.Color"><i class="bi @r.App.Icon"></i></span><span class="fw-medium">@r.App.Name</span></a></td>
+                                <td>@AdminText.RoleBadge(r.Role)</td>
+                                <td class="small text-body-secondary">@r.Source</td>
+                                <td class="small">
+                                    @if (r.FormOverrides.Count == 0) { <span class="text-body-tertiary">–</span> }
+                                    else { @foreach (var (form, role, src) in r.FormOverrides) { <span class="d-block">@form.Name: <strong>@AdminText.Role(role)</strong> <span class="text-body-tertiary">(@src)</span></span> } }
+                                </td>
+                                <td>@if (r.Designer) { <span class="vl-kw vl-kw-dark">Designer</span> } else { <span class="text-body-tertiary">–</span> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="vl-table-foot"><span>Same rules as the authorization service: the highest of the default access and every grant to @first or their groups (SEC-504).</span></div>
+        </div>
+    </div>
+    <div class="col-xxl-4">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-diagram-3"></i>Groups</h2><span class="vl-pill-count">@Model.Groups.Count</span></div>
+            @if (Model.Groups.Count == 0)
+            {
+                <div class="vl-empty py-4"><p>Not in any group.</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var g in Model.Groups)
+                    {
+                        <a class="vl-list-item py-2" href="/admin/groups/@g.Id">
+                            <span class="adm-group-dot"><i class="bi bi-people-fill"></i></span>
+                            <span class="main fw-medium">@g.Name</span>
+                            @if (g.Inactive) { <span class="vl-kw vl-kw-secondary">Inactive</span> }
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>

@@ -1,0 +1,43 @@
+@{
+    Layout = "/Pages/Shared/_Layout.cshtml";
+    var home = ViewData["AdminHome"] is true;
+    var title = ViewData["Title"] as string;
+}
+@section Crumbs {
+    @if (home)
+    {
+        <span class="current">Administration Center</span>
+    }
+    else
+    {
+        <a href="/admin">Administration</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+        @if (IsSectionDefined("Crumbs"))
+        {
+            @await RenderSectionAsync("Crumbs")
+        }
+        else
+        {
+            <span class="current">@title</span>
+        }
+    }
+}
+@section Head { @await RenderSectionAsync("Head", required: false) }
+@section Scripts { @await RenderSectionAsync("Scripts", required: false) }
+
+<div class="adm">
+    @if (home)
+    {
+        @RenderBody()
+    }
+    else
+    {
+        <div class="row g-4">
+            <div class="col-lg-3 col-xxl-2">
+                <partial name="_AdminNav" />
+            </div>
+            <div class="col-lg-9 col-xxl-10 min-w-0">
+                @RenderBody()
+            </div>
+        </div>
+    }
+</div>

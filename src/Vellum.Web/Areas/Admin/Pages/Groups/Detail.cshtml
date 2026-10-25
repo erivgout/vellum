@@ -1,0 +1,119 @@
+@page "/admin/groups/{id:int}"
+@model Vellum.Areas.Admin.Pages.Groups.DetailModel
+@{
+    var g = Model.G;
+    ViewData["Title"] = g.Name;
+    var memberIds = Model.Members.Concat(Model.InactiveMembers).Select(m => m.Id).ToHashSet();
+    var candidates = Shell.Directory.All.Where(u => u.Status != UserStatus.Inactive && !memberIds.Contains(u.Id)).ToList();
+}
+@section Crumbs { <a href="/admin/groups">Groups</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="current">@g.Name</span> }
+
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-info"><i class="bi bi-diagram-3"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title d-flex align-items-center flex-wrap gap-2">@g.Name
+            @if (g.Inactive) { <span class="vl-kw vl-kw-secondary">Inactive</span> } else { <span class="vl-kw vl-kw-success">Active</span> }
+            @if (g.IsTrainingGroup) { <span class="vl-kw vl-kw-info">Training group</span> }
+        </h1>
+        <p class="vl-page-sub"><span class="mono">@@@g.Key</span>@(g.Description != null ? " · " + g.Description : "")</p>
+    </div>
+</div>
+
+<partial name="_Errors" model="Model.Errors" />
+@if (g.Inactive)
+{
+    <div class="vl-banner vl-banner-info"><i class="bi bi-pause-circle"></i><div class="small">This group is inactive: it can't be picked, assigned or notified, and its application roles don't make anyone a Manager (INV-084).</div></div>
+}
+
+<div class="row g-4">
+    <div class="col-xxl-7 min-w-0">
+        <div class="card mb-4" id="members">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-people"></i>Members</h2><span class="vl-pill-count">@Model.Members.Count</span></div>
+            <form method="post" asp-page-handler="Add" asp-route-id="@g.Id" class="card-body border-bottom d-flex gap-2 align-items-start">
+                <div class="flex-grow-1 min-w-0">
+                    <div class="vl-picker" data-picker="users" data-name="users" data-multi="true">
+                        <div class="vl-picker-box"><input type="text" placeholder="Add people…" autocomplete="off" aria-label="Add people to @g.Name" /></div>
+                        <div class="vl-picker-menu"></div>
+                    </div>
+                </div>
+                <button class="btn btn-primary text-nowrap"><i class="bi bi-person-plus"></i>Add</button>
+            </form>
+            @if (Model.Members.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-people"></i></div><h3>No members yet</h3><p>Add people above. Inactive users can't be added (SEC-704).</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var m in Model.Members)
+                    {
+                        <div class="vl-list-item py-2">
+                            @Ui.Avatar(m, "md")
+                            <span class="main">
+                                <a class="d-block fw-medium" href="/admin/users/@m.Id">@m.DisplayName</a>
+                                <span class="line2 d-block">@(m.JobTitle ?? m.Username)@(m.Status == UserStatus.Disabled ? " · disabled" : "")</span>
+                            </span>
+                            @if (m.Status == UserStatus.Disabled) { <span class="vl-kw vl-kw-warning">Disabled</span> }
+                            <form method="post" asp-page-handler="Remove" asp-route-id="@g.Id" class="m-0">
+                                <input type="hidden" name="userId" value="@m.Id" />
+                                <button class="btn btn-sm btn-ghost btn-icon" data-confirm="Remove @m.DisplayName from @g.Name?" aria-label="Remove @m.DisplayName"><i class="bi bi-x-lg"></i></button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            }
+            @if (Model.InactiveMembers.Count > 0)
+            {
+                <div class="adm-subhead">Inactive members <span class="vl-pill-count">@Model.InactiveMembers.Count</span></div>
+                <div class="px-3 pb-2 small text-body-tertiary">Kept for history and restored if the person is reactivated (SEC-705). They don't count as members while inactive.</div>
+                <div class="vl-list">
+                    @foreach (var m in Model.InactiveMembers)
+                    {
+                        <div class="vl-list-item py-2 adm-row-muted">
+                            @Ui.Avatar(m, "md")
+                            <span class="main"><a class="d-block fw-medium" href="/admin/users/@m.Id">@m.DisplayName</a><span class="line2 d-block">Inactive</span></span>
+                            <form method="post" asp-page-handler="Remove" asp-route-id="@g.Id" class="m-0">
+                                <input type="hidden" name="userId" value="@m.Id" />
+                                <button class="btn btn-sm btn-ghost" data-confirm="Remove @m.DisplayName's inactive membership? They won't come back to this group on reactivation.">Remove</button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-key"></i>Application access</h2><a class="ms-auto small" href="/admin/access">Access report</a></div>
+            @if (Model.Grants.Count == 0)
+            {
+                <div class="vl-empty py-4"><p>This group has no application roles.</p></div>
+            }
+            else
+            {
+                <div class="vl-list">
+                    @foreach (var r in Model.Grants)
+                    {
+                        var app = Model.Config.AppsById.GetValueOrDefault(r.Grant.AppId);
+                        if (app == null) { continue; }
+                        <a class="vl-list-item py-2" href="/admin/access/apps/@app.Key">
+                            <span class="vl-app-tile sm" style="--app:@app.Color"><i class="bi @app.Icon"></i></span>
+                            <span class="main"><span class="d-block fw-medium">@app.Name</span><span class="line2 d-block">@(r.Grant.FormKey != null ? "Form: " + (app.Forms.FirstOrDefault(f => f.Key == r.Grant.FormKey)?.Name ?? r.Grant.FormKey) : "Whole application")</span></span>
+                            @AdminText.RoleBadge(r.Grant.Role)
+                            @if (r.Grant.IsDesigner) { <span class="vl-kw vl-kw-dark">Designer</span> }
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="col-xxl-5">
+        <form method="post" asp-page-handler="Save" asp-route-id="@g.Id" class="card adm-sticky">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-sliders"></i>Settings</h2></div>
+            <div class="card-body"><partial name="_GroupFields" model="Model.Form" /></div>
+            <div class="card-footer d-flex justify-content-end"><button class="btn btn-primary"><i class="bi bi-check2"></i>Save group</button></div>
+        </form>
+    </div>
+</div>
+
+<script type="application/json" id="vl-directory">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(candidates.Select(u => new { id = u.Id, name = u.DisplayName, initials = u.Initials, title = u.JobTitle, hue = u.Hue })))</script>
