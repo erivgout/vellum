@@ -87,13 +87,13 @@
                 <thead>
                     <tr class="group">
                         <th scope="col" rowspan="2">Phase</th>
-                        <th scope="col" rowspan="2">Watermark <span class="text-body-tertiary fw-normal">(DOC-022)</span></th>
-                        <th scope="col" rowspan="2" class="roles">Download</th>
-                        <th scope="col" rowspan="2" class="roles">Print</th>
                         @foreach (var f in Model.Fields)
                         {
                             <th scope="colgroup" colspan="3" class="field-group"><i class="bi bi-paperclip me-1" aria-hidden="true"></i>@f.Label</th>
                         }
+                        <th scope="col" rowspan="2" class="field-group text-start">Watermark <span class="text-body-tertiary fw-normal">(DOC-022)</span></th>
+                        <th scope="col" rowspan="2" class="roles">Download</th>
+                        <th scope="col" rowspan="2" class="roles">Print</th>
                     </tr>
                     <tr>
                         @foreach (var f in Model.Fields)
@@ -110,7 +110,14 @@
                         var ps = Model.PhaseOf(p.Key);
                         <tr class="@(p.Type != PhaseType.Normal ? "terminal" : "")">
                             <th scope="row" class="phase"><span class="name d-block">@p.Name</span><span class="type">@FormModel.TypeLabel(p)</span></th>
-                            <td class="wm">
+                            @foreach (var f in Model.Fields)
+                            {
+                                var fs = Model.FieldOf(f.Key, p.Key);
+                                <td class="chk first"><input class="form-check-input" type="checkbox" name="cv.@f.Key.@p.Key" value="true" checked="@(fs?.Convert == true)" aria-label="Convert @f.Label in @p.Name" /></td>
+                                <td class="chk"><input class="form-check-input" type="checkbox" name="rq.@f.Key.@p.Key" value="true" checked="@(fs?.Require == true)" aria-label="Require PDF of @f.Label to enter @p.Name" /></td>
+                                <td class="chk"><input class="form-check-input" type="checkbox" name="po.@f.Key.@p.Key" value="true" checked="@(fs?.PdfOnly == true)" aria-label="Only PDF of @f.Label in @p.Name" /></td>
+                            }
+                            <td class="wm field-group text-start">
                                 <div class="input-group input-group-sm">
                                     <input class="form-control" name="wm.@p.Key" value="@ps?.Watermark" maxlength="300" placeholder="No watermark" aria-label="Watermark in @p.Name" data-pdf-wm data-phase="@p.Name" />
                                     <select class="form-select" style="max-width:8.5rem" name="pos.@p.Key" aria-label="Watermark position in @p.Name" data-pdf-pos>
@@ -128,13 +135,6 @@
                                     @foreach (var (v, l) in roles) { <option value="@v" selected="@((ps?.PrintRole ?? AppRole.Reader) == v)">@l</option> }
                                 </select>
                             </td>
-                            @foreach (var f in Model.Fields)
-                            {
-                                var fs = Model.FieldOf(f.Key, p.Key);
-                                <td class="chk first"><input class="form-check-input" type="checkbox" name="cv.@f.Key.@p.Key" value="true" checked="@(fs?.Convert == true)" aria-label="Convert @f.Label in @p.Name" /></td>
-                                <td class="chk"><input class="form-check-input" type="checkbox" name="rq.@f.Key.@p.Key" value="true" checked="@(fs?.Require == true)" aria-label="Require PDF of @f.Label to enter @p.Name" /></td>
-                                <td class="chk"><input class="form-check-input" type="checkbox" name="po.@f.Key.@p.Key" value="true" checked="@(fs?.PdfOnly == true)" aria-label="Only PDF of @f.Label in @p.Name" /></td>
-                            }
                         </tr>
                     }
                 </tbody>

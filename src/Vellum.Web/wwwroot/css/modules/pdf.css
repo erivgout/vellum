@@ -83,9 +83,10 @@ a.vl-pdf-chip:focus-visible { outline: 0; box-shadow: var(--vl-ring); }
 .pdf-matrix .phase { min-width: 11rem; }
 .pdf-matrix .phase .name { font-weight: 600; }
 .pdf-matrix .phase .type { font-size: 0.72rem; color: var(--vl-text-3); }
-.pdf-matrix .wm { min-width: 15rem; }
+.pdf-matrix .wm { min-width: 24rem; }
 .pdf-matrix .wm .form-control { font-size: 0.8rem; }
-.pdf-matrix .roles .form-select { font-size: 0.78rem; min-width: 7rem; }
+.pdf-matrix .wm .form-select { max-width: 8.5rem; font-size: 0.78rem; }
+.pdf-matrix .roles .form-select { font-size: 0.78rem; min-width: 7.5rem; }
 .pdf-matrix .chk { text-align: center; border-left: 1px solid transparent; }
 .pdf-matrix .chk.first { border-left-color: var(--vl-border); }
 .pdf-matrix .chk .form-check-input { margin: 0; width: 1.05rem; height: 1.05rem; }
