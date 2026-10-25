@@ -1,0 +1,144 @@
+@page "/risk/heatmap"
+@model Vellum.Areas.Risk.Pages.HeatMapModel
+@using Vellum.Modules.Risk
+@{
+    ViewData["Title"] = "Risk heat map";
+    ViewData["ActiveApp"] = "risk";
+    var m = Model;
+    var scored = m.Risks.Count(r => r.Score != null);
+    var awaiting = m.Risks.Count(r => r.Acceptance?.Key == "required");
+    var basisLabel = m.Initial ? "initial risk" : "current risk (residual where assessed)";
+    var dir = Shell.Directory;
+    string? filterLabel = m.S != null && m.L != null
+        ? $"Severity {m.S} ({RiskMatrix.Severity[m.S.Value - 1]}) × likelihood {m.L} ({RiskMatrix.Likelihood[m.L.Value - 1]})"
+        : RiskMatrix.Band(m.Level) is { } fb ? $"{fb.Label} risks" : null;
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/risk">Risk Register</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Heat map</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="vl-app-tile lg" style="--app:#b45309"><i class="bi bi-grid-3x3-gap-fill"></i></span>
+    <div class="min-w-0 flex-grow-1">
+        <h1 class="vl-page-title">Risk heat map</h1>
+        <p class="vl-page-sub">Open risk assessments on the 5 × 5 matrix (RSK-015). Select a cell to list its risks.</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <nav class="vl-filter-pills" aria-label="Plot position">
+            <a class="@(m.Initial ? "" : "active")" href="@m.Link(basis: "current", s: m.S, l: m.L, level: m.Level)" aria-current="@(m.Initial ? null : "true")">Current risk</a>
+            <a class="@(m.Initial ? "active" : "")" href="@m.Link(basis: "initial", s: m.S, l: m.L, level: m.Level)" aria-current="@(m.Initial ? "true" : null)">Initial risk</a>
+        </nav>
+        <a class="btn btn-light" href="/apps/risk?view=register"><i class="bi bi-list-ul"></i>Risk register</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg">
+        <a class="vl-stat" href="@m.Link()">
+            <span class="vl-stat-icon tone-info"><i class="bi bi-grid-3x3-gap"></i></span>
+            <div class="vl-stat-value">@scored</div>
+            <div class="vl-stat-label">Open risks scored@(m.Unscored > 0 ? $" · {m.Unscored} not yet scored" : "")</div>
+        </a>
+    </div>
+    <div class="col-6 col-lg">
+        <a class="vl-stat" href="@m.Link(level: "critical")">
+            <span class="vl-stat-icon tone-bad"><i class="bi bi-exclamation-octagon-fill"></i></span>
+            <div class="vl-stat-value">@m.CountLevel("critical")</div>
+            <div class="vl-stat-label">Critical</div>
+        </a>
+    </div>
+    <div class="col-6 col-lg">
+        <a class="vl-stat" href="@m.Link(level: "high")">
+            <span class="vl-stat-icon tone-warn"><i class="bi bi-exclamation-triangle-fill"></i></span>
+            <div class="vl-stat-value">@m.CountLevel("high")</div>
+            <div class="vl-stat-label">High</div>
+        </a>
+    </div>
+    <div class="col-6 col-lg">
+        <a class="vl-stat" href="/apps/risk?view=awaiting_acceptance">
+            <span class="vl-stat-icon @(awaiting > 0 ? "tone-bad" : "tone-ok")"><i class="bi bi-pen-fill"></i></span>
+            <div class="vl-stat-value">@awaiting</div>
+            <div class="vl-stat-label">Need mitigation or acceptance</div>
+        </a>
+    </div>
+    <div class="col-6 col-lg">
+        <a class="vl-stat" href="/apps/risk?view=due_review">
+            <span class="vl-stat-icon @(m.ReviewsDue > 0 ? "tone-warn" : "tone-ok")"><i class="bi bi-calendar-check"></i></span>
+            <div class="vl-stat-value">@m.ReviewsDue</div>
+            <div class="vl-stat-label">Completed risks due for review</div>
+        </a>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-8 min-w-0">
+        <div class="card h-100">
+            <div class="card-header">
+                <h2 class="card-title-sm"><i class="bi bi-grid-3x3-gap"></i>Open risks by @basisLabel</h2>
+                @if (filterLabel != null) { <a class="btn btn-sm btn-ghost ms-auto" href="@m.Link()"><i class="bi bi-x-lg"></i>Clear selection</a> }
+            </div>
+            <div class="card-body">
+                @RiskCharts.SummaryMatrix(m.Counts, (s, l) => m.Link(s: s, l: l) + "#risks", m.S != null && m.L != null ? (m.S.Value, m.L.Value) : null, basisLabel)
+                <p class="small text-body-tertiary mt-2 mb-0">Each cell shows its level and score in the corner and the number of open risks in the middle. Score = severity × likelihood.</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="card h-100">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-rulers"></i>Risk bands</h2></div>
+            <ul class="vl-list">
+                @foreach (var b in RiskMatrix.Bands)
+                {
+                    <li>
+                        <a class="vl-list-item" href="@m.Link(level: b.Key)#risks">
+                            <span class="rk-swatch lg rk-@b.Key" aria-hidden="true"></span>
+                            <span class="main">
+                                <span class="line1"><span class="ttl">@b.Label</span><span class="num">@b.Min–@b.Max</span>@if (!b.Acceptable) { <span class="vl-kw vl-kw-danger ms-1">Unacceptable</span> }</span>
+                                <span class="line2 d-block text-wrap">@b.Guidance</span>
+                            </span>
+                            <span class="aside"><span class="vl-pill-count">@m.CountLevel(b.Key)</span></span>
+                        </a>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="card" id="risks">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-list-ul"></i>@(filterLabel ?? "All open risks")</h2>
+        <span class="vl-pill-count ms-auto">@m.Shown.Count</span>
+    </div>
+    @if (m.Shown.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-check2-circle"></i></div><h3>No open risks here</h3><p>Choose another cell or band, or clear the selection.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table mb-0">
+                <caption class="visually-hidden">@(filterLabel ?? "All open risks"), sorted by score</caption>
+                <thead><tr><th scope="col">Number</th><th scope="col">Risk</th><th scope="col">Category</th><th scope="col" class="text-end">Score</th><th scope="col">Level</th><th scope="col">Initial</th><th scope="col">Acceptance</th><th scope="col">Owner</th><th scope="col">Phase</th></tr></thead>
+                <tbody>
+                    @foreach (var r in m.Shown)
+                    {
+                        <tr data-href="/records/@r.Id">
+                            <td class="col-number"><a href="/records/@r.Id">@r.Number</a></td>
+                            <td class="col-title"><span class="t">@r.Title</span><div class="small text-body-tertiary">S@(r.S) × L@(r.L)</div></td>
+                            <td class="small">@r.Category?.Label</td>
+                            <td class="text-end tabular fw-semibold">@r.Score</td>
+                            <td>@Ui.KeywordBadge(r.Band?.Label ?? "No matching result", RiskMatrix.Color(r.Band?.Key))</td>
+                            <td>@Ui.KeywordBadge(r.InitialBand?.Label ?? "–", RiskMatrix.Color(r.InitialBand?.Key))</td>
+                            <td>@Ui.Keyword(r.Acceptance)</td>
+                            <td>@Ui.Avatar(dir.Get(r.OwnerId), "sm", showName: true)</td>
+                            <td>@Ui.Phase(r.Phase?.Name, r.PhaseType, r.Due)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

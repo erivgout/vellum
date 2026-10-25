@@ -1,0 +1,50 @@
+@model Vellum.Modules.Supplier.SupplierPerformanceVm
+@using Vellum.Modules.Supplier
+@{
+    var m = Model;
+    var scored = m.Points.Where(p => p.Score != null).ToList();
+    string D(decimal? d, string fmt = "0.##") => d is { } v ? v.ToString(fmt, CultureInfo.InvariantCulture) : "–";
+}
+<div class="card mb-3">
+    <div class="card-header">
+        <span class="vl-section-icon"><i class="bi bi-graph-up"></i></span>
+        <div class="min-w-0">
+            <h3 class="card-title-sm">Scorecard trend</h3>
+            <p class="vl-section-desc">Overall score per period (0–100). Grade thresholds: A ≥ 90, B ≥ 80, C ≥ 70, D below 70. Hollow points are drafts.</p>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (scored.Count == 0)
+        {
+            <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-graph-up"></i></div><h3>No scorecards yet</h3><p>Publish a scorecard to start the trend. Scorecards use the weights on this tab.</p></div>
+        }
+        else
+        {
+            @SupplierCharts.Trend(m.Points, m.SupplierName)
+        }
+    </div>
+</div>
+@if (m.Points.Count > 0)
+{
+    <div class="vl-table-wrap"><div class="vl-table-scroll">
+        <table class="table vl-table">
+            <caption class="visually-hidden">Scorecards for @m.SupplierName</caption>
+            <thead><tr><th scope="col">Scorecard</th><th scope="col">Period</th><th scope="col" class="text-end">Defective ppm</th><th scope="col" class="text-end">On-time %</th><th scope="col" class="text-end">Responsiveness</th><th scope="col" class="text-end">Audit %</th><th scope="col" class="text-end">Score</th><th scope="col">Grade</th></tr></thead>
+            <tbody>
+                @foreach (var p in m.Points.AsEnumerable().Reverse())
+                {
+                    <tr data-href="/records/@p.Id">
+                        <td class="col-number"><a href="/records/@p.Id">@p.Number</a>@if (!p.Published) { <span class="vl-kw vl-kw-secondary ms-1">Draft</span> }</td>
+                        <td>@p.Period</td>
+                        <td class="text-end tabular">@D(p.Ppm, "#,##0")</td>
+                        <td class="text-end tabular">@D(p.Otd, "0.0")</td>
+                        <td class="text-end tabular">@D(p.Responsiveness, "0")</td>
+                        <td class="text-end tabular">@D(p.Audit, "0.0")</td>
+                        <td class="text-end tabular fw-semibold">@D(p.Score, "0.00")</td>
+                        <td>@Ui.Keyword(p.Grade)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div></div>
+}

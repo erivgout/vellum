@@ -1,0 +1,44 @@
+@model Vellum.Modules.Risk.RiskBannerVm
+@{
+    var m = Model;
+    var band = m.State.Current;
+}
+@if (m.Status == "required" && m.Open && band != null)
+{
+    <div class="vl-banner vl-banner-bad" role="status">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <div>
+            <div class="ttl">Unacceptable risk: @band.Label (score @m.State.CurrentScore)</div>
+            <div class="small">
+                @if (m.State.ResidualAssessed)
+                {
+                    <text>The residual risk is still unacceptable. The assessment can be completed only after a Quality approver accepts it with an e-signature (<strong>Risk acceptance → Accept risk</strong>), or after further mitigation lowers it (INV-176, SAF-045).</text>
+                }
+                else
+                {
+                    <text>It can be completed only with a linked mitigation (an action item, CAPA or change record) or an e-signed risk acceptance by a Quality approver (INV-176, SAF-045).</text>
+                }
+            </div>
+        </div>
+    </div>
+}
+else if (m.Status == "mitigation_linked" && m.Open && band != null)
+{
+    <div class="vl-banner vl-banner-warn" role="status">
+        <i class="bi bi-shield-exclamation"></i>
+        <div>
+            <div class="ttl">@band.Label risk (score @m.State.CurrentScore) with linked mitigation</div>
+            <div class="small">Mitigation is linked, so the risk can move on (INV-176). Rate the residual risk once the controls are in place; if it is still High or Critical, it will need an e-signed acceptance.</div>
+        </div>
+    </div>
+}
+else if (m.Status == "accepted")
+{
+    <div class="vl-banner vl-banner-info" role="status">
+        <i class="bi bi-pen-fill"></i>
+        <div>
+            <div class="ttl">Risk accepted by @m.AcceptedBy on @m.AcceptedOn?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) at score @m.State.CurrentScore (@band?.Label)</div>
+            @if (!string.IsNullOrWhiteSpace(m.Rationale)) { <div class="small">@m.Rationale</div> }
+        </div>
+    </div>
+}

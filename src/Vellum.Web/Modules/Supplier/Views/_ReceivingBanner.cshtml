@@ -1,0 +1,32 @@
+@model Vellum.Engine.Records.RecordSnapshot
+@{
+    var s = Model;
+    var status = s.KeywordKey("inspection_status");
+    var result = s.KeywordKey("inspection_result");
+    var hasNcr = s.Links("ncr_link").Count > 0;
+    var phase = s.PhaseKey;
+}
+@if (phase == "inspection" && result == "reject" && !hasNcr)
+{
+    <div class="vl-banner vl-banner-bad" role="status">
+        <i class="bi bi-x-octagon-fill"></i>
+        <div>
+            <div class="ttl">Rejected lot: an NCMR is needed before it can close</div>
+            <div class="small">Use <strong>Create → Create NCMR</strong>, or link an existing nonconformance in the NCMR field on the Inspection tab (INV-171). If the inspection itself was invalid, void it with a reason.</div>
+        </div>
+    </div>
+}
+else if (status == "skip" && s.Record.PhaseType == PhaseType.Normal)
+{
+    <div class="vl-banner vl-banner-ok" role="status">
+        <i class="bi bi-skip-forward-circle-fill"></i>
+        <div><div class="ttl">Skip-lot: this lot can be released without inspection</div><div class="small">@s.Text("status_basis")</div></div>
+    </div>
+}
+else if (status == "required" && phase == "receipt")
+{
+    <div class="vl-banner vl-banner-warn" role="status">
+        <i class="bi bi-search"></i>
+        <div><div class="ttl">Inspection required</div><div class="small">@s.Text("status_basis")</div></div>
+    </div>
+}

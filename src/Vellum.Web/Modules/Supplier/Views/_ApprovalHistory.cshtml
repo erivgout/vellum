@@ -1,0 +1,37 @@
+@model Vellum.Modules.Supplier.StatusHistoryVm
+@{
+    var m = Model;
+}
+<div class="card">
+    <div class="card-header">
+        <span class="vl-section-icon"><i class="bi bi-clock-history"></i></span>
+        <div class="min-w-0">
+            <h3 class="card-title-sm">Approval status history</h3>
+            <p class="vl-section-desc">Taken from the audit trail and the electronic signatures, so it can't be edited.</p>
+        </div>
+    </div>
+    @if (m.Entries.Count == 0)
+    {
+        <div class="vl-empty py-4"><p>No status changes yet.</p></div>
+    }
+    else
+    {
+        <div class="card-body"><ol class="vl-timeline">
+            @foreach (var e in m.Entries)
+            {
+                var sig = e.From == null ? null : m.Signatures.FirstOrDefault(s => s.RecordVersion == e.Version);
+                <li class="vl-tl-item">
+                    <span class="vl-tl-node @(sig != null ? "sign" : e.From == null ? "create" : "route")"><i class="bi @(sig != null ? "bi-pen-fill" : e.From == null ? "bi-plus-lg" : "bi-arrow-right")"></i></span>
+                    <div class="vl-tl-body">
+                        <div class="vl-tl-head">
+                            @if (e.From != null) { <span class="text-body-secondary">@e.From</span> <i class="bi bi-arrow-right small mx-1" aria-label="to"></i> }
+                            <strong>@e.To</strong>
+                        </div>
+                        <div class="vl-tl-meta">@e.By · @Ui.Time(e.At, m.Tz, relative: false)@if (sig != null) { <text> · signed “@sig.Meaning”</text> }</div>
+                        @if (!string.IsNullOrWhiteSpace(e.Reason)) { <div class="small mt-1">@e.Reason</div> }
+                    </div>
+                </li>
+            }
+        </ol></div>
+    }
+</div>
