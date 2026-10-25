@@ -20,6 +20,8 @@ public sealed class VellumFixture : IAsyncLifetime
     public IServiceProvider Services => Factory.Services;
     /// <summary>Root of the local-folder SharePoint stand-in for this run.</summary>
     public string SharePointRoot => Path.Combine(Path.GetTempPath(), Database, "sharepoint");
+    /// <summary>Folder the outbound email job delivers to (.eml files) for this run.</summary>
+    public string MailPickup => Path.Combine(Path.GetTempPath(), Database, "mail");
 
     public Task InitializeAsync()
     {
@@ -33,7 +35,7 @@ public sealed class VellumFixture : IAsyncLifetime
             b.UseSetting("Vellum:SeedDemoData", "false");
             b.UseSetting("Vellum:DisableScheduler", "true");
             b.UseSetting("Vellum:FileRoot", Path.Combine(Path.GetTempPath(), Database, "blobs"));
-            b.UseSetting("Vellum:MailPickup", Path.Combine(Path.GetTempPath(), Database, "mail"));
+            b.UseSetting("Vellum:MailPickup", MailPickup);
             b.UseSetting("Vellum:SharePoint:LocalRoot", SharePointRoot);
         });
         _ = Factory.Services; // runs startup: schema, triggers, core seed, packaged apps
