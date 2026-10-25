@@ -22,6 +22,52 @@ namespace Vellum.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Vellum.Domain.AccountToken", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CreatedById")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AccountTokens", (string)null);
+                });
+
             modelBuilder.Entity("Vellum.Domain.AppDefinition", b =>
                 {
                     b.Property<int>("Id")
@@ -644,6 +690,67 @@ namespace Vellum.Data.Migrations
                     b.HasIndex("RecordId");
 
                     b.ToTable("EmailLog");
+                });
+
+            modelBuilder.Entity("Vellum.Domain.ExternalShare", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Feedback")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RecordId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("SharedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("SharedById")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("SubmittedById")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrgId", "Status");
+
+                    b.HasIndex("RecordId", "OrgId")
+                        .IsUnique();
+
+                    b.ToTable("ExternalShares", (string)null);
                 });
 
             modelBuilder.Entity("Vellum.Domain.Favorite", b =>
@@ -2115,6 +2222,9 @@ namespace Vellum.Data.Migrations
                         .HasMaxLength(400)
                         .HasColumnType("nvarchar(400)");
 
+                    b.Property<Guid?>("ExternalOrgId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("FailedLoginCount")
                         .HasColumnType("int");
 
@@ -2826,6 +2936,17 @@ namespace Vellum.Data.Migrations
                     b.ToTable("InsightsCharts", (string)null);
                 });
 
+            modelBuilder.Entity("Vellum.Domain.AccountToken", b =>
+                {
+                    b.HasOne("Vellum.Domain.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Vellum.Domain.AppRoleGrant", b =>
                 {
                     b.HasOne("Vellum.Domain.AppDefinition", "App")
@@ -2901,6 +3022,15 @@ namespace Vellum.Data.Migrations
                     b.Navigation("Delegate");
 
                     b.Navigation("Requester");
+                });
+
+            modelBuilder.Entity("Vellum.Domain.ExternalShare", b =>
+                {
+                    b.HasOne("Vellum.Domain.Record", null)
+                        .WithMany()
+                        .HasForeignKey("RecordId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Vellum.Domain.FieldDefinition", b =>

@@ -746,7 +746,6 @@ public sealed class PortalSupplierBehavior : RecordBehavior
             SupplierId = s.Record.Id, SupplierName = s.Text("name") ?? s.Record.Title, Contacts = contacts, Requests = requests,
             CanManage = CanManage(ctx), EnabledActions = enabled,
         };
-        _ = portal;
         return
         [
             new RecordPanel
