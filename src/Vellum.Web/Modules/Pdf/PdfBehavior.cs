@@ -19,7 +19,10 @@ namespace Vellum.Modules.Pdf;
 /// </summary>
 public sealed class PdfBehavior(ConfigCache cfg) : RecordBehavior
 {
-    public override IReadOnlyCollection<string> Forms => cfg.Current.FormsByKey.Keys.ToList();
+    private HashSet<string>? _forms;
+
+    /// <summary>Every form: rules are looked up per form (and cached per request), so new forms need no code.</summary>
+    public override IReadOnlyCollection<string> Forms => _forms ??= cfg.Current.FormsByKey.Keys.ToHashSet();
     public override int Order => 50;
 
     private static async Task<PdfFormRules?> RulesAsync(RecordContext ctx)

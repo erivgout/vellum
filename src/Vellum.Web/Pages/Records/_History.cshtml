@@ -29,7 +29,7 @@
         _ => "bi-pencil",
     };
     var fieldChanges = vm.Audit.Where(a => a.FieldKey != null && (a.Action.StartsWith("Field") || a.Action == "Field set")).GroupBy(a => a.FieldLabel ?? a.FieldKey).ToList();
-    var noise = new HashSet<string> { "Locked", "Unlocked", "Attachment viewed" };
+    var noise = new HashSet<string> { "Locked", "Unlocked", "Attachment viewed", "Rendition viewed" };
 }
 <ul class="nav vl-tabs" role="tablist" style="margin-top:-.25rem">
     <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#h-audit" role="tab"><i class="bi bi-clock-history"></i>Audit trail <span class="vl-pill-count">@vm.Audit.Count</span></button></li>

@@ -64,7 +64,10 @@ Everything below is discovered by reflection at startup (`Infrastructure/Extensi
 | `IScheduledJob` | A background job run by the scheduler as the system identity, with run history and missed-run catch-up. |
 | `IHomeWidget` | A homepage card (main or side column) rendered from your partial. |
 | `INavContributor` | Sidebar links (sections such as "Insights" or "Administration"). |
-| `[ScopedService]` attribute | Register any service class as scoped. |
+| `[ScopedService]` attribute | Register any service class as scoped. `[ScopedService(typeof(IFoo))]` also resolves it as `IFoo`. |
+| `[BackgroundWorker]` on an `IHostedService` | A long-running worker started with the app (e.g. the PDF conversion worker). Check `Vellum:DisableScheduler` for tests. |
+| `IAttachmentPolicy` | Extra rules for `/files/{id}` after the read check: allow, deny or redirect (register with `[ScopedService(typeof(IAttachmentPolicy))]`). |
+| `IPdfDefaults` | Packaged default PDF rendition rules for a form (installed on first use, editable in Administration › PDF renditions). |
 | `IEntityTypeConfiguration<T>` | Module-specific tables (applied automatically). Prefer configuration-driven forms first. |
 
 Use the reference modules as templates: `Modules/Common/ActionItems.cs` (shared activity form) and `Modules/Quality/Capa.cs`
@@ -101,6 +104,19 @@ Gates: `MustComplete("action_item")`. Conditional routes: `when: "field=value"`.
 * Never use inline `<script>` or `on*=` attributes (strict CSP). Add behaviour in `wwwroot/js/modules/<module>.js` with `data-*` hooks; JSON data islands (`<script type="application/json">`) are fine. People pickers: `.vl-picker[data-picker=users]` plus a `#vl-directory` JSON island.
 * Accessibility: labelled controls, visible focus, never colour alone for status (icon + text), keyboard reachable.
 * `Shell` (the injected `UiContext`) gives the current user, settings, navigation and config in any view.
+
+## PDF output and renditions (`Modules/Pdf`)
+
+* **Rendition contract** (SAF-063): a rendition is an `Attachment` with `RenditionOfId` = the original's Id, `ContentType`
+  `application/pdf`, the original's `RecordId`/`FieldKey`/`RowId`, bytes in `FileStore`. The current rendition of an original is
+  the latest non-removed one: `RenditionService.CurrentOf(attachments, original)` or `CurrentRenditionAsync(originalId)`.
+  Renditions are excluded from `RecordSnapshot.AttachmentsOf`, the content hash and new-revision copies.
+* **Rules** per form, attachment field and phase (convert, require, PDF only, watermark, download/print role) live in module
+  tables and are edited in Administration › PDF renditions. Conversions run in a queue (`PdfQueue`, `PdfWorker`); PDFs, images,
+  text and already-converted files are processed inline; Office files go through LibreOffice (`Vellum:Pdf:SofficePath`).
+* **`IPdfService`**: `RenderReport(PdfReport)` for any printable layout (MigraDoc, no browser), `RenderRecordAsync(id)` for a
+  record's print view, `ApprovalManifestAsync(id)`, `ControlledCopyAsync(renditionId)`, `ConvertAsync`, `Stamp`, `Combine`.
+* Viewer: `/pdf/{attachmentId}` (pdf.js); `/pdf/record/{id}`, `/pdf/manifest/{id}` downloads.
 
 ## Database schema and migrations
 

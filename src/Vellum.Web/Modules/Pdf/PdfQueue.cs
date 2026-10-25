@@ -69,11 +69,16 @@ public sealed class PdfQueue(
                 db.Set<PdfJob>().Add(job);
                 created.Add(job);
             }
-        if (created.Count > 0)
-            audit.Record(snap.Record.Id, "PDF conversion queued",
-                $"{string.Join(", ", created.Select(j => j.FileName))} queued for PDF rendition ({trigger}{(watermark != null ? $"; watermark \"{watermark}\"" : "")})",
-                phaseName: snap.Phase?.Name);
         return created;
+    }
+
+    /// <summary>Audit jobs that wait for the background converter (inline ones are audited when their rendition is made).</summary>
+    private void AuditQueued(IEnumerable<PdfJob> jobs)
+    {
+        foreach (var g in jobs.Where(j => j.Status == PdfJobStatus.Queued).GroupBy(j => j.RecordId))
+            audit.Record(g.Key, "PDF conversion queued",
+                $"{string.Join(", ", g.Select(j => j.FileName))} queued for PDF conversion ({g.First().Trigger}" +
+                (g.First().Watermark is { } wm ? $"; watermark \"{wm}\"" : "") + ")");
     }
 
     /// <summary>The phase watermark, tokens resolved (DOC-022).</summary>
@@ -108,6 +113,7 @@ public sealed class PdfQueue(
         foreach (var job in list)
             if (job.Status == PdfJobStatus.Queued && await IsFastAsync(job))
                 await RunAsync(job, inline: true);
+        AuditQueued(list.Where(j => j.Attempts == 0));
     }
 
     // ------------------------------------------------------------------ process
@@ -346,6 +352,7 @@ public sealed class PdfQueue(
             var snap = await db.Records.AnyAsync(r => r.Id == g.Key, ct) ? await LoadAsync(g.Key) : null;
             if (snap == null) continue;
             var jobs = await EnqueueAsync(snap, fields, "save");
+            AuditQueued(jobs);
             n += jobs.Count;
         }
         if (n > 0) await db.SaveChangesAsync(ct);
