@@ -1,0 +1,134 @@
+@page "/quality/aer/{id:guid}/3500a"
+@model Vellum.Areas.Quality.Pages.Aer.Print3500AModel
+@using Vellum.Modules.AdverseEvents
+@{
+    Layout = "/Pages/Shared/_PrintLayout.cshtml";
+    var r = Model.Report;
+    var s = Model.Snap;
+    ViewData["Title"] = $"{s.Record.Number} · FDA 3500A";
+    var tz = Shell.TimeZone;
+    var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+    var M = Model;
+    void F(string n, string label, string? value, string cls = "")
+    {
+        <div class="vla-f @cls"><span class="n">@n</span><span class="l">@label</span><span class="v">@(string.IsNullOrWhiteSpace(value) ? "" : value)</span></div>
+    }
+    void Check(string n, string label, IEnumerable<(string Key, string Label)> options, ICollection<string> chosen)
+    {
+        <div class="vla-f vla-f-wide"><span class="n">@n</span><span class="l">@label</span>
+            <span class="v vla-checks">@foreach (var (k, l) in options) { var on = chosen.Contains(k); <span class="vla-check @(on ? "on" : "")"><span class="box" aria-hidden="true">@(on ? "✕" : "")</span>@l<span class="visually-hidden">@(on ? " (checked)" : "")</span></span> }</span></div>
+    }
+    var codes = r.Codes;
+    var patientId = M.SeeSensitive ? r.PatientIdentifier : r.PatientIdentifier != null ? "Restricted" : null;
+    var opts = (string list) => Shell.Config.Options(list).Select(k => (k.Key, k.Label)).ToList();
+}
+<link rel="stylesheet" href="~/css/modules/aer.css" asp-append-version="true" />
+<div class="vl-print-bar no-print">
+    <a href="/records/@s.Record.Id" class="btn btn-light btn-sm"><i class="bi bi-arrow-left"></i>Back to @s.Record.Number</a>
+    <span class="text-body-secondary small">FDA Form 3500A layout. Use your browser's print dialog to save it as PDF.</span>
+    <button class="btn btn-primary btn-sm" data-print><i class="bi bi-printer"></i>Print</button>
+</div>
+<article class="vl-print-page vla-3500a @(M.Draft ? "vl-watermark" : "")" data-watermark="@(M.Draft ? "DRAFT" : null)" aria-label="FDA Form 3500A">
+    <header class="vla-3500a-head">
+        <div>
+            <div class="vla-3500a-agency">U.S. Department of Health and Human Services · Food and Drug Administration</div>
+            <div class="vla-3500a-title">MEDWATCH <span>FORM FDA 3500A</span></div>
+            <div class="vla-3500a-sub">Mandatory reporting · @EmdrXmlGenerator.ReportTypeName(r.ReportType)@(r.FollowUpNumber is { } fu ? $" #{fu}" : "") · @Shell.Settings.OrganizationName</div>
+        </div>
+        <div class="vla-3500a-numbers">
+            <div><span class="l">@(r.ReporterType == AerKeys.Importer ? "Importer report #" : "Mfr report #")</span><span class="v mono">@(r.ReportNumber.Length > 0 ? r.ReportNumber : "assigned on submission")</span></div>
+            <div><span class="l">UF / importer report #</span><span class="v mono">@r.UserFacilityNumber</span></div>
+            <div><span class="l">Vellum record</span><span class="v mono">@s.Record.Number · @M.PhaseName</span></div>
+        </div>
+    </header>
+
+    <section class="vla-sec" aria-labelledby="sa"><h2 id="sa"><span>A</span>Patient information</h2>
+        <div class="vla-grid-4">
+            @{ F("A1", "Patient identifier", patientId); F("A2", "Age", r.PatientAge is { } a ? $"{a:0} {M.Label("aer_age_unit", r.PatientAgeUnit)}" : null); F("A3", "Sex", M.Label("patient_sex", r.PatientSex)); F("A4", "Weight", r.PatientWeight is { } w ? $"{w:0.#} {M.Label("aer_weight_unit", r.PatientWeightUnit)}" : null); }
+        </div>
+    </section>
+
+    <section class="vla-sec" aria-labelledby="sb"><h2 id="sb"><span>B</span>Adverse event or product problem</h2>
+        <div class="vla-grid-4">
+            @{ Check("B1", "Check all that apply", opts("aer_event_kind"), r.EventKinds); }
+            @{ Check("B2", "Outcome attributed to adverse event", opts("aer_outcome"), r.Outcomes); }
+            @{ F("B2", "Date of death", Print3500AModel.D(r.DeathDate)); F("B3", "Date of event", Print3500AModel.D(r.EventDate)); F("B4", "Date of this report", Print3500AModel.D(r.ReportDate)); F("", "", ""); }
+            @{ F("B5", "Describe event or problem", r.EventDescription, "vla-f-wide vla-f-text"); F("B6", "Relevant tests / laboratory data", r.RelevantTests, "vla-f-wide vla-f-text"); F("B7", "Other relevant history", r.OtherHistory, "vla-f-wide vla-f-text"); }
+        </div>
+    </section>
+
+    <section class="vla-sec" aria-labelledby="sd"><h2 id="sd"><span>D</span>Suspect medical device</h2>
+        <div class="vla-grid-4">
+            @{ F("D1", "Brand name", r.BrandName, "vla-f-half"); F("D2", "Common device name", r.CommonName); F("D2b", "Procode", r.ProductCode); }
+            @{ F("D3", "Manufacturer name, city and state", string.Join(", ", new[] { r.ManufacturerName, r.ManufacturerAddress }.Where(x => !string.IsNullOrWhiteSpace(x))), "vla-f-wide"); }
+            @{ F("D4", "Model #", r.ModelNumber); F("", "Catalog #", r.CatalogNumber); F("", "Serial #", r.SerialNumber); F("", "Lot #", r.LotNumber); }
+            @{ F("", "Expiration date", Print3500AModel.D(r.ExpirationDate)); F("", "Unique identifier (UDI) #", r.Udi, "vla-f-3"); }
+            @{ F("D5", "Operator of device", M.Label("aer_device_operator", r.DeviceOperator)); F("D6", "Implant date", Print3500AModel.D(r.ImplantDate)); F("", "Explant date", Print3500AModel.D(r.ExplantDate)); F("D7", "Single-use device reprocessed?", Print3500AModel.YN(r.Reprocessed)); }
+            @{ F("D9", "Device available for evaluation?", M.Label("aer_yes_no_unknown", r.DeviceAvailable)); F("", "Returned to manufacturer on", Print3500AModel.D(r.ReturnedOn)); F("D10", "Concomitant medical products", r.ConcomitantProducts, "vla-f-half"); }
+        </div>
+    </section>
+
+    <section class="vla-sec" aria-labelledby="se"><h2 id="se"><span>E</span>Initial reporter</h2>
+        <div class="vla-grid-4">
+            @{ F("E1", "Name and address", string.Join(", ", new[] { r.ReporterName, r.ReporterAddress, r.ReporterCountry }.Where(x => !string.IsNullOrWhiteSpace(x))), "vla-f-half"); F("", "Phone", r.ReporterPhone); F("", "Email", r.ReporterEmail); }
+            @{ F("E2", "Health professional?", Print3500AModel.YN(r.ReporterIsHcp)); F("E3", "Occupation", r.ReporterOccupation); F("E4", "Also reported to FDA?", M.Label("aer_yes_no_unknown", r.ReporterSentToFda), "vla-f-half"); }
+        </div>
+    </section>
+
+    <section class="vla-sec" aria-labelledby="sg"><h2 id="sg"><span>G</span>All manufacturers</h2>
+        <div class="vla-grid-4">
+            @{ F("G1", "Contact office (name and address)", string.Join(", ", new[] { r.ContactName, r.ContactAddress }.Where(x => !string.IsNullOrWhiteSpace(x))), "vla-f-half"); F("G2", "Phone number", r.ContactPhone); F("G4", "Date received by manufacturer", Print3500AModel.D(r.AwarenessDate)); }
+            @{ Check("G3", "Report source", opts("aer_report_source"), r.ReportSources); }
+            @{ F("G5", "PMA / 510(k) #", r.PremarketNumber); F("", "Combination product?", Print3500AModel.YN(r.CombinationProduct)); F("G7", "Type of report", EmdrXmlGenerator.ReportTypeName(r.ReportType) + (r.FollowUpNumber is { } f2 ? $" #{f2}" : "")); F("G9", "Manufacturer report number", r.ReportNumber); }
+        </div>
+    </section>
+
+    <section class="vla-sec" aria-labelledby="sh"><h2 id="sh"><span>H</span>Device manufacturers only</h2>
+        <div class="vla-grid-4">
+            @{ F("H1", "Type of reportable event", M.Label("aer_event_type", r.EventType)); F("H2", "If follow-up, what type?", M.Labels("aer_followup_type", r.FollowUpTypes)); F("H3", "Device evaluated by manufacturer?", M.Label("aer_evaluated", r.Evaluated)); F("H4", "Device manufacture date", Print3500AModel.D(r.ManufactureDate)); }
+            @{ F("H3", "Evaluation summary", r.EvaluationSummary, "vla-f-wide vla-f-text"); }
+            @{ F("H5", "Labeled for single use?", Print3500AModel.YN(r.SingleUseLabeled)); F("H7", "Remedial action initiated", M.Labels("aer_remedial", r.RemedialActions), "vla-f-half"); F("H8", "Usage of device", M.Label("aer_usage", r.Usage)); }
+            @{ F("H9", "Correction / removal reporting #", r.CorrectionNumber, "vla-f-half"); F("", "Sections changed (follow-up)", M.Labels("aer_section", r.ChangedSections), "vla-f-half"); }
+            <div class="vla-f vla-f-wide"><span class="n">H6</span><span class="l">Event problem and evaluation codes (IMDRF)</span>
+                <span class="v">
+                    @if (codes.Count == 0) { <span class="text-body-tertiary">None</span> }
+                    else
+                    {
+                        <table class="table table-sm vla-codes mb-0"><thead><tr><th scope="col">Annex</th><th scope="col">Code</th><th scope="col">Term</th></tr></thead>
+                            <tbody>@foreach (var c in codes) { <tr><td>@EmdrXmlGenerator.AnnexName(c.Annex)</td><td class="mono">@c.Code</td><td>@c.Term</td></tr> }</tbody></table>
+                    }
+                </span></div>
+            @{ F("H10", "Additional manufacturer narrative", r.ManufacturerNarrative, "vla-f-wide vla-f-text"); }
+        </div>
+    </section>
+
+    <section class="vla-sec vla-sec-plain" aria-labelledby="ss"><h2 id="ss">Submission and electronic signatures</h2>
+        @if (M.Submission is { } sub)
+        {
+            <p class="small mb-2">Submission @sub.Attempt · message <span class="mono">@sub.MessageId</span> · @sub.FileName (SHA-256 <span class="mono">@sub.FileSha256[..16]…</span>) · @sub.SchemaVersion · @sub.RuleSetVersion<br />
+                ACK1 @(sub.Ack1At?.ToString("dd MMM yyyy HH:mm") ?? "–") · ACK2 @(sub.Ack2At?.ToString("dd MMM yyyy HH:mm") ?? "–") · ACK3 @(sub.Ack3At?.ToString("dd MMM yyyy HH:mm") ?? "–") (UTC) · @sub.Status</p>
+        }
+        @if (M.Signatures.Count == 0)
+        {
+            <p class="text-body-secondary small">No electronic signatures.</p>
+        }
+        else
+        {
+            <table class="table table-sm small">
+                <thead><tr><th scope="col">Signer</th><th scope="col">Meaning</th><th scope="col">Phase / action</th><th scope="col">Date and time (UTC)</th><th scope="col">Status</th></tr></thead>
+                <tbody>
+                    @foreach (var sg in M.Signatures)
+                    {
+                        <tr><td><strong>@sg.SignerName</strong><br /><span class="text-body-tertiary">@sg.SignerUsername</span></td><td><em>@sg.Meaning</em></td><td>@sg.PhaseName<br /><span class="text-body-tertiary">@sg.Action</span></td>
+                            <td>@sg.SignedAt.ToString("dd MMM yyyy HH:mm:ss")</td><td>@(sg.Superseded ? "Superseded" : sg.RecordHash == M.CurrentHash ? "Valid" : "Content changed after signing")</td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    <footer class="vl-print-foot">
+        Printed by @Shell.User?.DisplayName on @now.ToString("dd MMM yyyy HH:mm") @Ui.Abbrev(tz, now) · @s.Record.Number version @s.Record.Version · Content SHA-256 @M.CurrentHash
+        <br />Layout of FDA Form 3500A content for review and records. The FDA receives the electronic (eMDR) submission, not this printout.
+    </footer>
+</article>

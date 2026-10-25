@@ -1,0 +1,115 @@
+/* ==========================================================================
+   Adverse Event Reporting (eMDR / MedWatch) · vla-*. Builds on site.css tokens and the vlq-deadline clock tiles.
+   ========================================================================== */
+
+/* ---- MedWatch status panel ---- */
+.vla-status .card-header { display: flex; align-items: flex-start; gap: 0.75rem; }
+.vla-grid { display: grid; grid-template-columns: minmax(240px, 1.2fr) minmax(200px, 1fr) minmax(200px, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
+@media (max-width: 991.98px) { .vla-grid { grid-template-columns: 1fr; } }
+.vla-tile { padding: 0.75rem 0.9rem; border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); background: var(--vl-surface-2); min-width: 0; }
+.vla-number { margin: 0.35rem 0 0.25rem; font-size: 1.15rem; font-weight: 680; letter-spacing: -0.01em; color: var(--vl-text); word-break: break-all; }
+.vla-number.is-pending { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; font-family: inherit; color: var(--vl-text-2); }
+.vla-links { list-style: none; margin: 0.35rem 0 0; padding: 0; display: grid; gap: 0.3rem; font-size: 0.82rem; }
+.vla-links li { display: flex; align-items: center; gap: 0.4rem; }
+.vla-links .bi { color: var(--vl-text-3); }
+
+/* Submission progress: File → Sent → ACK1 → ACK2 → ACK3 → Final */
+.vla-steps { list-style: none; display: flex; flex-wrap: wrap; gap: 0; margin: 0 0 1rem; padding: 0; border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); background: var(--vl-surface); overflow: hidden; }
+.vla-steps li { position: relative; flex: 1 1 120px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 0.45rem; padding: 0.6rem 0.75rem; border-right: 1px solid var(--vl-border); font-size: 0.78rem; color: var(--vl-text-3); }
+.vla-steps li:last-child { border-right: 0; }
+.vla-steps li > .bi { grid-row: span 2; font-size: 1rem; align-self: center; }
+.vla-steps .lbl { font-weight: 620; color: var(--vl-text-2); }
+.vla-steps .at { font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+.vla-steps li.is-done > .bi { color: var(--vl-ok); }
+.vla-steps li.is-done .lbl { color: var(--vl-text); }
+.vla-steps li.is-current { background: var(--vl-info-bg); }
+.vla-steps li.is-current > .bi, .vla-steps li.is-current .at { color: var(--vl-info); }
+.vla-steps li.is-late { background: var(--vl-bad-bg); }
+.vla-steps li.is-late > .bi, .vla-steps li.is-late .at { color: var(--vl-bad); }
+.vla-steps li.is-bad { background: var(--vl-bad-bg); }
+.vla-steps li.is-bad > .bi { color: var(--vl-bad); }
+.vla-steps li.is-bad .lbl { color: var(--vl-bad); }
+@media (max-width: 767.98px) { .vla-steps li { flex-basis: 50%; border-bottom: 1px solid var(--vl-border); } }
+
+.vla-approvals { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1rem; font-size: 0.84rem; }
+.vla-approvals > .bi { color: var(--vl-text-3); }
+.vla-approvals .vlq-meter { max-width: 220px; margin-top: 0; }
+
+/* eMDR validation (AER-006) */
+.vla-validation { padding-top: 0.85rem; border-top: 1px dashed var(--vl-border); }
+.vla-valid-ok, .vla-valid-head { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.84rem; }
+.vla-valid-ok > .bi { color: var(--vl-ok); font-size: 1rem; }
+.vla-valid-head > .bi { color: var(--vl-bad); font-size: 1rem; }
+.vla-issue-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.5rem 1.25rem; margin-top: 0.65rem; }
+.vla-issue-sec { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 650; color: var(--vl-text-3); margin-bottom: 0.2rem; }
+.vla-issue-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.vla-issue-group li { display: flex; gap: 0.4rem; font-size: 0.8rem; line-height: 1.4; }
+.vla-issue-group li > .bi { margin-top: 0.15rem; flex: 0 0 auto; }
+.vla-issue-group li.is-error > .bi { color: var(--vl-bad); }
+.vla-issue-group li.is-advice > .bi { color: var(--vl-warn); }
+.vla-issue-group li a { color: var(--vl-text); text-decoration: underline; text-decoration-color: var(--vl-border-strong); text-underline-offset: 2px; }
+.vla-issue-group li a:hover { text-decoration-color: currentColor; }
+
+/* Acknowledgement pills and list */
+.vla-ack-pill { display: inline-flex; align-items: center; gap: 0.15rem; padding: 0.05rem 0.45rem 0.05rem 0.25rem; border-radius: 999px; font-size: 0.7rem; font-weight: 620;
+    color: var(--vl-text-3); background: var(--vl-surface-3); border: 1px solid var(--vl-border); white-space: nowrap; }
+.vla-ack-pill.is-done { color: var(--vl-ok); background: var(--vl-ok-bg); border-color: var(--vl-ok-border); }
+.vla-ack-pill.is-bad { color: var(--vl-bad); background: var(--vl-bad-bg); border-color: var(--vl-bad-border); }
+.vla-ack-pill.is-warn { color: var(--vl-warn); background: var(--vl-warn-bg); border-color: var(--vl-warn-border); }
+.vla-ack { align-items: flex-start; }
+.vla-ack-icon { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 8px; display: grid; place-items: center; color: var(--vl-ok); background: var(--vl-ok-bg); }
+.vla-ack.is-bad .vla-ack-icon { color: var(--vl-bad); background: var(--vl-bad-bg); }
+.vla-due { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--vl-text); }
+.vla-due.is-soon { color: var(--vl-warn); }
+.vla-due.is-missed { color: var(--vl-bad); }
+
+/* Setup page */
+.vla-rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; font-size: 0.78rem; }
+.vla-rules li { display: grid; grid-template-columns: 4.8rem 1fr; gap: 0.5rem; align-items: start; }
+.vla-scroll-y { max-height: 320px; overflow-y: auto; }
+
+/* eMDR profile (admin) */
+.vla-gateways { display: grid; gap: 0.5rem; }
+.vla-gateway { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.6rem 0.75rem; border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); background: var(--vl-surface); cursor: pointer; }
+.vla-gateway:has(input:checked) { border-color: rgba(var(--vl-brand-rgb), 0.55); box-shadow: var(--vl-ring); }
+.vla-gateway:has(input:focus-visible) { outline: 2px solid rgba(var(--vl-brand-rgb), 0.55); outline-offset: 2px; }
+.vla-gateway .form-check-input { margin-top: 0.2rem; flex: 0 0 auto; }
+.vla-gateway.is-disabled { cursor: not-allowed; background: var(--vl-surface-3); opacity: 0.8; }
+
+/* ---- Printable FDA 3500A layout ---- */
+.vla-3500a { font-size: 0.78rem; }
+.vla-3500a-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding-bottom: 0.6rem; border-bottom: 3px solid #1c1917; }
+.vla-3500a-agency { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--vl-text-2); }
+.vla-3500a-title { font-size: 1.5rem; font-weight: 800; letter-spacing: 0.02em; line-height: 1.1; color: #1c1917; }
+.vla-3500a-title span { font-size: 0.85rem; font-weight: 700; margin-left: 0.4rem; letter-spacing: 0.04em; }
+.vla-3500a-sub { font-size: 0.72rem; color: var(--vl-text-2); }
+.vla-3500a-numbers { display: grid; gap: 0.15rem; min-width: 260px; border: 1px solid #1c1917; }
+.vla-3500a-numbers > div { display: grid; grid-template-columns: 9rem 1fr; border-bottom: 1px solid #d4cec6; }
+.vla-3500a-numbers > div:last-child { border-bottom: 0; }
+.vla-3500a-numbers .l { padding: 0.2rem 0.4rem; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; background: #f3f1ed; border-right: 1px solid #d4cec6; }
+.vla-3500a-numbers .v { padding: 0.2rem 0.4rem; font-weight: 650; }
+.vla-sec { margin-top: 0.9rem; border: 1px solid #1c1917; break-inside: auto; }
+.vla-sec > h2 { display: flex; align-items: center; gap: 0.5rem; margin: 0; padding: 0.25rem 0.5rem; font-size: 0.78rem; font-weight: 750; text-transform: uppercase; letter-spacing: 0.06em; color: #fff; background: #1c1917; }
+.vla-sec > h2 span { display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 3px; background: #fff; color: #1c1917; font-size: 0.75rem; }
+.vla-sec-plain { border: 0; }
+.vla-sec-plain > h2 { background: transparent; color: #1c1917; padding: 0.25rem 0; border-bottom: 2px solid #1c1917; margin-bottom: 0.5rem; }
+.vla-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.vla-f { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr; column-gap: 0.35rem; padding: 0.3rem 0.45rem 0.4rem; border-right: 1px solid #d4cec6; border-bottom: 1px solid #d4cec6; min-height: 2.6rem; break-inside: avoid; }
+.vla-f .n { grid-row: 1; font-weight: 750; font-size: 0.68rem; color: #1c1917; }
+.vla-f .l { grid-row: 1; font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vl-text-2); }
+.vla-f .v { grid-column: 1 / -1; grid-row: 2; padding-top: 0.15rem; font-size: 0.82rem; color: #1c1917; white-space: pre-wrap; overflow-wrap: anywhere; }
+.vla-f-wide { grid-column: 1 / -1; }
+.vla-f-half { grid-column: span 2; }
+.vla-f-3 { grid-column: span 3; }
+.vla-f-text .v { min-height: 2.5rem; }
+.vla-checks { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; white-space: normal !important; }
+.vla-check { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--vl-text-2); }
+.vla-check .box { display: inline-grid; place-items: center; width: 0.85rem; height: 0.85rem; border: 1px solid #1c1917; font-size: 0.6rem; font-weight: 800; line-height: 1; }
+.vla-check.on { color: #1c1917; font-weight: 620; }
+.vla-codes { font-size: 0.76rem; --bs-table-bg: transparent; }
+.vla-codes th { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vl-text-2); }
+@media (max-width: 767.98px) { .vla-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .vla-3500a-head { flex-direction: column; } .vla-f-3 { grid-column: span 2; } }
+@media print {
+    .vla-sec > h2 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .vla-3500a-numbers .l { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

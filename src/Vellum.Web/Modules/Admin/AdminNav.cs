@@ -35,6 +35,7 @@ public static class AdminCatalog
             new("Keyword lists", "/admin/keywords", "bi-tags", "tone-brand", "Shared keyword lists, their usage and orphans.", "ADM-603"),
             new("Business calendar", "/admin/calendar", "bi-calendar3", "tone-brand", "Holidays and extra working days for due dates.", "ADM-301"),
             new("Compliance posture", "/admin/compliance", "bi-shield-check", "tone-ok", "Every compliance-sensitive setting and control.", "SAF-011"),
+            new("eMDR gateway", "/admin/emdr", "bi-send-check", "tone-brand", "This environment's FDA eMDR profile: account, routing IDs and certificates.", "INT-902"),
         ]),
         new(3, "Security",
         [
