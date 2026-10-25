@@ -52,6 +52,10 @@ public static class AdminCatalog
         [
             new("Scheduled tasks", "/admin/tasks", "bi-stopwatch", "tone-ok", "Task profiles, schedules, run now and run history.", "ADM §5.8"),
         ]),
+        new(6, "Integrations",
+        [
+            new("SharePoint", "/admin/integrations/sharepoint", "bi-cloud-arrow-up", "tone-info", "Publish controlled files to SharePoint libraries: profiles, mappings, rules and the publication log.", "INT §6.3"),
+        ]),
     ];
 
     public static IEnumerable<AdminArea> All => Categories.SelectMany(c => c.Areas);
