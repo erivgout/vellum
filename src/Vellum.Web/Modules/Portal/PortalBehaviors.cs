@@ -145,7 +145,7 @@ public sealed class PortalRequestBehavior : RecordBehavior
     public override async Task ValidateRouteAsync(RoutingContext ctx)
     {
         if (ctx.To.Key != "with_supplier" || ctx.Kind != RouteKind.Forward) return;
-        if (ctx.Snapshot.Links("supplier").FirstOrDefault() is not { } sid || sid == Guid.Empty) { ctx.Error("Choose the supplier first."); return; }
+        if (ctx.Snapshot.Links("supplier").FirstOrDefault() is var sid && sid == Guid.Empty) { ctx.Error("Choose the supplier first."); return; }
         if (await ctx.Portal().PortalUserCountAsync(sid) == 0)
             ctx.Error($"{ctx.Snapshot.Text("supplier_name") ?? "The supplier"} has no supplier portal contacts yet. Invite one from the supplier profile (Supplier portal › Invite portal contact), then send this again.");
     }
@@ -184,7 +184,7 @@ public sealed class PortalRequestBehavior : RecordBehavior
         var s = ctx.Snapshot;
         if (s.KeywordKey("doc_type") != "iso_cert" || s.Bool("add_certificate") == false) return;
         if (s.KeywordKey("standard") is not { } standard || s.Date("expires_on") is not { } expires) return;
-        if (s.Links("supplier").FirstOrDefault() is not { } sid || sid == Guid.Empty) return;
+        if (s.Links("supplier").FirstOrDefault() is var sid && sid == Guid.Empty) return;
         var supplier = await ctx.Records.LoadAsync(sid);
         if (supplier == null) return;
         var number = s.Text("doc_number");
@@ -390,7 +390,7 @@ public sealed class PortalScorecardBehavior : RecordBehavior
         switch (actionKey)
         {
             case "portal-share":
-                if (ctx.Snapshot.Links("supplier").FirstOrDefault() is not { } sid || sid == Guid.Empty) return ActionOutcome.Fail("The scorecard has no supplier.");
+                if (ctx.Snapshot.Links("supplier").FirstOrDefault() is var sid && sid == Guid.Empty) return ActionOutcome.Fail("The scorecard has no supplier.");
                 return await portal.ShareAsync(ctx.Snapshot, sid, PortalKinds.ScorecardKind, null, input.Get("message"));
             case "portal-withdraw":
                 if (string.IsNullOrWhiteSpace(input.Comment)) return ActionOutcome.Fail("Give a reason.");

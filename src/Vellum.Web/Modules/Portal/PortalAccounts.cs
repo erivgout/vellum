@@ -7,6 +7,7 @@ using Vellum.Domain;
 // Note: user-directory refreshes (dir.Invalidate) always happen after commits here; see InviteAsync.
 using Vellum.Engine.Audit;
 using Vellum.Engine.Behaviors;
+using Vellum.Engine.Records;
 using Vellum.Engine.Security;
 using Vellum.Infrastructure;
 using Vellum.Infrastructure.Auth;
