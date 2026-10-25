@@ -198,3 +198,13 @@ a.vp-card:hover { text-decoration: none; color: var(--vl-text); border-color: va
 @media (max-width: 575.98px) { .vp-welcome-card { padding: 1.4rem; } }
 .vp-error { max-width: 520px; margin: 4rem auto; text-align: center; }
 .vp-error .vl-empty-icon { width: 64px; height: 64px; font-size: 1.7rem; margin: 0 auto; }
+
+/* Anchors and focused errors stay clear of the sticky portal header. */
+.vp-main [id], .vp-main [data-focus-on-load] { scroll-margin-top: 110px; }
+@media (min-width: 768px) and (max-width: 1199.98px) { .vp-top-inner { gap: 0.9rem; } .vp-nav-link { padding: 0.5rem 0.65rem; } .vp-brand-name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; } }
+.vp-card.vp-score-hero { display: flex; }
+.vp-trend-bar.tone-ok { background: color-mix(in srgb, var(--vl-ok) 80%, transparent); }
+.vp-trend-bar.tone-info { background: color-mix(in srgb, var(--vl-info) 80%, transparent); }
+.vp-trend-bar.tone-warn { background: color-mix(in srgb, var(--vl-warn) 70%, transparent); }
+.vp-trend-bar.tone-bad { background: color-mix(in srgb, var(--vl-bad) 75%, transparent); }
+.vp-trend-bar.tone-neutral { background: var(--vl-border-strong); }
