@@ -1,0 +1,74 @@
+@model Vellum.Modules.Inspections.InspectionResultsModel
+@using Vellum.Modules.Inspections
+@{
+    var p = Model.Progress;
+    var snap = Model.Snap;
+    var taken = p.Points.Sum(x => Math.Min(x.Progress.Done, x.Progress.Total));
+}
+<section class="card vl-ins-results mb-3" aria-label="Inspection results">
+    <div class="card-header">
+        <span class="vl-section-icon"><i class="bi bi-clipboard2-data"></i></span>
+        <div class="min-w-0">
+            <h3 class="card-title-sm">Inspection results</h3>
+            <p class="vl-section-desc">
+                @if (p.Result == InspectionResult.Pending)
+                {
+                    <span>@taken of @p.Total samples closed. The result is set when no samples remain for any point (INV-168).</span>
+                }
+                else
+                {
+                    <span>All @p.Total samples taken@(p.Failed > 0 ? $"; {p.Failed} failed" : "; none failed").</span>
+                }
+            </p>
+        </div>
+        <span class="ms-auto">@InspectionUi.Chip(p.Result, p.Result == InspectionResult.Pending ? $"Pending · {p.Remaining} remaining" : null, large: true)</span>
+    </div>
+    @if (p.Points.Count == 0)
+    {
+        <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-diagram-3"></i></div><h3>No inspection points</h3><p>The plan has no points to inspect.</p></div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table vl-table mb-0">
+                <thead><tr><th class="text-nowrap">Step</th><th>Inspection point</th><th>Sampling</th><th style="min-width:150px">Progress</th><th>Samples</th></tr></thead>
+                <tbody>
+                    @foreach (var pt in p.Points)
+                    {
+                        var pct = pt.Progress.Total == 0 ? 100 : Math.Min(100, pt.Progress.Done * 100 / pt.Progress.Total);
+                        <tr>
+                            <td class="tabular">@pt.Step</td>
+                            <td><a href="/records/@pt.PointId" class="fw-medium">@pt.Name</a><div class="x-small text-body-tertiary">@pt.Number</div></td>
+                            <td class="small text-nowrap">@pt.Sampling</td>
+                            <td>
+                                <div class="d-flex justify-content-between x-small text-body-secondary"><span>@pt.Progress.Done / @pt.Progress.Total closed</span>@if (pt.Progress.Remaining > 0) { <span>@pt.Progress.Remaining left</span> } else { <span class="text-success"><i class="bi bi-check2" aria-hidden="true"></i> done</span> }</div>
+                                <div class="vl-aud-bar mt-1" role="progressbar" aria-label="@pt.Name progress" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100"><span class="tone-@(pt.Samples.Any(s => s.Result == InspectionResult.Fail && s.PhaseType != PhaseType.Voided) ? "bad" : "ok")" style="width:@(pct)%"></span></div>
+                            </td>
+                            <td>
+                                <div class="vl-ins-samples">
+                                    @foreach (var s in pt.Samples)
+                                    {
+                                        var st = InspectionUi.Style(s.Result == InspectionResult.Pass && s.HasWarn ? InspectionResult.Warn : s.Result);
+                                        <a class="vl-ins-sample @st.Css @(s.PhaseType == PhaseType.Voided ? "void" : "") @(s.PhaseType == PhaseType.Normal ? "open" : "")" href="/records/@s.Id"
+                                           title="@s.Number · @s.Result@(s.HasWarn ? " (with warnings)" : "") · @(s.Phase?.Name)"><i class="bi @st.Icon" aria-hidden="true"></i>@s.Serial<span class="visually-hidden"> @s.Result, @(s.Phase?.Name)</span></a>
+                                    }
+                                    @if (pt.Samples.Count == 0) { <span class="x-small text-body-tertiary">None yet</span> }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (p.AdHoc.Count > 0)
+                    {
+                        <tr>
+                            <td>–</td><td colspan="3"><span class="fw-medium">Additional samples</span><div class="x-small text-body-tertiary">Points not in the plan</div></td>
+                            <td><div class="vl-ins-samples">@foreach (var s in p.AdHoc) { var st = InspectionUi.Style(s.Result); <a class="vl-ins-sample @st.Css" href="/records/@s.Id"><i class="bi @st.Icon" aria-hidden="true"></i>@s.Serial</a> }</div></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="vl-ins-legend">
+            @InspectionUi.Chip(InspectionResult.Pass) @InspectionUi.Chip(InspectionResult.Warn, "Pass with warnings") @InspectionUi.Chip(InspectionResult.Fail) @InspectionUi.Chip(InspectionResult.Pending, "In progress")
+        </div>
+    }
+</section>

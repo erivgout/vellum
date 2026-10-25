@@ -1,0 +1,166 @@
+/* Change Management, Audits and Inspections – record panels and insight pages.
+   Built on the design-system tokens in site.css so light and dark themes both work. */
+
+/* ---------------------------------------------------------------- shared */
+.tone-text-ok { color: var(--vl-ok); }
+.tone-text-warn { color: var(--vl-warn); }
+.tone-text-bad { color: var(--vl-bad); }
+.tone-text-info { color: var(--vl-info); }
+
+.vl-chg-mini { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+.vl-chg-mini li { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px dashed var(--vl-border); font-size: 0.8rem; min-width: 0; }
+.vl-chg-mini li:last-child { border-bottom: 0; }
+.vl-chg-mini .num { font-weight: 620; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vl-chg-mini .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vl-text-2); }
+.vl-chg-mini a.lbl { color: var(--vl-text); }
+
+.vl-aud-bar { height: 6px; border-radius: 999px; background: var(--vl-surface-3); overflow: hidden; }
+.vl-aud-bar > span { display: block; height: 100%; border-radius: inherit; background: currentColor; }
+.vl-aud-bar > span.tone-ok { background: var(--vl-ok); }
+.vl-aud-bar > span.tone-warn { background: var(--vl-warn); }
+.vl-aud-bar > span.tone-bad { background: var(--vl-bad); }
+.vl-aud-bar > span.tone-info { background: var(--vl-info); }
+
+.vl-aud-big { font-size: 2.1rem; font-weight: 720; letter-spacing: -0.035em; line-height: 1; font-variant-numeric: tabular-nums; margin: 0.15rem 0 0.3rem; }
+.vl-aud-big.sm { font-size: 1.6rem; margin: 0; }
+.vl-aud-big .unit { font-size: 0.5em; font-weight: 600; color: var(--vl-text-3); margin-left: 0.1rem; letter-spacing: 0; }
+
+/* ---------------------------------------------------------------- change: approvals by type, regulatory gate */
+.vl-chg-progress { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.65rem; border-radius: 999px; font-size: 0.76rem; font-weight: 600; white-space: nowrap;
+  background: var(--vl-neutral-bg); color: var(--vl-neutral); border: 1px solid var(--vl-neutral-border); }
+.vl-chg-progress.ok { background: var(--vl-ok-bg); color: var(--vl-ok); border-color: var(--vl-ok-border); }
+.vl-chg-progress.wait { background: var(--vl-warn-bg); color: var(--vl-warn); border-color: var(--vl-warn-border); }
+.vl-chg-progress.bad { background: var(--vl-bad-bg); color: var(--vl-bad); border-color: var(--vl-bad-border); }
+
+.vl-chg-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 0.75rem; }
+.vl-chg-type { border: 1px solid var(--vl-border); border-radius: var(--vl-radius); padding: 0.7rem 0.8rem 0.6rem; background: var(--vl-surface-2); position: relative; }
+.vl-chg-type::before { content: ""; position: absolute; left: -1px; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: var(--vl-border-strong); }
+.vl-chg-type.ok { border-color: var(--vl-ok-border); }
+.vl-chg-type.ok::before { background: var(--vl-ok); }
+.vl-chg-type.wait::before { background: var(--vl-warn); }
+.vl-chg-type-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.45rem; }
+.vl-chg-type-name { font-weight: 650; font-size: 0.86rem; flex: 1; min-width: 0; }
+.vl-chg-approvers { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.vl-chg-approvers li { display: flex; align-items: center; gap: 0.45rem; font-size: 0.78rem; min-width: 0; }
+.vl-chg-approvers .nm { font-weight: 540; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vl-chg-approvers .st { margin-left: auto; color: var(--vl-text-3); white-space: nowrap; display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.72rem; }
+
+.vl-chg-reg { display: flex; align-items: center; gap: 0.85rem; padding: 0.85rem 1.15rem; flex-wrap: wrap; }
+.vl-chg-reg .small span + span::before { content: " · "; }
+
+/* ---------------------------------------------------------------- audits */
+.vl-aud-grid { display: grid; grid-template-columns: minmax(150px, 0.8fr) minmax(0, 2fr) minmax(200px, 1fr); gap: 1.25rem; padding: 1rem 1.15rem; align-items: start; }
+@media (max-width: 991.98px) { .vl-aud-grid { grid-template-columns: 1fr; } }
+.vl-aud-counts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.5rem; }
+@media (max-width: 575.98px) { .vl-aud-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.vl-aud-count { border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); padding: 0.55rem 0.5rem 0.5rem; text-align: center; background: var(--vl-surface-2); opacity: 0.72; }
+.vl-aud-count.has { opacity: 1; background: var(--vl-surface); box-shadow: var(--vl-shadow-sm); }
+.vl-aud-count .vl-stat-icon { width: 26px; height: 26px; border-radius: 7px; margin: 0 auto 0.35rem; font-size: 0.8rem; }
+.vl-aud-count .v { display: block; font-size: 1.25rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.vl-aud-count .l { display: block; font-size: 0.7rem; color: var(--vl-text-2); font-weight: 560; margin-top: 0.15rem; }
+.vl-aud-result .vl-kv dd { word-break: normal; }
+.vl-aud-finding { min-width: 280px; }
+.vl-aud-follow { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; white-space: nowrap; }
+.vl-aud-follow .num { font-weight: 620; }
+
+.vl-aud-matrix th, .vl-aud-matrix td { text-align: center; }
+.vl-aud-matrix th:first-child, .vl-aud-matrix td:first-child { text-align: left; }
+.vl-aud-cell { display: inline-grid; place-items: center; min-width: 2rem; height: 1.6rem; padding: 0 0.45rem; border-radius: 6px; font-weight: 650; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.vl-aud-cell.zero { color: var(--vl-text-3); font-weight: 500; }
+.vl-aud-cell.observation { background: var(--vl-info-bg); color: var(--vl-info); }
+.vl-aud-cell.minor_nc { background: var(--vl-warn-bg); color: var(--vl-warn); }
+.vl-aud-cell.major_nc { background: var(--vl-bad-bg); color: var(--vl-bad); }
+.vl-aud-cell.ofi { background: var(--vl-violet-bg); color: var(--vl-violet); }
+.vl-aud-cell.conforming { background: var(--vl-ok-bg); color: var(--vl-ok); }
+
+.vl-aud-filter { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.vl-aud-filter a { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.7rem; border-radius: 999px; border: 1px solid var(--vl-border); font-size: 0.78rem; font-weight: 560; color: var(--vl-text-2); background: var(--vl-surface); }
+.vl-aud-filter a:hover { text-decoration: none; border-color: var(--vl-border-strong); color: var(--vl-text); }
+.vl-aud-filter a.active { background: var(--vl-text); border-color: var(--vl-text); color: var(--vl-surface); }
+
+/* ---------------------------------------------------------------- inspections */
+.vl-ins-chip { display: inline-flex; align-items: center; gap: 0.32rem; padding: 0.12rem 0.55rem; border-radius: 999px; font-size: 0.74rem; font-weight: 620; line-height: 1.5; white-space: nowrap; border: 1px solid; }
+.vl-ins-chip.lg { font-size: 0.86rem; padding: 0.25rem 0.8rem; }
+.vl-ins-chip.pass { color: var(--vl-ok); background: var(--vl-ok-bg); border-color: var(--vl-ok-border); }
+.vl-ins-chip.warn { color: var(--vl-warn); background: var(--vl-warn-bg); border-color: var(--vl-warn-border); }
+.vl-ins-chip.fail { color: var(--vl-bad); background: var(--vl-bad-bg); border-color: var(--vl-bad-border); }
+.vl-ins-chip.pending { color: var(--vl-neutral); background: var(--vl-neutral-bg); border-color: var(--vl-neutral-border); }
+
+.vl-ins-samples { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.vl-ins-sample { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.08rem 0.45rem; border-radius: 6px; font-size: 0.72rem; font-weight: 600; border: 1px solid; font-variant-numeric: tabular-nums; }
+.vl-ins-sample:hover { text-decoration: none; filter: brightness(0.96); }
+.vl-ins-sample.pass { color: var(--vl-ok); background: var(--vl-ok-bg); border-color: var(--vl-ok-border); }
+.vl-ins-sample.warn { color: var(--vl-warn); background: var(--vl-warn-bg); border-color: var(--vl-warn-border); }
+.vl-ins-sample.fail { color: var(--vl-bad); background: var(--vl-bad-bg); border-color: var(--vl-bad-border); }
+.vl-ins-sample.pending { color: var(--vl-neutral); background: var(--vl-neutral-bg); border-color: var(--vl-neutral-border); }
+.vl-ins-sample.open { border-style: dashed; }
+.vl-ins-sample.void { text-decoration: line-through; opacity: 0.6; }
+.vl-ins-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 0.6rem; padding: 0.65rem 1.15rem; border-top: 1px solid var(--vl-border); background: var(--vl-surface-2); border-radius: 0 0 var(--vl-radius) var(--vl-radius); }
+.vl-ins-results .table { --bs-table-bg: transparent; }
+.vl-ins-results .table td { vertical-align: middle; }
+
+.vl-ins-tally { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.vl-ins-tally .t { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.55rem 0.3rem 0.65rem; border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); background: var(--vl-surface-2); opacity: 0.7; }
+.vl-ins-tally .t.has { opacity: 1; background: var(--vl-surface); }
+.vl-ins-tally .v { font-weight: 700; font-size: 1.05rem; font-variant-numeric: tabular-nums; min-width: 1ch; }
+.vl-ins-flags { list-style: none; padding: 0; display: grid; gap: 0.3rem; }
+.vl-ins-flags li { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.82rem; padding: 0.4rem 0.65rem; border-radius: var(--vl-radius-sm); border: 1px solid; }
+.vl-ins-flags li.fail { background: var(--vl-bad-bg); border-color: var(--vl-bad-border); }
+.vl-ins-flags li.fail .bi { color: var(--vl-bad); }
+.vl-ins-flags li.warn { background: var(--vl-warn-bg); border-color: var(--vl-warn-border); }
+.vl-ins-flags li.warn .bi { color: var(--vl-warn); }
+
+/* ---------------------------------------------------------------- insight pages (charts)
+   Palette validated with the data-viz checks: categorical slots 1–2 (blue, orange) and a one-hue ordinal ramp for age,
+   each stepped separately for the dark surface. Text never wears series colors. */
+.vl-viz {
+  --viz-s1: #2a78d6; --viz-s2: #eb6834;
+  --viz-age-0: #86b6ef; --viz-age-1: #3987e5; --viz-age-2: #1c5cab; --viz-age-3: #0d366b;
+}
+[data-bs-theme="dark"] .vl-viz {
+  --viz-s1: #3987e5; --viz-s2: #d95926;
+  --viz-age-0: #184f95; --viz-age-1: #2a78d6; --viz-age-2: #6da7ec; --viz-age-3: #b7d3f6;
+}
+.vl-tl-early { color: var(--vl-ok); }
+.vl-tl-ontime { color: var(--vl-warn); }
+.vl-tl-late { color: var(--vl-bad); }
+
+.vl-legend { display: flex; flex-wrap: wrap; gap: 0.35rem 0.9rem; font-size: 0.75rem; color: var(--vl-text-2); }
+.vl-legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 0.35rem; vertical-align: -1px; }
+.vl-legend .sw.s1, .vl-viz .s1 { background: var(--viz-s1); }
+.vl-legend .sw.s2, .vl-viz .s2 { background: var(--viz-s2); }
+.vl-viz .age-0 { background: var(--viz-age-0); }
+.vl-viz .age-1 { background: var(--viz-age-1); }
+.vl-viz .age-2 { background: var(--viz-age-2); }
+.vl-viz .age-3 { background: var(--viz-age-3); }
+
+/* Horizontal stacked bars: thin, 2px surface gaps between segments, rounded data end. */
+.vl-bars { display: grid; gap: 0.55rem; }
+.vl-bars .row-bar { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 3fr) 2.5rem; gap: 0.75rem; align-items: center; font-size: 0.8rem; color: var(--vl-text-2); }
+.vl-bars .row-bar > :first-child { color: var(--vl-text); font-weight: 540; }
+.vl-bars .track, .vl-tl-track { display: flex; gap: 2px; height: 14px; min-width: 6px; }
+.vl-bars .seg, .vl-tl-track .seg { height: 100%; min-width: 3px; }
+.vl-bars .seg:last-child, .vl-tl-track .seg:last-child { border-radius: 0 4px 4px 0; }
+.vl-bars .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 620; color: var(--vl-text); }
+.vl-tl-track { height: 12px; }
+.vl-tl-track .seg.early { background: var(--vl-ok); }
+.vl-tl-track .seg.ontime { background: var(--vl-warn); }
+.vl-tl-track .seg.late { background: var(--vl-bad); }
+
+/* Created vs completed: paired bars per month with direct value labels. */
+.vl-months { display: grid; gap: 0.7rem; }
+.vl-month { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 0.6rem; align-items: center; font-size: 0.8rem; }
+.vl-month .lbl { color: var(--vl-text-2); font-weight: 540; }
+.vl-month .bars { display: grid; gap: 3px; }
+.vl-month .pair, .vl-inline-bar { display: flex; align-items: center; gap: 0.45rem; }
+.vl-month .bar, .vl-inline-bar .bar { height: 9px; border-radius: 0 4px 4px 0; min-width: 2px; }
+.vl-month .num, .vl-inline-bar .num { font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--vl-text-2); font-weight: 600; }
+.vl-inline-bar { min-width: 120px; }
+
+/* Hover tooltip for chart marks (audits.js). */
+.vl-viz-tip { position: fixed; z-index: 2000; pointer-events: none; padding: 0.35rem 0.6rem; border-radius: 7px; font-size: 0.76rem; font-weight: 560;
+  background: var(--vl-text); color: var(--vl-surface); box-shadow: var(--vl-shadow-lg); max-width: 280px; white-space: nowrap; }
+[data-tip] { cursor: default; }
+@media (forced-colors: active) {
+  .vl-bars .seg, .vl-tl-track .seg, .vl-month .bar, .vl-inline-bar .bar { forced-color-adjust: none; border: 1px solid CanvasText; }
+}

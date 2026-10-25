@@ -1,0 +1,28 @@
+@model Vellum.Modules.Inspections.PlanStatusModel
+@using Vellum.Modules.Inspections
+@{
+    var m = Model;
+}
+@if (m.Warnings.Count > 0)
+{
+    <div class="vl-banner vl-banner-warn py-2"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><div><div class="ttl">Points no longer active</div><ul>@foreach (var w in m.Warnings) { <li>@w</li> }</ul></div></div>
+}
+@if (m.Records.Count == 0)
+{
+    <p class="small text-body-secondary mb-0">@(m.Active ? "No inspection records yet. Create one from the Inspections application (New › Inspection record)." : "Inspection records can be created once the plan is Active (INV-166).")</p>
+}
+else
+{
+    <div class="small text-body-secondary mb-2">@m.Total record@(m.Total == 1 ? "" : "s")@(m.Total > m.Records.Count ? $", latest {m.Records.Count} shown" : "")</div>
+    <ul class="vl-chg-mini">
+        @foreach (var r in m.Records)
+        {
+            var res = m.Results.GetValueOrDefault(r.Id);
+            <li>
+                <a href="/records/@r.Id" class="num">@r.Number</a>
+                <span class="lbl">@r.Title</span>
+                @InspectionUi.Chip(res?.Key, res?.Label)
+            </li>
+        }
+    </ul>
+}

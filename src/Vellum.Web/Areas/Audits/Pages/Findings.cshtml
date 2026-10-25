@@ -1,0 +1,161 @@
+@page "/audits/findings"
+@model Vellum.Areas.Audits.Pages.FindingsModel
+@{
+    ViewData["Title"] = "Audit findings";
+    ViewData["ActiveApp"] = "audits";
+    var cols = Vellum.Areas.Audits.Pages.FindingsModel.Columns;
+    var cfg = Model.Config;
+    string Label(string key) => cfg.Keyword("aud_classification", key)?.Label ?? key;
+    var majors = Model.All.Count(f => f.Classification.Key == "major_nc");
+    var minors = Model.All.Count(f => f.Classification.Key == "minor_nc");
+    var openUps = Model.All.SelectMany(f => f.FollowUps).Count(u => u.Record.PhaseType == PhaseType.Normal);
+    var noCapa = Model.All.Count(f => f.Classification.Key is "minor_nc" or "major_nc" && f.FollowUps.All(u => u.Kind != "CAPA"));
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/audits">Audits</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Findings</span>
+}
+<div class="vl-page-head">
+    <div>
+        <h1 class="vl-page-title">Audit findings</h1>
+        <p class="vl-page-sub">Findings from @Model.AuditCount audits by clause, classification and auditee, with their CAPAs and recommendations (AUD-032).</p>
+    </div>
+    <a class="btn btn-light" href="/audits/program"><i class="bi bi-calendar2-week"></i>Audit program</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="@Model.Link()"><span class="vl-stat-icon tone-brand"><i class="bi bi-flag"></i></span><div class="vl-stat-value">@Model.All.Count</div><div class="vl-stat-label">Findings</div></a></div>
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="@Model.Link("major_nc")"><span class="vl-stat-icon tone-bad"><i class="bi bi-x-octagon"></i></span><div class="vl-stat-value">@majors</div><div class="vl-stat-label">Major nonconformances</div></a></div>
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="@Model.Link("minor_nc")"><span class="vl-stat-icon tone-warn"><i class="bi bi-exclamation-triangle"></i></span><div class="vl-stat-value">@minors</div><div class="vl-stat-label">Minor nonconformances</div></a></div>
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="#overdue"><span class="vl-stat-icon @(Model.Overdue.Count > 0 ? "tone-bad" : "tone-ok")"><i class="bi bi-alarm"></i></span><div class="vl-stat-value">@Model.Overdue.Count</div><div class="vl-stat-label">Overdue follow-ups · @openUps open</div></a></div>
+</div>
+
+@if (noCapa > 0)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-shield-exclamation"></i><div>@noCapa nonconformance@(noCapa == 1 ? " has" : "s have") no CAPA. Open the audit and use <strong>Findings › Raise CAPA</strong>.</div></div>
+}
+
+<div class="card mb-4">
+    <div class="card-body d-flex flex-wrap gap-3 align-items-center justify-content-between">
+        <div class="vl-aud-filter" role="group" aria-label="Filter by classification">
+            <a href="@Model.Link()" class="@(string.IsNullOrEmpty(Model.C) ? "active" : "")">All</a>
+            @foreach (var c in cols) { <a href="@Model.Link(c)" class="@(Model.C == c ? "active" : "")">@Label(c)</a> }
+        </div>
+        <form method="get" action="/audits/findings" class="d-flex gap-2" role="search">
+            @if (!string.IsNullOrEmpty(Model.C)) { <input type="hidden" name="c" value="@Model.C" /> }
+            <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Clause, auditee or text…" aria-label="Search findings" style="min-width:240px" />
+            <button class="btn btn-sm btn-light"><i class="bi bi-search"></i>Search</button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-xl-7">
+        <div class="card h-100">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-bookmark"></i>Findings by clause</h2><span class="vl-pill-count ms-auto">@Model.ByClause.Count</span></div>
+            @if (Model.ByClause.Count == 0)
+            {
+                <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-check2-circle"></i></div><h3>No findings</h3><p>Nothing matches the filter.</p></div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table vl-table vl-aud-matrix mb-0">
+                        <thead><tr><th>Clause</th>@foreach (var c in cols) { <th>@Label(c)</th> }<th>Total</th></tr></thead>
+                        <tbody>
+                            @foreach (var (key, counts) in Model.ByClause)
+                            {
+                                <tr>
+                                    <td class="mono small"><a href="@Model.Link(Model.C, key == "(no clause)" ? null : key)">@key</a></td>
+                                    @foreach (var c in cols) { <td><span class="vl-aud-cell @(counts[c] == 0 ? "zero" : c)">@counts[c]</span></td> }
+                                    <td class="fw-semibold tabular">@counts.Values.Sum()</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="col-xl-5">
+        <div class="card h-100">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-building"></i>Findings by auditee</h2><span class="vl-pill-count ms-auto">@Model.ByAuditee.Count</span></div>
+            @if (Model.ByAuditee.Count == 0)
+            {
+                <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-building"></i></div><h3>No auditees</h3><p>Nothing matches the filter.</p></div>
+            }
+            else
+            {
+                <ul class="vl-list">
+                    @foreach (var (key, counts) in Model.ByAuditee)
+                    {
+                        <li class="vl-list-item">
+                            <div class="main"><div class="line1"><span class="ttl">@key</span></div><div class="line2">@counts.Values.Sum() finding@(counts.Values.Sum() == 1 ? "" : "s")</div></div>
+                            <div class="aside">@foreach (var c in cols.Where(c => counts[c] > 0)) { <span class="vl-aud-cell @c" title="@Label(c)">@counts[c]<span class="visually-hidden"> @Label(c)</span></span> }</div>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4" id="overdue">
+    <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-alarm"></i>Overdue findings</h2><span class="vl-pill-count ms-auto @(Model.Overdue.Count > 0 ? "hot" : "")">@Model.Overdue.Count</span></div>
+    @if (Model.Overdue.Count == 0)
+    {
+        <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-emoji-smile"></i></div><h3>Nothing overdue</h3><p>Every open CAPA and recommendation raised from a finding is on time.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-wrap border-0"><div class="vl-table-scroll">
+            <table class="table vl-table mb-0">
+                <thead><tr><th>Follow-up</th><th>Finding</th><th>Audit</th><th>Phase</th><th>Due</th></tr></thead>
+                <tbody>
+                    @foreach (var (f, u) in Model.Overdue)
+                    {
+                        <tr data-href="/records/@u.Record.Id">
+                            <td class="col-number"><a href="/records/@u.Record.Id">@u.Record.Number</a><div class="x-small text-body-tertiary">@u.Kind</div></td>
+                            <td class="col-title"><span class="t">@f.Question</span><div class="x-small text-body-tertiary">@f.Clause · @f.Classification.Label</div></td>
+                            <td class="text-nowrap"><a href="/records/@f.Audit.Id">@f.Audit.Number</a><div class="x-small text-body-tertiary">@f.Auditee</div></td>
+                            <td>@Ui.Phase(u.Phase?.Name, u.Record.PhaseType, u.Record.DueDate)</td>
+                            <td>@Ui.Due(u.Record.DueDate)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div></div>
+    }
+</div>
+
+<div class="card">
+    <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-list-ul"></i>@(string.IsNullOrEmpty(Model.C) ? "All findings" : Label(Model.C) + " findings")</h2><span class="vl-pill-count ms-auto">@Model.Shown.Count</span></div>
+    @if (Model.Shown.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-search"></i></div><h3>No findings</h3><p>Try another classification or search.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-wrap border-0"><div class="vl-table-scroll">
+            <table class="table vl-table mb-0">
+                <thead><tr><th>Audit</th><th>Clause</th><th>Finding</th><th>Classification</th><th>Follow-up</th></tr></thead>
+                <tbody>
+                    @foreach (var f in Model.Shown)
+                    {
+                        <tr>
+                            <td class="text-nowrap"><a href="/records/@f.Audit.Id" class="fw-semibold">@f.Audit.Number</a> <span class="text-body-tertiary small">Q@(f.Number)</span><div class="x-small text-body-tertiary">@f.Auditee@(f.AuditDate is { } dt ? " · " + dt.ToString("dd MMM yyyy") : "")</div></td>
+                            <td class="mono small text-nowrap">@(f.Clause ?? "–")</td>
+                            <td class="vl-aud-finding"><div class="fw-medium">@f.Question</div>@if (f.Comments != null) { <div class="small text-body-secondary">@f.Comments</div> }</td>
+                            <td>@Ui.Keyword(f.Classification)</td>
+                            <td>
+                                @if (f.FollowUps.Count == 0) { <span class="small @(f.Classification.Key is "minor_nc" or "major_nc" ? "text-danger" : "text-body-tertiary")">@(f.Classification.Key is "minor_nc" or "major_nc" ? "No CAPA yet" : "None")</span> }
+                                <div class="d-grid gap-1">@foreach (var u in f.FollowUps) { <a class="vl-aud-follow" href="/records/@u.Record.Id"><span class="num">@u.Record.Number</span>@Ui.Phase(u.Phase?.Name, u.Record.PhaseType, u.Record.DueDate)</a> }</div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div></div>
+    }
+</div>

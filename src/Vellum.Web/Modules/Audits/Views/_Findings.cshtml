@@ -1,0 +1,41 @@
+@model Vellum.Modules.Audits.FindingsModel
+@{
+    var m = Model;
+}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div class="small text-body-secondary">Questions classified as anything other than Conforming. Raise CAPAs for nonconformances and recommendations for observations and OFIs from the <strong>Findings</strong> menu (AUD-025).</div>
+    <a class="btn btn-sm btn-light" href="/audits/findings"><i class="bi bi-bar-chart"></i>Findings across audits</a>
+</div>
+<div class="vl-table-wrap"><div class="vl-table-scroll">
+    <table class="table vl-table">
+        <thead><tr><th class="text-nowrap">#</th><th>Clause</th><th>Finding</th><th>Classification</th>@if (m.Scoring) { <th class="text-end">Score</th> }<th>Follow-up</th></tr></thead>
+        <tbody>
+            @foreach (var f in m.Findings)
+            {
+                var r = f.Row;
+                <tr>
+                    <td class="col-number">Q@(f.Number)</td>
+                    <td class="text-nowrap mono small">@(r.Values.Text("clause") ?? "–")</td>
+                    <td class="vl-aud-finding">
+                        <div class="fw-medium">@r.Values.Text("question")</div>
+                        @if (r.Values.Text("comments") is { } c) { <div class="small text-body-secondary">@c</div> }
+                    </td>
+                    <td>@Ui.Keyword(f.Classification)</td>
+                    @if (m.Scoring) { <td class="text-end tabular">@(r.Values.Number("score")?.ToString("0.#") ?? "–")@(r.Values.Number("out_of") is { } o ? $" / {o:0.#}" : "")</td> }
+                    <td>
+                        @if (f.FollowUps.Count == 0)
+                        {
+                            <span class="small @(f.Classification?.Key is "minor_nc" or "major_nc" ? "text-danger" : "text-body-tertiary")">@(f.Classification?.Key is "minor_nc" or "major_nc" ? "No CAPA yet" : "None")</span>
+                        }
+                        <div class="d-grid gap-1">
+                            @foreach (var u in f.FollowUps)
+                            {
+                                <a class="vl-aud-follow" href="/records/@u.Record.Id"><span class="num">@u.Record.Number</span>@Ui.Phase(u.Phase?.Name, u.Record.PhaseType, u.Record.DueDate)</a>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div></div>

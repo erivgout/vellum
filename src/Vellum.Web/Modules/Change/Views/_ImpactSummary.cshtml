@@ -1,0 +1,50 @@
+@model Vellum.Modules.Change.ImpactSummaryModel
+@{
+    var m = Model;
+    var snap = m.Snap;
+}
+<div class="vl-chg-impact">
+    <div class="d-flex align-items-center justify-content-between gap-2">
+        <span class="vl-meta-label mb-0">Highest assessed impact</span>
+        @if (m.Highest != null) { @Ui.Keyword(m.Highest) } else { <span class="small text-body-tertiary">Not assessed yet</span> }
+    </div>
+    <dl class="vl-kv mt-2">
+        <dt>Change impact level</dt><dd>@(snap.Keyword("impact_level")?.Label ?? "–")</dd>
+        <dt>Assessments</dt><dd>@m.Assessments.Count@(m.Open > 0 ? $" ({m.Open} open)" : "")</dd>
+        <dt>Action items</dt><dd>@(m.ActionItemsTotal == 0 ? "–" : $"{m.ActionItemsTotal - m.ActionItemsOpen} of {m.ActionItemsTotal} done")</dd>
+        @if (snap.Text("products") is { } products) { <dt>Products</dt><dd class="text-wrap">@products</dd> }
+        @if (snap.Keyword("reg_impact") is { } reg) { <dt>Regulatory</dt><dd>@reg.Label</dd> }
+    </dl>
+    @if (m.Assessments.Count > 0)
+    {
+        <div class="vl-meta-label mt-3">Impact assessments</div>
+        <ul class="vl-chg-mini">
+            @foreach (var a in m.Assessments)
+            {
+                var impact = snap.Config.Keyword(a.Ref("impact"));
+                <li>
+                    <a href="/records/@a.Record.Id" class="num">@a.Record.Number</a>
+                    <span class="lbl">@(snap.Config.Keyword(a.Ref("area"))?.Label ?? a.Record.Title)</span>
+                    @if (impact != null && !a.Open) { @Ui.Keyword(impact) } else { @Ui.Phase(a.Phase?.Name, a.Record.PhaseType, a.Record.DueDate) }
+                </li>
+            }
+        </ul>
+    }
+    @if (m.Documents.Count > 0)
+    {
+        <div class="vl-meta-label mt-3">Affected documents</div>
+        <ul class="vl-chg-mini">
+            @foreach (var d in m.Documents)
+            {
+                <li>
+                    <span class="vl-kw @(d.Action == "new" ? "vl-kw-success" : d.Action == "obsolete" ? "vl-kw-secondary" : "vl-kw-info")">@d.ActionLabel</span>
+                    @if (d.Id is { } id) { <a href="/records/@id" class="lbl">@d.Label</a> } else { <span class="lbl">@d.Label</span> }
+                    @if (d.Linked)
+                    {
+                        <i class="bi @(d.Done ? "bi-check-circle-fill text-success" : "bi-hourglass-split text-warning")" title="@d.State" aria-label="@d.State"></i>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
