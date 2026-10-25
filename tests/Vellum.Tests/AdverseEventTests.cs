@@ -639,7 +639,7 @@ public class AdverseEventTests(VellumFixture fx)
 
         var bad = await setup.ImportProductCodesAsync("code,device name\nFPA,\"Set, Administration, Intravascular\",2\nXX1,Bad code");
         Assert.False(bad.Ok);
-        Assert.Empty((await setup.ProductCodesAsync()).Where(c => c.Code == "FPA")); // nothing saved
+        Assert.DoesNotContain(await setup.ProductCodesAsync(), c => c.Code == "FPA"); // nothing saved
         var ok = await setup.ImportProductCodesAsync("code,device name,class,regulation\nFPA,\"Set, Administration, Intravascular\",2,880.5440\nFRN,\"Pump, Infusion\",2,880.5725");
         Assert.True(ok.Ok, string.Join("; ", ok.Errors));
         Assert.Equal(1, ok.Created);

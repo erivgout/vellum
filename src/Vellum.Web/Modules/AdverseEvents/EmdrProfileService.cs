@@ -130,7 +130,7 @@ public sealed class EmdrProfileService(VellumDbContext db, IDataProtectionProvid
             CertFieldProblem("Organizational unit", c.OrganizationalUnit), CertFieldProblem("City / locality", c.Locality, true),
             CertFieldProblem("State / province", c.State, true), CertFieldProblem("Email", c.Email, true, 128),
         }.OfType<string>().ToList();
-        if (CertFieldProblem("Country", c.Country, true, 2) is { } ce) errors.Add(ce);
+        if (CertFieldProblem("Country", c.Country, true) is { } ce) errors.Add(ce);
         else if (c.Country!.Trim().Length != 2 || !c.Country.Trim().All(char.IsAsciiLetter)) errors.Add("Country is the two-letter code, for example US.");
         if (c.Email != null && EmdrValidator.EmailProblem(c.Email) != null) errors.Add("Enter a valid certificate email address.");
         return errors;
