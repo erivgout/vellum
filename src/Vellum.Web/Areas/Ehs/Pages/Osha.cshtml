@@ -1,0 +1,224 @@
+@page "/ehs/osha"
+@model Vellum.Areas.Ehs.Pages.OshaModel
+@using Vellum.Modules.Ehs
+@using Vellum.Modules.Kit
+@{
+    ViewData["Title"] = "OSHA log & rates";
+    ViewData["ActiveApp"] = "ehs";
+    var log = Model.Log;
+    var total = Model.Total;
+    var months = Model.Hours.Select(h => h.Month).Distinct().Count();
+    var avgEmployees = Model.Hours.Where(h => h.Employees != null).GroupBy(h => h.Month).Select(g => g.Sum(h => h.Employees!.Value)).DefaultIfEmpty(0).Average();
+    string Check(bool on) => on ? "✓" : "";
+    var monthNames = CultureInfo.InvariantCulture.DateTimeFormat.AbbreviatedMonthNames;
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/ehs">Environment, Health &amp; Safety</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">OSHA log &amp; rates</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <span class="vl-app-tile lg" style="--app:#ea580c"><i class="bi bi-clipboard-data"></i></span>
+    <div class="min-w-0 flex-grow-1">
+        <h1 class="vl-page-title">OSHA log &amp; rates · @Model.SelectedYear</h1>
+        <p class="vl-page-sub">Recordable cases (OSHA 300), annual summary totals (300A) and incidence rates per 200,000 hours worked (RPT-702).</p>
+    </div>
+    <a class="btn btn-light" href="@(Model.Link())&handler=Csv"><i class="bi bi-filetype-csv"></i>Export log</a>
+</div>
+
+<form class="vl-filterbar" method="get" action="/ehs/osha">
+    <div>
+        <label class="form-label small" for="osha-year">Year</label>
+        <select class="form-select form-select-sm" id="osha-year" name="year">
+            @foreach (var y in Model.Years) { <option value="@y" selected="@(y == Model.SelectedYear)">@y</option> }
+        </select>
+    </div>
+    <div>
+        <label class="form-label small" for="osha-site">Establishment</label>
+        <select class="form-select form-select-sm" id="osha-site" name="site">
+            <option value="">All sites</option>
+            @foreach (var s in Sites.All) { <option value="@s.Key" selected="@(s.Key == Model.Site)">@s.Name</option> }
+        </select>
+    </div>
+    <button class="btn btn-sm btn-primary"><i class="bi bi-funnel"></i>Apply</button>
+    @if (!Model.CanSeeNames)
+    {
+        <span class="small text-body-secondary ms-auto"><i class="bi bi-shield-lock"></i> Employee names are visible to the EHS team only (SEC-520).</span>
+    }
+</form>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl">
+        <div class="vl-stat">
+            <span class="vl-stat-icon tone-bad"><i class="bi bi-activity"></i></span>
+            <div class="vl-rate-value">@OshaRates.Format(total.Trir)</div>
+            <div class="vl-stat-label">TRIR (total recordable incident rate)</div>
+            <div class="vl-rate-formula">@total.Recordable × 200,000 ÷ @ModuleKit.Num(total.Hours, 0) h</div>
+        </div>
+    </div>
+    <div class="col-6 col-xl">
+        <div class="vl-stat">
+            <span class="vl-stat-icon tone-warn"><i class="bi bi-calendar-x"></i></span>
+            <div class="vl-rate-value">@OshaRates.Format(total.DartRate)</div>
+            <div class="vl-stat-label">DART rate (days away, restricted, transferred)</div>
+            <div class="vl-rate-formula">@total.DartCases × 200,000 ÷ @ModuleKit.Num(total.Hours, 0) h</div>
+        </div>
+    </div>
+    <div class="col-6 col-xl">
+        <div class="vl-stat">
+            <span class="vl-stat-icon tone-info"><i class="bi bi-journal-medical"></i></span>
+            <div class="vl-stat-value">@total.Recordable</div>
+            <div class="vl-stat-label">Recordable cases · @total.DartCases DART</div>
+        </div>
+    </div>
+    <div class="col-6 col-xl">
+        <div class="vl-stat">
+            <span class="vl-stat-icon tone-ok"><i class="bi bi-shield-check"></i></span>
+            <div class="vl-stat-value">@Model.Cases.Count(c => c.IncidentType == "near_miss")</div>
+            <div class="vl-stat-label">Near misses reported · @Model.Cases.Count incidents in total</div>
+        </div>
+    </div>
+    <div class="col-12 col-xl">
+        <div class="vl-stat">
+            <span class="vl-stat-icon tone-neutral"><i class="bi bi-clock-history"></i></span>
+            <div class="vl-stat-value">@ModuleKit.Num(total.Hours, 0)</div>
+            <div class="vl-stat-label">Hours worked · @Ui.Plural(months, "month") recorded</div>
+        </div>
+    </div>
+</div>
+
+@if (total.Hours == 0)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-exclamation-triangle"></i><div><div class="ttl">No hours worked recorded for @Model.SelectedYear</div><div class="small">Rates can't be calculated without hours. Add <a href="/apps/ehs?view=hours">Hours Worked</a> records per site and month.</div></div></div>
+}
+
+<div class="row g-4">
+    <div class="col-xl-7 min-w-0">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-buildings"></i>Rates by establishment</h2></div>
+            <div class="vl-table-scroll">
+                <table class="table vl-table vl-table-compact">
+                    <thead><tr><th>Site</th><th class="numeric">Hours worked</th><th class="numeric">Recordable</th><th class="numeric">DART cases</th><th class="numeric">TRIR</th><th class="numeric">DART rate</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in Model.BySite)
+                        {
+                            <tr><td>@r.Label</td><td class="numeric">@ModuleKit.Num(r.Hours, 0)</td><td class="numeric">@r.Recordable</td><td class="numeric">@r.DartCases</td><td class="numeric fw-semibold">@OshaRates.Format(r.Trir)</td><td class="numeric fw-semibold">@OshaRates.Format(r.DartRate)</td></tr>
+                        }
+                    </tbody>
+                    @if (Model.BySite.Count > 1)
+                    {
+                        <tfoot><tr class="fw-semibold"><td>@total.Label</td><td class="numeric">@ModuleKit.Num(total.Hours, 0)</td><td class="numeric">@total.Recordable</td><td class="numeric">@total.DartCases</td><td class="numeric">@OshaRates.Format(total.Trir)</td><td class="numeric">@OshaRates.Format(total.DartRate)</td></tr></tfoot>
+                    }
+                </table>
+            </div>
+            <div class="card-footer small text-body-secondary">Rates use exact decimal arithmetic and are rounded to two places for display only. 200,000 hours = 100 full-time employees working a year.</div>
+        </div>
+    </div>
+    <div class="col-xl-5 min-w-0">
+        <div class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-calendar3"></i>Month by month</h2><span class="small text-body-tertiary ms-auto">Year-to-date rates</span></div>
+            <div class="vl-table-scroll">
+                <table class="table vl-table vl-table-compact">
+                    <thead><tr><th>Month</th><th class="numeric">Hours</th><th class="numeric">Rec.</th><th class="numeric">DART</th><th class="numeric">YTD TRIR</th><th class="numeric">YTD DART</th></tr></thead>
+                    <tbody>
+                        @foreach (var m in Model.Months.Where(m => m.Hours > 0 || m.Recordable > 0))
+                        {
+                            <tr><td>@monthNames[m.Month - 1]</td><td class="numeric">@ModuleKit.Num(m.Hours, 0)</td><td class="numeric">@m.Recordable</td><td class="numeric">@m.Dart</td><td class="numeric">@OshaRates.Format(m.YtdTrir)</td><td class="numeric">@OshaRates.Format(m.YtdDart)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header flex-wrap">
+        <h2 class="card-title-sm"><i class="bi bi-journal-medical"></i>OSHA 300-style log of work-related injuries and illnesses</h2>
+        <span class="vl-pill-count ms-2">@log.Count</span>
+        <span class="small text-body-tertiary ms-auto">Privacy cases are listed as "Privacy case" (29 CFR 1904.29(b)(7)) and still counted.</span>
+    </div>
+    @if (log.Count == 0)
+    {
+        <div class="vl-empty"><div class="vl-empty-icon tone-ok"><i class="bi bi-check2-all"></i></div><h3>No recordable cases</h3><p>No OSHA-recordable injuries or illnesses for this year and establishment.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table vl-osha-log">
+                <thead>
+                    <tr>
+                        <th>Case no.</th><th>Employee</th><th>Job title</th><th>Date</th><th>Where</th><th>Description</th>
+                        <th class="check" title="Death">Death</th><th class="check" title="Days away from work">Days away</th><th class="check" title="Job transfer or restriction">Restr.</th><th class="check" title="Other recordable case">Other</th>
+                        <th class="numeric">Days away</th><th class="numeric">Days restr.</th><th>Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in log)
+                    {
+                        <tr data-href="/records/@c.Id">
+                            <td class="col-number"><a href="/records/@c.Id">@c.Number</a></td>
+                            <td class="@(c.PrivacyCase ? "privacy" : "")">@Model.NameFor(c)</td>
+                            <td>@c.JobTitle</td>
+                            <td class="text-nowrap">@c.LocalDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)</td>
+                            <td>@Sites.Name(c.Site)@(c.Area != null ? ", " + c.Area : "")</td>
+                            <td class="col-title"><span class="t">@c.Title</span></td>
+                            <td class="check">@Check(c.Classification == "death")</td>
+                            <td class="check">@Check(c.Classification == "days_away")</td>
+                            <td class="check">@Check(c.Classification == "restricted")</td>
+                            <td class="check">@Check(c.Classification == "other_recordable")</td>
+                            <td class="numeric">@c.DaysAway.ToString("0", CultureInfo.InvariantCulture)</td>
+                            <td class="numeric">@c.DaysRestricted.ToString("0", CultureInfo.InvariantCulture)</td>
+                            <td>@Vellum.Areas.Ehs.Pages.OshaModel.CaseTypeLabel(c.CaseType)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="6">Totals (300A)</td>
+                        <td class="check">@log.Count(c => c.Classification == "death")</td>
+                        <td class="check">@log.Count(c => c.Classification == "days_away")</td>
+                        <td class="check">@log.Count(c => c.Classification == "restricted")</td>
+                        <td class="check">@log.Count(c => c.Classification == "other_recordable")</td>
+                        <td class="numeric">@log.Sum(c => c.DaysAway).ToString("0", CultureInfo.InvariantCulture)</td>
+                        <td class="numeric">@log.Sum(c => c.DaysRestricted).ToString("0", CultureInfo.InvariantCulture)</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="card mb-4">
+    <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-file-earmark-text"></i>Summary of work-related injuries and illnesses (300A totals)</h2></div>
+    <div class="card-body">
+        <div class="row g-4">
+            <div class="col-md-4">
+                <dl class="vl-kv">
+                    <dt>Deaths (G)</dt><dd>@log.Count(c => c.Classification == "death")</dd>
+                    <dt>Cases with days away (H)</dt><dd>@log.Count(c => c.Classification == "days_away")</dd>
+                    <dt>Job transfer or restriction (I)</dt><dd>@log.Count(c => c.Classification == "restricted")</dd>
+                    <dt>Other recordable cases (J)</dt><dd>@log.Count(c => c.Classification == "other_recordable")</dd>
+                </dl>
+            </div>
+            <div class="col-md-4">
+                <dl class="vl-kv">
+                    <dt>Total days away (K)</dt><dd>@log.Sum(c => c.DaysAway).ToString("0", CultureInfo.InvariantCulture)</dd>
+                    <dt>Total days restricted (L)</dt><dd>@log.Sum(c => c.DaysRestricted).ToString("0", CultureInfo.InvariantCulture)</dd>
+                    <dt>Annual average employees</dt><dd>@(months > 0 ? ModuleKit.Num((decimal)avgEmployees, 0) : "–")</dd>
+                    <dt>Total hours worked</dt><dd>@ModuleKit.Num(total.Hours, 0)</dd>
+                </dl>
+            </div>
+            <div class="col-md-4">
+                <dl class="vl-kv">
+                    @foreach (var t in new[] { "injury", "skin_disorder", "respiratory", "poisoning", "hearing_loss", "other_illness" })
+                    {
+                        <dt>@Vellum.Areas.Ehs.Pages.OshaModel.CaseTypeLabel(t)</dt><dd>@log.Count(c => c.CaseType == t)</dd>
+                    }
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>

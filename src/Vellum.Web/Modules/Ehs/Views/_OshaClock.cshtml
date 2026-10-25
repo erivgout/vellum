@@ -1,0 +1,82 @@
+@model Vellum.Modules.Ehs.OshaClockVm
+@using Vellum.Modules.Ehs
+@using Vellum.Modules.Kit
+@{
+    var vm = Model;
+    var state = vm.State;
+    var open = state is OshaClockState.Running or OshaClockState.DueSoon or OshaClockState.Missed;
+    var tone = state switch { OshaClockState.ReportedOnTime => "ok", OshaClockState.ReportedLate => "warn", _ => "bad" };
+    var icon = state switch { OshaClockState.ReportedOnTime => "bi-check-circle-fill", OshaClockState.ReportedLate => "bi-exclamation-triangle-fill", _ => "bi-alarm-fill" };
+    var now = DateTime.UtcNow;
+    var left = vm.DeadlineUtc - now;
+    var iso = vm.DeadlineUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+}
+<section class="vl-banner vl-banner-@tone vl-osha-clock @(state == OshaClockState.Missed ? "is-missed" : "")" role="@(open ? "alert" : "status")" aria-labelledby="osha-clock-title">
+    <i class="bi @icon"></i>
+    <div class="flex-grow-1 min-w-0">
+        <div class="vl-osha-top">
+            <div class="min-w-0 flex-grow-1">
+                <div class="vl-osha-eyebrow">OSHA @vm.Rule.Hours-hour report · @vm.Rule.EventLabel · @vm.Rule.Cite</div>
+                <h2 class="ttl vl-osha-title" id="osha-clock-title">
+                    @switch (state)
+                    {
+                        case OshaClockState.Missed:
+                            <text>Reporting deadline passed @ModuleKit.Span(now - vm.DeadlineUtc) ago. Report to OSHA now.</text>
+                            break;
+                        case OshaClockState.ReportedOnTime:
+                            <text>Reported to OSHA on time, @ModuleKit.Span(vm.DeadlineUtc - vm.ReportedUtc!.Value) before the deadline</text>
+                            break;
+                        case OshaClockState.ReportedLate:
+                            <text>Reported to OSHA @ModuleKit.Span(vm.ReportedUtc!.Value - vm.DeadlineUtc) after the deadline</text>
+                            break;
+                        default:
+                            <text>Report to OSHA by @Sites.Local(vm.DeadlineUtc, vm.SiteTz)</text>
+                            break;
+                    }
+                </h2>
+                <p class="vl-osha-rule">@vm.Rule.Description</p>
+            </div>
+            @if (open)
+            {
+                <div class="vl-osha-count" aria-hidden="true">
+                    <div class="vl-osha-count-label" data-osha-count-label>@(left > TimeSpan.Zero ? "Time left" : "Overdue by")</div>
+                    <div class="vl-osha-count-value" data-osha-countdown data-deadline="@iso">@ModuleKit.Span(left)</div>
+                </div>
+            }
+        </div>
+
+        <dl class="vl-osha-facts">
+            <div><dt>Event</dt><dd>@Sites.Local(vm.OccurredUtc, vm.SiteTz) <span class="text-body-tertiary">@vm.SiteName</span></dd></div>
+            <div><dt>Deadline</dt><dd>@Sites.Local(vm.DeadlineUtc, vm.SiteTz)@if (vm.ViewerTz.Id != vm.SiteTz.Id) { <span class="text-body-tertiary"> · your time @Sites.Local(vm.DeadlineUtc, vm.ViewerTz)</span> }</dd></div>
+            <div><dt>Entered</dt><dd>@if (vm.EntryDelay > TimeSpan.FromMinutes(30)) { <span class="@(vm.EntryDelay > OshaClock.LateEntryThreshold ? "text-danger fw-semibold" : "")"><i class="bi bi-clock-history"></i> @ModuleKit.Span(vm.EntryDelay) after the event</span> } else { <span>At the time of the event</span> }</dd></div>
+            <div><dt>Alerts</dt><dd>@Ui.Plural(vm.AlertRecipients, "person") alerted@(vm.Escalations > 0 ? $" · {Ui.Plural(vm.Escalations, "escalation")}" : "") · @vm.AlertsAcknowledged of @vm.AlertsTotal acknowledged</dd></div>
+        </dl>
+
+        <div class="vl-osha-foot">
+            @if (vm.ReportedUtc is { } rep)
+            {
+                <span class="vl-osha-ack ok"><i class="bi bi-telephone-outbound"></i>Reported @Sites.Local(rep, vm.SiteTz) by @(vm.ReportedBy?.DisplayName ?? "EHS")@(vm.Reference != null ? $" · reference {vm.Reference}" : "")</span>
+            }
+            else if (vm.AckBy != null)
+            {
+                <span class="vl-osha-ack ok"><i class="bi bi-person-check"></i>Acknowledged by @vm.AckBy.DisplayName @if (vm.AckUtc is { } ack) { @Ui.Time(ack, vm.ViewerTz) }. Escalation stopped; the deadline still applies.</span>
+            }
+            else
+            {
+                <span class="vl-osha-ack"><i class="bi bi-megaphone"></i>Not acknowledged yet. EHS, the supervisor and the reports-to chain are alerted every hour until someone in EHS acknowledges.</span>
+            }
+            @if (vm.CanAcknowledge || vm.CanReport)
+            {
+                <span class="grow"></span>
+                @if (vm.CanAcknowledge)
+                {
+                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#action-osha_ack"><i class="bi bi-bell-slash"></i>Acknowledge</button>
+                }
+                @if (vm.CanReport)
+                {
+                    <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#action-osha_report"><i class="bi bi-telephone-outbound"></i>Record OSHA report</button>
+                }
+            }
+        </div>
+    </div>
+</section>
