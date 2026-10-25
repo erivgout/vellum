@@ -14,6 +14,13 @@ public static class SessionDefaults
 {
     public const string Scheme = "Vellum";
     public const string Cookie = "vellum.sid";
+
+    /// <summary>
+    /// Browsers share cookies across ports of the same host, so instances on non-standard ports (several local checkouts,
+    /// test servers) get their own cookie name and don't sign each other out.
+    /// </summary>
+    public static string CookieName(HttpRequest request) =>
+        request.Host.Port is { } port && port != 80 && port != 443 ? $"{Cookie}.{port}" : Cookie;
 }
 
 /// <summary>SEC §4.4: random 256-bit session IDs held server-side; idle and absolute timeouts; revocation.</summary>
@@ -31,7 +38,7 @@ public sealed class SessionService(VellumDbContext db, IHttpContextAccessor http
             Ip = ctx.Connection.RemoteIpAddress?.ToString(), UserAgent = ctx.Request.Headers.UserAgent.ToString() is { Length: > 0 } ua ? ua[..Math.Min(ua.Length, 400)] : null,
         });
         await db.SaveChangesAsync();
-        ctx.Response.Cookies.Append(SessionDefaults.Cookie, id, new CookieOptions
+        ctx.Response.Cookies.Append(SessionDefaults.CookieName(ctx.Request), id, new CookieOptions
         {
             HttpOnly = true, Secure = ctx.Request.IsHttps, SameSite = SameSiteMode.Lax, IsEssential = true, Path = "/",
         });
@@ -41,11 +48,11 @@ public sealed class SessionService(VellumDbContext db, IHttpContextAccessor http
     public async Task EndAsync(string? reason = "Signed out")
     {
         var ctx = http.HttpContext!;
-        if (ctx.Request.Cookies.TryGetValue(SessionDefaults.Cookie, out var id))
+        if (ctx.Request.Cookies.TryGetValue(SessionDefaults.CookieName(ctx.Request), out var id))
         {
             await db.Sessions.Where(s => s.Id == id && s.RevokedAt == null)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.RevokedAt, DateTime.UtcNow).SetProperty(x => x.RevokedReason, reason));
-            ctx.Response.Cookies.Delete(SessionDefaults.Cookie);
+            ctx.Response.Cookies.Delete(SessionDefaults.CookieName(ctx.Request));
         }
     }
 
@@ -65,7 +72,7 @@ public sealed class SessionAuthenticationHandler(
 {
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!Request.Cookies.TryGetValue(SessionDefaults.Cookie, out var sid) || string.IsNullOrEmpty(sid))
+        if (!Request.Cookies.TryGetValue(SessionDefaults.CookieName(Request), out var sid) || string.IsNullOrEmpty(sid))
             return AuthenticateResult.NoResult();
 
         var session = await db.Sessions.Include(s => s.User).FirstOrDefaultAsync(s => s.Id == sid);
@@ -108,7 +115,7 @@ public sealed class SessionAuthenticationHandler(
 
         AuthenticateResult Fail(string why)
         {
-            Response.Cookies.Delete(SessionDefaults.Cookie);
+            Response.Cookies.Delete(SessionDefaults.CookieName(Request));
             return AuthenticateResult.Fail(why);
         }
     }
