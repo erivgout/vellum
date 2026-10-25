@@ -492,6 +492,7 @@ public class PortalTests(VellumFixture fx)
             await cwu.Db().Set<AccountToken>().Where(t => t.UserId == uid && t.UsedAt == null && t.RevokedAt == null)
                 .ExecuteUpdateAsync(x => x.SetProperty(t => t.ExpiresAt, DateTime.UtcNow.AddMinutes(-1)));
             var expired = Uri.UnescapeDataString(LatestLink(cwu.Db(), email));
+            cwu.Db().ChangeTracker.Clear();
             Assert.False((await cwu.ServiceProvider.GetRequiredService<PortalAccounts>().CheckAsync(expired)).Valid);
         }
     }
