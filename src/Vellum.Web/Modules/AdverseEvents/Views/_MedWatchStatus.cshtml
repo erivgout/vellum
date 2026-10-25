@@ -1,0 +1,160 @@
+@model Vellum.Modules.AdverseEvents.MedWatchPanelModel
+@using Vellum.Modules.AdverseEvents
+@{
+    var m = Model;
+    var left = m.DaysLeft;
+    var state = m.DeadlineState;
+    var icon = state switch { "done" => "bi-send-check-fill", "missed" => "bi-exclamation-octagon-fill", "soon" => "bi-hourglass-split", "closed" => "bi-slash-circle", _ => "bi-clock" };
+    var cur = m.Current;
+    string Local(DateTime? utc) => utc is { } u ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(u, DateTimeKind.Utc), m.Tz).ToString("dd MMM HH:mm") : "";
+    var sections = m.Issues.GroupBy(i => i.Section).ToList();
+}
+<section class="card vla-status mb-3" aria-labelledby="vla-status-title">
+    <div class="card-header">
+        <span class="vl-section-icon"><i class="bi bi-file-earmark-medical"></i></span>
+        <div class="min-w-0">
+            <h3 class="card-title-sm" id="vla-status-title">eMDR status</h3>
+            <p class="vl-section-desc">FDA MedWatch 3500A · @(m.ReportType?.Label ?? "Initial")@(m.FollowUp is { } fu ? $" #{fu}" : "")@(m.GatewayName != null ? $" · {m.GatewayName}" : "")</p>
+        </div>
+        <div class="ms-auto d-flex align-items-center gap-2 flex-wrap justify-content-end">
+            @Ui.Keyword(m.SubmissionStatus)
+            <a class="btn btn-sm btn-light" href="/quality/aer/@m.Id/3500a"><i class="bi bi-printer"></i>3500A</a>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (m.ProfileProblem != null)
+        {
+            <div class="vl-banner vl-banner-warn py-2"><i class="bi bi-gear"></i><div>@m.ProfileProblem</div></div>
+        }
+        <div class="vla-grid">
+            <div class="vlq-deadline is-@state">
+                <div class="vlq-deadline-head"><span class="vl-kw">FDA</span><span class="vlq-deadline-rule">@(m.Rule ?? "Reporting deadline")</span></div>
+                <div class="vlq-deadline-due">
+                    <i class="bi @icon" aria-hidden="true"></i>
+                    @if (m.Due == null)
+                    {
+                        <span>No deadline recorded</span>
+                    }
+                    else if (m.Accepted || m.Completed)
+                    {
+                        <span>Accepted by FDA@(cur?.Ack2At is { } r ? $" · receipt {Local(r)}" : "")</span>
+                    }
+                    else if (m.Voided)
+                    {
+                        <span>Voided</span>
+                    }
+                    else
+                    {
+                        <span class="vlq-countdown" data-vlq-deadline="@m.Due.Value.ToString("yyyy-MM-dd")">@(left < 0 ? $"Overdue {-left}d" : left == 0 ? "Due today" : $"{left}d left")</span>
+                    }
+                </div>
+                @if (m.Due is { } due)
+                {
+                    <div class="vlq-deadline-meta">Due <strong>@due.ToString("ddd dd MMM yyyy")</strong> · counted from the awareness date (CMP-009)</div>
+                }
+            </div>
+            <div class="vla-tile">
+                <div class="vl-meta-label">Report number</div>
+                @if (m.ReportNumber != null)
+                {
+                    <div class="vla-number mono" aria-label="Report number @m.ReportNumber">@m.ReportNumber</div>
+                    <div class="vlq-deadline-meta">@(m.ReportType?.Key == AerKeys.Supplemental ? "Carried from the original report" : m.MappingOn ? "Assigned from the location's mapping" : "Entered by hand (mapping off)")</div>
+                }
+                else
+                {
+                    <div class="vla-number is-pending"><i class="bi bi-hourglass" aria-hidden="true"></i>Assigned on submission</div>
+                    <div class="vlq-deadline-meta">@(m.MappingOn ? "MFR/importer mapping is on: the code and the next sequential number are assigned when the report enters Submitted to FDA (AER-005)." : "Mapping is off: enter the code, year and sequence on the Report numbers card.")</div>
+                }
+            </div>
+            <div class="vla-tile">
+                <div class="vl-meta-label">Source</div>
+                <ul class="vla-links">
+                    @if (m.Complaint is { } c) { <li><i class="bi bi-chat-left-dots" aria-hidden="true"></i><span class="text-body-secondary">Complaint</span> <a href="/records/@c.Id">@c.Number</a></li> }
+                    @if (m.Tree is { } t) { <li><i class="bi bi-diagram-2" aria-hidden="true"></i><span class="text-body-secondary">MDR decision</span> <a href="/records/@t.Id">@t.Number</a></li> }
+                    @if (m.Original is { } o) { <li><i class="bi bi-file-earmark-medical" aria-hidden="true"></i><span class="text-body-secondary">Original report</span> <a href="/records/@o.Id">@o.Number</a></li> }
+                    @if (m.Complaint == null && m.Tree == null && m.Original == null) { <li class="text-body-tertiary">Entered directly (no linked complaint)</li> }
+                </ul>
+            </div>
+        </div>
+
+        @if (m.Steps.Count > 0)
+        {
+            <ol class="vla-steps" aria-label="Submission progress">
+                @foreach (var st in m.Steps)
+                {
+                    var si = st.State switch { "done" => "bi-check-circle-fill", "bad" => "bi-x-octagon-fill", "late" => "bi-exclamation-triangle-fill", "current" => "bi-hourglass-split", _ => "bi-circle" };
+                    var sr = st.State switch { "done" => "done", "bad" => "error", "late" => "overdue", "current" => "waiting", _ => "not yet" };
+                    <li class="is-@st.State">
+                        <i class="bi @si" aria-hidden="true"></i>
+                        <span class="lbl">@st.Label <span class="visually-hidden">(@sr)</span></span>
+                        <span class="at">@(st.At != null ? Local(st.At) : st.State == "current" ? "Waiting" : st.State == "late" ? "Overdue" : "")</span>
+                    </li>
+                }
+            </ol>
+            @if (cur is { Status: EmdrStatus.Rejected or EmdrStatus.Failed })
+            {
+                <div class="vl-banner vl-banner-bad" role="alert"><i class="bi bi-x-octagon"></i><div><div class="ttl">The FDA didn't accept submission @cur.Attempt</div><div class="small">@cur.LastError</div>
+                    <div class="small mt-1">Route the report back to Draft with <strong>Correct and resubmit</strong>, fix the data and submit again. Regulatory affairs has been alerted (AER-010).</div></div></div>
+            }
+            else if (cur is { Status: EmdrStatus.AwaitingUpload } && m.Open)
+            {
+                <div class="vl-banner vl-banner-info"><i class="bi bi-cloud-arrow-up"></i><div><div class="ttl">Upload the file with ESG WebTrader</div>
+                    <div class="small">@if (cur.AttachmentId is { } aid) { <a href="/files/@aid"><i class="bi bi-filetype-xml"></i> Download @cur.FileName</a> } · then use <strong>eMDR › Record ESG upload</strong>. Acknowledgements are tracked from the upload time.</div></div></div>
+            }
+            else if (cur?.OverdueAlertedAt != null && cur.Status == EmdrStatus.Sent)
+            {
+                <div class="vl-banner vl-banner-bad" role="alert"><i class="bi bi-exclamation-triangle"></i><div><div class="ttl">Acknowledgements are overdue</div>
+                    <div class="small">Not all acknowledgements arrived within the @(m.ReceiptDelayMinutes >= 120 ? $"{m.ReceiptDelayMinutes / 60} hour" : $"{m.ReceiptDelayMinutes} minute") receipt delay. Regulatory affairs was alerted @Local(cur.OverdueAlertedAt) and an urgent action item was created.</div></div></div>
+            }
+            else if (cur is { Status: EmdrStatus.Accepted } && m.Open)
+            {
+                <div class="vl-banner vl-banner-ok"><i class="bi bi-patch-check"></i><div><div class="ttl">The FDA accepted the report</div>
+                    <div class="small">@(m.FinalConfirmed ? "Final acknowledgement confirmed: complete the MedWatch (e-signed)." : "Set \"Confirm final acknowledgement\" to Yes on the Attachments & outputs tab, then complete the MedWatch (INV-048).")</div></div></div>
+            }
+        }
+
+        @if (m.PhaseKey == "approval")
+        {
+            <div class="vla-approvals">
+                <i class="bi bi-person-check" aria-hidden="true"></i>
+                <span><strong>@m.ApprovalsDone of @m.ApprovalsTotal</strong> MedWatch approver@(m.ApprovalsTotal == 1 ? "" : "s") approved@(m.ApprovalsChanges > 0 ? $" · {m.ApprovalsChanges} requested changes" : "")</span>
+                <span class="vlq-meter is-thin @(m.ApprovalsChanges > 0 ? "is-bad" : m.ApprovalsDone == m.ApprovalsTotal && m.ApprovalsTotal > 0 ? "is-ok" : "")" role="presentation"><span style="width:@(m.ApprovalsTotal == 0 ? 0 : m.ApprovalsDone * 100 / m.ApprovalsTotal)%"></span></span>
+            </div>
+        }
+
+        @if (m.ShowValidation)
+        {
+            <div class="vla-validation" aria-live="polite">
+                @if (m.BlockingCount == 0)
+                {
+                    <div class="vla-valid-ok"><i class="bi bi-shield-check" aria-hidden="true"></i><span><strong>eMDR validation passed.</strong> @EmdrValidator.Rules.Count rules · @EmdrSchema.RuleSetVersion · @EmdrSchema.SchemaVersion</span></div>
+                }
+                else
+                {
+                    <div class="vla-valid-head"><i class="bi bi-shield-exclamation" aria-hidden="true"></i><span><strong>@m.BlockingCount eMDR validation @(m.BlockingCount == 1 ? "issue blocks" : "issues block") @(m.PhaseKey == "draft" ? "sending for approval" : "submission")</strong> (AER-006, @EmdrSchema.RuleSetVersion)</span></div>
+                }
+                @if (m.Issues.Count > 0)
+                {
+                    <div class="vla-issue-groups">
+                        @foreach (var g in sections)
+                        {
+                            <div class="vla-issue-group">
+                                <div class="vla-issue-sec">@(g.Key.Length == 1 ? $"Section {g.Key}" : g.Key)</div>
+                                <ul>
+                                    @foreach (var i in g)
+                                    {
+                                        var target = i.FieldKey == null ? null : i.FieldKey == "problem_codes" ? "sec-problem_codes" : $"fld-{i.FieldKey}";
+                                        <li class="@(i.Blocking ? "is-error" : "is-advice")">
+                                            <i class="bi @(i.Blocking ? "bi-x-circle-fill" : "bi-info-circle")" aria-hidden="true"></i>
+                                            <span><span class="visually-hidden">@(i.Blocking ? "Error: " : "Advice: ")</span>@if (target != null) { <a href="#" data-goto-field="@target">@i.Message</a> } else { @i.Message }</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</section>
