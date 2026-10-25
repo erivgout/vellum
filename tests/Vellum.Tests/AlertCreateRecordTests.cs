@@ -104,7 +104,7 @@ public class AlertCreateRecordTests(VellumFixture fx)
         var report = await Engine(s).RunAsync(t.Id, manual: false, test: false);
 
         Assert.Equal("Created", report.ActionStatus);
-        var row = Assert.Single((await RowsAsync(s, report.Id)).Where(r => r.ItemLabel.StartsWith(sc.Product)));
+        var row = Assert.Single(await RowsAsync(s, report.Id), r => r.ItemLabel.StartsWith(sc.Product));
         Assert.Equal("Created", row.Status);
         var capa = Assert.Single(await CapasForAsync(s, sc));
         Assert.Equal(capa.Id, row.RecordId);
@@ -160,7 +160,7 @@ public class AlertCreateRecordTests(VellumFixture fx)
         Assert.Contains("INV-127", report.ActionDetail);
         Assert.Empty(await CapasForAsync(s, sc));
         Assert.Equal(capaCount, await s.Db().Records.CountAsync(r => r.FormId == s.ServiceProvider.GetRequiredService<ConfigCache>().Current.Form("capa").Id));
-        var row = Assert.Single((await RowsAsync(s, report.Id)).Where(r => r.ItemLabel.StartsWith(sc.Product)));
+        var row = Assert.Single(await RowsAsync(s, report.Id), r => r.ItemLabel.StartsWith(sc.Product));
         Assert.Equal("Failed", row.Status);
         Assert.Null(row.RecordId);
 
@@ -211,7 +211,7 @@ public class AlertCreateRecordTests(VellumFixture fx)
         Assert.True(report.IsTest);
         Assert.Equal("Test", report.ActionStatus);
         Assert.Contains("would create", report.ActionDetail);
-        var row = Assert.Single((await RowsAsync(s, report.Id)).Where(r => r.ItemLabel.StartsWith(sc.Product)));
+        var row = Assert.Single(await RowsAsync(s, report.Id), r => r.ItemLabel.StartsWith(sc.Product));
         Assert.Equal("Preview", row.Status);
         Assert.Null(row.RecordId);
         var detail = JsonSerializer.Deserialize<AlertCreationDetail>(row.DetailJson!, Web)!;
@@ -238,7 +238,7 @@ public class AlertCreateRecordTests(VellumFixture fx)
         var t = await TemplateAsync(s, c => c.Fields = CapaFields(("priority", "urgent-ish")));
         var report = await Engine(s).RunAsync(t.Id, manual: true, test: true);
         Assert.Equal("Failed", report.ActionStatus);
-        var row = Assert.Single((await RowsAsync(s, report.Id)).Where(r => r.ItemLabel.StartsWith(sc.Product)));
+        var row = Assert.Single(await RowsAsync(s, report.Id), r => r.ItemLabel.StartsWith(sc.Product));
         Assert.Equal("PreviewFailed", row.Status);
         Assert.Contains("urgent-ish", row.Message);
         Assert.False(await s.Db().Notifications.AnyAsync(n => n.Url == $"/insights/alerts/reports/{report.Id}"));
@@ -281,7 +281,8 @@ public class AlertCreateRecordTests(VellumFixture fx)
         Assert.Single(await CapasForAsync(s, sc));
 
         // The process "died" after creating the record but before finishing the report: the next run resumes that report.
-        await s.Db().Set<InsightsAlertReport>().Where(r => r.Id == first.Id).ExecuteUpdateAsync(x => x.SetProperty(r => r.ActionStatus, "Pending"));
+        await s.Db().Set<InsightsAlertReport>().Where(r => r.Id == first.Id)
+            .ExecuteUpdateAsync(x => x.SetProperty(r => r.ActionStatus, "Pending").SetProperty(r => r.ActionDetail, (string?)null));
         s.Db().ChangeTracker.Clear();
         var resumed = await engine.RunAsync(t.Id, manual: false, test: false);
         Assert.Equal(first.Id, resumed.Id);
@@ -316,7 +317,7 @@ public class AlertCreateRecordTests(VellumFixture fx)
         s.Db().ChangeTracker.Clear();
         var second = await engine.RunAsync(t.Id, manual: true, test: false);
         Assert.NotEqual("Failed", second.ActionStatus);
-        var row = Assert.Single((await RowsAsync(s, second.Id)).Where(r => r.ItemLabel.StartsWith(sc.Product)));
+        var row = Assert.Single(await RowsAsync(s, second.Id), r => r.ItemLabel.StartsWith(sc.Product));
         Assert.Equal("Skipped", row.Status);
         Assert.Single(await CapasForAsync(s, sc));
     }

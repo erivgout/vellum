@@ -105,7 +105,8 @@ public sealed partial class AlertEngine(IServiceScopeFactory scopes, VellumDbCon
         var t = await db.Set<InsightsAlertTemplate>().FirstAsync(x => x.Id == templateId);
         if (!test && await db.Set<InsightsAlertReport>().Where(r => r.TemplateId == t.Id && !r.IsTest && r.ActionStatus == "Pending")
                 .OrderBy(r => r.Id).FirstOrDefaultAsync() is { } pending)
-            return await CompleteAsync(t, pending, manual, at, evaluationFailure: pending.ActionDetail, retry: false);
+            // While Pending, a detail is only ever the evaluation failure (and then there are no matches to act on).
+            return await CompleteAsync(t, pending, manual, at, evaluationFailure: pending.GroupCount == 0 ? pending.ActionDetail : null, retry: false);
 
         var report = new InsightsAlertReport { TemplateId = t.Id, GeneratedAt = at, IsTest = test, Manual = manual, ActionStatus = "Pending" };
         report.Number = $"ALR-{await numbers.NextAsync("insights-alert-report"):D5}";
