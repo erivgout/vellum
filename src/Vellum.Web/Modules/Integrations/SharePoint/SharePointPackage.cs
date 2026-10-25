@@ -87,6 +87,12 @@ public sealed class SharePointPackage : IPackagedApp
         await db.SaveChangesAsync();
         SharePointRuleCache.Invalidate();
 
+        var test = await sp.GetRequiredService<SharePointClientFactory>().For(profile).TestAsync(profile.Libraries);
+        profile.LastTestAt = DateTime.UtcNow;
+        profile.LastTestOk = test.Ok;
+        profile.LastTestSummary = test.Summary;
+        await db.SaveChangesAsync();
+
         // Publish every document that is effective now, then run the queue once.
         var formId = d.Config.Form("document").Id;
         var effective = await db.Records.AsNoTracking().Where(r => r.FormId == formId && r.IsEffective && !r.IsArchived).OrderBy(r => r.Number).Select(r => r.Id).ToListAsync();

@@ -92,31 +92,25 @@
             {
                 <div class="vl-table-scroll">
                     <table class="table vl-table">
-                        <thead><tr><th scope="col">Rule</th><th scope="col">Publishes to</th><th scope="col">When</th><th scope="col" class="numeric">Files</th><th scope="col">Enabled</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                        <thead><tr><th scope="col">Rule</th><th scope="col">Publishes to</th><th scope="col" class="numeric">Files</th><th scope="col">Enabled</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
                         <tbody>
                             @foreach (var r in Model.Rules)
                             {
                                 var rule = r.Rule;
+                                var when = rule.PhaseKey == "*" ? "on every save" : rule.OnEnter && rule.OnSave ? "on entry and save" : rule.OnSave ? "when saved" : "on entry";
                                 <tr data-href="/admin/integrations/sharepoint/rules/@rule.Id" class="@(rule.Enabled ? "" : "adm-row-muted")">
                                     <td class="col-title">
                                         <a class="fw-semibold" href="/admin/integrations/sharepoint/rules/@rule.Id">@rule.Name</a>
-                                        <span class="d-flex align-items-center gap-2 small text-body-secondary mt-1">
+                                        <span class="d-flex align-items-center flex-wrap gap-2 small text-body-secondary mt-1">
                                             @if (r.AppColor != null) { <span class="vl-app-tile xs" style="--app:@r.AppColor"><i class="bi @r.AppIcon"></i></span> }
-                                            @r.FormName <i class="bi bi-chevron-right x-small" aria-hidden="true"></i> @r.PhaseName
+                                            <span>@r.FormName <i class="bi bi-chevron-right x-small" aria-hidden="true"></i> @r.PhaseName</span>
                                         </span>
+                                        <span class="d-block x-small text-body-tertiary">Publishes @when@(rule.EffectiveOnly ? " · effective revisions only" : "")</span>
                                     </td>
                                     <td>
                                         <span class="sp-path"><span>@(r.Library?.Name ?? "Missing library")</span>@if (rule.FolderTemplate.Length > 0) { <i class="bi bi-chevron-right sep" aria-hidden="true"></i><span class="sp-mono">@rule.FolderTemplate</span> }</span>
-                                        <span class="d-block x-small text-body-tertiary">@(r.Profile?.Name ?? "Missing profile")@(r.MappingName != null ? " · " + r.MappingName : " · automatic metadata")</span>
-                                    </td>
-                                    <td class="small text-nowrap">
-                                        @if (rule.PhaseKey == "*") { <span>Every save</span> }
-                                        else
-                                        {
-                                            @if (rule.OnEnter) { <span class="d-block"><i class="bi bi-box-arrow-in-right text-body-tertiary" aria-hidden="true"></i> Enters</span> }
-                                            @if (rule.OnSave) { <span class="d-block"><i class="bi bi-floppy text-body-tertiary" aria-hidden="true"></i> Saved in</span> }
-                                        }
-                                        @if (rule.EffectiveOnly) { <span class="d-block x-small text-body-tertiary">Effective revisions only</span> }
+                                        <span class="d-block x-small text-body-tertiary">@(r.Profile?.Name ?? "Missing profile")</span>
+                                        <span class="d-block x-small text-body-tertiary">@(r.MappingName ?? "Automatic metadata")</span>
                                     </td>
                                     <td class="numeric">@r.CurrentFiles</td>
                                     <td>
@@ -129,7 +123,7 @@
                                     <td class="text-end">
                                         <form method="post" asp-page-handler="PublishExisting" class="m-0" data-adm-busy>
                                             <input type="hidden" name="id" value="@rule.Id" />
-                                            <button class="btn btn-sm btn-light text-nowrap" disabled="@(!rule.Enabled)" data-confirm="Queue every @r.FormName record that is in @r.PhaseName now?"><i class="bi bi-cloud-upload"></i>Publish existing</button>
+                                            <button class="btn btn-sm btn-light btn-icon" disabled="@(!rule.Enabled)" data-confirm="Queue every @r.FormName record that is in @r.PhaseName now?" aria-label="Publish existing records" title="Publish existing records"><i class="bi bi-cloud-upload"></i></button>
                                         </form>
                                     </td>
                                 </tr>

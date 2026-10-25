@@ -89,7 +89,7 @@
                         <span class="sp-fmeta">@(c.Pub.Revision != null ? $"Rev {c.Pub.Revision} · " : "")@(c.Pub.IsRendition ? "PDF rendition · " : "")@Ui.FileSize(c.Pub.Size) · @Ui.Time(c.Pub.UpdatedAt ?? c.Pub.PublishedAt, tz)</span>
                         @if (c.Url == null)
                         {
-                            <span class="sp-fmeta mono" title="Local folder (development)">@c.Host/@c.Pub.FileName</span>
+                            <span class="sp-fmeta"><i class="bi bi-hdd" aria-hidden="true"></i> Local folder (development) · <span class="mono">@c.Host</span></span>
                         }
                     </div>
                 </li>

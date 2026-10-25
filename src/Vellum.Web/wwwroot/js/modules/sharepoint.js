@@ -5,11 +5,17 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-  // ------------------------------------------------------------ token chips insert into the template field
+  // ------------------------------------------------------------ token chips insert into the last focused template field
+  let lastTemplate = $("[data-sp-template]");
+  const targetLabel = $("[data-sp-token-target-label]");
+  $$("[data-sp-template]").forEach((el) => el.addEventListener("focus", () => {
+    lastTemplate = el;
+    if (targetLabel) targetLabel.textContent = el.id === "r-file" ? "file name" : "folder";
+  }));
   document.addEventListener("click", (e) => {
     const chip = e.target.closest("[data-sp-token]");
     if (!chip) return;
-    const input = $(chip.dataset.spTarget);
+    const input = chip.dataset.spTarget ? $(chip.dataset.spTarget) : lastTemplate;
     if (!input) return;
     const token = chip.dataset.spToken;
     const start = input.selectionStart ?? input.value.length;

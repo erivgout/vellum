@@ -9,14 +9,15 @@
 .sp-note-bad { background: var(--vl-bad-bg); border-color: var(--vl-bad-border); }
 .sp-note-bad .fw-semibold { color: var(--vl-bad); }
 .sp-note-info { background: var(--vl-info-bg); border-color: var(--vl-info-border); }
-.sp-files { list-style: none; padding: 0; margin: 0.7rem 0 0; display: grid; gap: 0.45rem; }
-.sp-file { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.55rem 0.65rem; border: 1px solid var(--vl-border); border-radius: 9px; background: var(--vl-surface); }
+.sp-panel { min-width: 0; }
+.sp-files { list-style: none; padding: 0; margin: 0.7rem 0 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.45rem; }
+.sp-file { display: flex; align-items: flex-start; gap: 0.6rem; min-width: 0; padding: 0.55rem 0.65rem; border: 1px solid var(--vl-border); border-radius: 9px; background: var(--vl-surface); }
 .sp-ficon { font-size: 1.25rem; color: var(--vl-text-2); line-height: 1.2; }
 .sp-ficon.bi-file-earmark-pdf { color: #d93025; }
 .sp-fname { display: block; font-weight: 580; font-size: 0.84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vl-text); }
 a.sp-fname:hover { color: var(--vl-brand); }
 .sp-fmeta { display: block; font-size: 0.74rem; color: var(--vl-text-3); overflow: hidden; text-overflow: ellipsis; }
-.sp-fmeta.mono { font-size: 0.68rem; }
+.sp-fmeta.mono { font-size: 0.68rem; white-space: normal; overflow-wrap: anywhere; }
 .sp-history { margin-top: 0.7rem; }
 .sp-history > summary { cursor: pointer; color: var(--vl-text-2); display: flex; align-items: center; gap: 0.4rem; }
 .sp-history > summary:hover { color: var(--vl-text); }
@@ -40,6 +41,8 @@ a.sp-fname:hover { color: var(--vl-brand); }
 .sp-token { display: inline-flex; align-items: center; padding: 0.05rem 0.45rem; border-radius: 6px; font-size: 0.72rem; font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
   color: var(--vl-text-2); background: var(--vl-surface-2); border: 1px solid var(--vl-border); cursor: pointer; }
 .sp-token:hover, .sp-token:focus-visible { color: var(--vl-brand); border-color: color-mix(in srgb, var(--vl-brand) 40%, transparent); }
+.sp-token-panel { padding: 0.55rem 0.7rem; border-radius: 9px; background: var(--vl-surface-2); border: 1px solid var(--vl-border); }
+.sp-token-panel details > summary { cursor: pointer; color: var(--vl-text-2); }
 .sp-preview { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; padding: 0.5rem 0.65rem; border-radius: 8px; background: var(--vl-surface-2); border: 1px dashed var(--vl-border-strong); font-size: 0.8rem; color: var(--vl-text-2); }
 .sp-preview .bi { color: var(--vl-text-3); }
 .sp-map-table td { vertical-align: middle; }

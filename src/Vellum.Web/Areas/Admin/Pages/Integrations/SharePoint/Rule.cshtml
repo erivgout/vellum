@@ -6,8 +6,8 @@
     var form = Model.Form;
     var i = Model.Input;
     ViewData["Title"] = rule?.Name ?? "New publishing rule";
-    var tokens = SharePointNaming.SystemTokens.Select(t => t.Token).Concat(Model.Form?.Fields.Where(f => f.Type is not (FieldType.Prompt or FieldType.Attachment) &&
-        Model.Form.Sections.FirstOrDefault(s => s.Key == f.SectionKey)?.IsSubform != true).Select(f => f.Key) ?? []).Distinct().ToList();
+    var fieldTokens = Model.Form?.Fields.Where(f => f.Type is FieldType.Text or FieldType.Keyword or FieldType.KeywordMulti or FieldType.User or FieldType.Date or FieldType.Number &&
+        Model.Form.Sections.FirstOrDefault(s => s.Key == f.SectionKey)?.IsSubform != true && SharePointNaming.SystemTokens.All(t => t.Token != f.Key)).ToList() ?? [];
     var selectedLib = Model.Libraries.FirstOrDefault(l => l.Id == i.LibraryId);
 }
 @section Crumbs {
@@ -167,13 +167,26 @@ else
                                 <label class="form-label" for="r-folder">Folder</label>
                                 <input class="form-control sp-mono" id="r-folder" name="Input.FolderTemplate" value="@i.FolderTemplate" maxlength="400" spellcheck="false" placeholder="Library root" data-sp-template aria-describedby="r-folder-help" />
                                 <div class="form-text" id="r-folder-help">Fixed ("Procedures") or computed from tokens ("{doc_type}/{year}"). Missing folders are created on first publish (DOC-084).</div>
-                                <div class="sp-tokens" aria-label="Insert a token into the folder">@foreach (var t in tokens) { <button type="button" class="sp-token" data-sp-token="{@t}" data-sp-target="#r-folder">{@t}</button> }</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label" for="r-file">File name</label>
                                 <input class="form-control sp-mono" id="r-file" name="Input.FileNameTemplate" value="@i.FileNameTemplate" maxlength="200" spellcheck="false" placeholder="Keep the attachment's name" data-sp-template aria-describedby="r-file-help" />
                                 <div class="form-text" id="r-file-help">Without the extension. Characters SharePoint doesn't allow become underscores (INT-304).</div>
-                                <div class="sp-tokens" aria-label="Insert a token into the file name">@foreach (var t in tokens) { <button type="button" class="sp-token" data-sp-token="{@t}" data-sp-target="#r-file">{@t}</button> }</div>
+                            </div>
+                            <div class="col-12">
+                                <div class="sp-token-panel">
+                                    <span class="small text-body-secondary" id="r-tokens-label">Insert a token into the <span data-sp-token-target-label>folder</span>:</span>
+                                    <div class="sp-tokens" role="group" aria-labelledby="r-tokens-label">
+                                        @foreach (var (t, meaning) in SharePointNaming.SystemTokens) { <button type="button" class="sp-token" data-sp-token="{@t}" title="@meaning">{@t}</button> }
+                                    </div>
+                                    @if (fieldTokens.Count > 0)
+                                    {
+                                        <details class="mt-1">
+                                            <summary class="small">@form.Name fields</summary>
+                                            <div class="sp-tokens">@foreach (var f in fieldTokens) { <button type="button" class="sp-token" data-sp-token="{@f.Key}" title="@f.Label">{@f.Key}</button> }</div>
+                                        </details>
+                                    }
+                                </div>
                             </div>
                             <div class="col-12">
                                 <div class="sp-preview" data-sp-preview aria-live="polite">

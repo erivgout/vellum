@@ -33,7 +33,7 @@
 <partial name="_Errors" model="Model.Errors" />
 
 <div class="row g-4">
-    <div class="col-xl-8 min-w-0">
+    <div class="col-xxl-8 min-w-0">
         <form method="post" asp-page-handler="Save" asp-route-id="@(p?.Id.ToString() ?? "new")" enctype="multipart/form-data" class="card mb-4 sp-profile-form" autocomplete="off">
             <div class="card-body">
                 <fieldset class="adm-fieldset">
@@ -222,7 +222,7 @@
         }
     </div>
 
-    <div class="col-xl-4">
+    <div class="col-xxl-4">
         @if (p != null)
         {
             <div class="card mb-4">
