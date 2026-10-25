@@ -62,9 +62,9 @@
     @if (vm.ActivityForms.Count > 0)
     {
         <div class="dropdown">
-            <button type="button" class="btn btn-light" data-bs-toggle="dropdown"><i class="bi bi-plus-square"></i>Create</button>
+            <button type="button" class="btn btn-light" data-bs-toggle="dropdown"><i class="bi bi-plus-square"></i>New activity</button>
             <div class="dropdown-menu">
-                <h6 class="dropdown-header">New activity</h6>
+                <h6 class="dropdown-header">Activity of @r.Number</h6>
                 @foreach (var af in vm.ActivityForms)
                 {
                     <a class="dropdown-item" href="/records/new?form=@af.Key&parent=@r.Id"><span class="vl-app-tile xs" style="--app:@af.App.Color"><i class="bi @af.Icon"></i></span>@af.Name</a>

@@ -29,7 +29,13 @@ public class NewModel(ConfigCache cfg, AccessService access, RecordService recor
         // PLT-642: assignees (and managers) of the parent may create its activities even without author rights on the activity form.
         var viaParent = parent != null && (await access.ActingAssignmentAsync(parent.Id) != null || access.RoleFor(parent.AppId) >= AppRole.Manager);
         if (!access.CanCreate(form) && !viaParent) return (null, null, Forbid());
-        if (form.IsActivity && parent == null) return (null, null, BadRequest("Activities are created from their parent record."));
+        if (form.IsActivity && parent == null)
+        {
+            // PLT-205: an activity needs its parent (for example a stale bookmark to the bare form).
+            TempData["Toast"] = $"{form.Name} records are created from their parent record: open it and choose New activity.";
+            TempData["ToastKind"] = "info";
+            return (null, null, Redirect($"/apps/{form.App.Key}"));
+        }
         return (form, parent, null);
     }
 
