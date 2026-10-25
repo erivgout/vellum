@@ -241,7 +241,7 @@ public sealed class SharePointProfileConfig : IEntityTypeConfiguration<SharePoin
         e.Property(x => x.SecretProtected).HasMaxLength(-1);
         e.Property(x => x.CertificateProtected).HasMaxLength(-1);
         e.Property(x => x.CertificatePasswordProtected).HasMaxLength(-1);
-        e.HasMany(x => x.Libraries).WithOne(l => l.Profile).HasForeignKey(l => l.ProfileId).OnDelete(DeleteBehavior.Cascade);
+        e.HasMany(x => x.Libraries).WithOne(l => l.Profile).HasForeignKey(l => l.ProfileId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -266,7 +266,7 @@ public sealed class SharePointMappingConfig : IEntityTypeConfiguration<SharePoin
         e.Property(x => x.FormKey).HasMaxLength(64);
         e.Property(x => x.Name).HasMaxLength(120);
         e.Property(x => x.Description).HasMaxLength(500);
-        e.HasMany(x => x.Entries).WithOne().HasForeignKey(x => x.MappingId).OnDelete(DeleteBehavior.Cascade);
+        e.HasMany(x => x.Entries).WithOne().HasForeignKey(x => x.MappingId).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

@@ -220,6 +220,8 @@ public sealed partial class SharePointAdminService(
         if (await db.Set<SharePointPublication>().AnyAsync(p => p.ProfileId == id && p.Status == SpPublicationStatus.Published))
             return AdminResult.Fail("Files published through this profile are still current. Withdraw them (or let their documents be superseded) before deleting the profile, so no uncontrolled copies are left behind (SAF-021).");
         var before = Snap(profile);
+        // Module foreign keys never cascade (VellumDbContext forces Restrict), so the libraries go first.
+        Libraries.RemoveRange(profile.Libraries);
         Profiles.Remove(profile);
         audit.Global("SharePoint profile deleted", $"{profile.Name} ({profile.Host})");
         audit.Config("SharePointProfile", profile.Host, "Deleted", before, null);
@@ -381,6 +383,7 @@ public sealed partial class SharePointAdminService(
         var used = await Rules.Where(r => r.MappingId == id).Select(r => r.Name).ToListAsync();
         if (used.Count > 0) return AdminResult.Fail($"Rules use this mapping: {string.Join(", ", used)}. Choose another mapping for them first.");
         var before = Snap(mapping);
+        db.RemoveRange(mapping.Entries);
         Mappings.Remove(mapping);
         audit.Global("SharePoint mapping deleted", mapping.Name);
         audit.Config("SharePointMapping", $"{mapping.FormKey}:{mapping.Id}", "Deleted", before, null);

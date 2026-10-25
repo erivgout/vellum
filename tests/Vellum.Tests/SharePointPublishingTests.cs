@@ -561,7 +561,17 @@ public class SharePointPublishingTests(VellumFixture fx)
         Assert.Contains(dup.Errors, e => e.Contains("unique by host"));
 
         // Non-administrators can't change anything.
-        using var user = fx.As("jlee");
-        Assert.False((await user.ServiceProvider.GetRequiredService<SharePointAdminService>().DeleteProfileAsync(p.Id)).Ok);
+        using (var user = fx.As("jlee"))
+            Assert.False((await user.ServiceProvider.GetRequiredService<SharePointAdminService>().DeleteProfileAsync(p.Id)).Ok);
+
+        // Deleting removes the libraries too (module keys never cascade in the database); mappings likewise.
+        Assert.True((await admin.SaveLibraryAsync(p.Id, null, new LibraryInput { Name = "Policies", RelativeUrl = "/sites/QMS/Policies" })).Ok);
+        var deleted = await admin.DeleteProfileAsync(p.Id);
+        Assert.True(deleted.Ok, deleted.Error);
+        Assert.False(await s.Db().Set<SharePointLibrary>().AnyAsync(l => l.ProfileId == p.Id));
+        var mapping = await admin.SaveMappingAsync(null, new MappingInput { FormKey = DocKeys.Document, Name = "Disposable", Entries = [("$number", "Code")] });
+        Assert.True(mapping.Ok, mapping.Error);
+        Assert.True((await admin.DeleteMappingAsync(mapping.Id!.Value)).Ok);
+        Assert.Contains(await s.Db().ConfigAudit.AsNoTracking().Where(a => a.ObjectType == "SharePointProfile" && a.ObjectKey == host).Select(a => a.Action).ToListAsync(), a => a == "Deleted");
     }
 }

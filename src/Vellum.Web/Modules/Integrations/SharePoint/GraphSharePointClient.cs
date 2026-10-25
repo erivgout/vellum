@@ -122,6 +122,8 @@ public sealed class GraphSharePointClient(SharePointProfile profile, SpCredentia
             var j = JsonNode.Parse(body);
             var desc = j?["error_description"]?.GetValue<string>() ?? "";
             var first = desc.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? desc;
+            var trace = first.IndexOf(" Trace ID:", StringComparison.Ordinal);
+            if (trace > 0) first = first[..trace];
             return (j?["error"]?.GetValue<string>() ?? "error", first);
         }
         catch (JsonException) { return ("error", body.Length > 200 ? body[..200] : body); }
