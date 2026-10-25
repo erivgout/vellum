@@ -98,7 +98,6 @@ public sealed class AdverseEventsApp : IPackagedApp
         app.Keywords("aer_device_class", "Device class", k => k.Add("i", "Class I").Add("ii", "Class II").Add("iii", "Class III").Add("unclassified", "Unclassified"));
         app.Keywords("aer_mapping_group", "Complaint data mapped to MedWatch", k => k
             .Add("event", "Event and dates").Add("patient", "Patient").Add("device", "Device").Add("reporter", "Initial reporter").Add("evaluation", "Investigation and codes"));
-        app.Keywords("aer_approval_decision", "MedWatch approval", k => k.Add("approved", "Approved", "success").Add("rejected", "Changes requested", "danger"));
 
         DefineMedWatch(app);
         DefineActivities(app);
@@ -130,7 +129,7 @@ public sealed class AdverseEventsApp : IPackagedApp
         app.View("acks_rejected", "Rejections and errors", v => v.Category("3. Acknowledgements").Forms(AerKeys.Ack).All().Filter("ack_status", "eq", "rejected")
             .Columns("ack_report_number", "number", "ack_type", "ack_received_at", "ack_detail").Sort("ack_received_at"));
         app.View("approvals", "MedWatch approver activities", v => v.Category("4. Activities").Forms(AerKeys.Approver).All()
-            .Columns("number", "title", "phase", "approver", "approval_decision", "modified").Sort("modified"));
+            .Columns("number", "title", "phase", "approver", "modified").Sort("modified"));
         app.View("actions", "MedWatch action items", v => v.Category("4. Activities").Forms("action_item").Open()
             .Columns("number", "title", "phase", "due", "assignee").Sort("due", false));
         app.View("profile", "Application profile", v => v.Category("5. Setup").Forms(AerKeys.Profile).All()
@@ -328,7 +327,6 @@ public sealed class AdverseEventsApp : IPackagedApp
             {
                 s.Text("subject", "Subject", 12).Required().MaxLength(200);
                 s.User("approver", "Approver", 4).Required().Header();
-                s.Keyword("approval_decision", "Decision", "aer_approval_decision", 4).ReadOnly().Header();
                 s.TextArea("approval_comments", "Comments");
             }, icon: "bi-person-check")
             .Workflow("medwatch_approver", "MedWatch approval", w =>
