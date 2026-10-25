@@ -24,7 +24,7 @@ a.vl-pdf-chip:focus-visible { outline: 0; box-shadow: var(--vl-ring); }
 /* ------------------------------------------------------------------ viewer */
 .vl-pdfv { border: 1px solid var(--vl-border); border-radius: var(--vl-radius); background: var(--vl-surface); box-shadow: var(--vl-shadow); overflow: hidden; }
 .vl-pdfv-bar {
-  position: sticky; top: var(--vl-topbar-h); z-index: 5;
+  position: relative; z-index: 5;
   display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; padding: 0.5rem 0.75rem;
   background: var(--vl-surface); border-bottom: 1px solid var(--vl-border);
 }

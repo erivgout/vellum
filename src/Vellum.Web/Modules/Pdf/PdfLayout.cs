@@ -281,13 +281,11 @@ public static class PdfLayout
         if (r.Subtitle != null) s.AddParagraph(r.Subtitle, "Muted");
         if (r.Status != null)
         {
-            var (fg, bg) = Tone(r.StatusTone);
+            var (fg, _) = Tone(r.StatusTone);
             var chip = s.AddParagraph();
-            chip.Format.SpaceBefore = Unit.FromPoint(4);
-            chip.Format.SpaceAfter = Unit.FromPoint(6);
-            var t = chip.AddFormattedText(" " + r.Status + " ", new Font(PdfFonts.SemiBold, 8) { Color = fg });
-            chip.Format.Shading.Color = bg;
-            _ = t;
+            chip.Format.SpaceBefore = Unit.FromPoint(3);
+            chip.Format.SpaceAfter = Unit.FromPoint(8);
+            chip.AddFormattedText("• " + r.Status, new Font(PdfFonts.SemiBold, 8.5) { Color = fg });
         }
 
         foreach (var block in r.Blocks) block(s);
