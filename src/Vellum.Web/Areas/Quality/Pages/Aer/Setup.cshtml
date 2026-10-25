@@ -1,0 +1,218 @@
+@page "/quality/aer/setup"
+@model Vellum.Areas.Quality.Pages.Aer.SetupModel
+@using Vellum.Modules.AdverseEvents
+@{
+    ViewData["Title"] = "Adverse event reporting setup";
+    ViewData["ActiveApp"] = AerKeys.App;
+    var m = Model;
+    var p = m.Profile;
+    var tz = Shell.TimeZone;
+    var groupLabels = new Dictionary<string, string> { ["event"] = "Event and dates", ["patient"] = "Patient", ["device"] = "Device", ["reporter"] = "Initial reporter", ["evaluation"] = "Investigation and codes" };
+    var year = BusinessCalendar.Today.Year;
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/@AerKeys.App">Adverse Event Reporting</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Setup</span>
+}
+
+<div class="vl-page-head">
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">Adverse event reporting setup</h1>
+        <p class="vl-page-sub">The application profile, report-number mappings by location, and the FDA product code table (AER-001). Every change is audited.</p>
+    </div>
+    <a class="btn btn-light" href="/quality/aer"><i class="bi bi-send-check"></i>eMDR submissions</a>
+</div>
+
+@if (m.Errors.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert"><i class="bi bi-exclamation-octagon"></i><div><div class="ttl">Please fix the following</div><ul>@foreach (var e in m.Errors) { <li>@e</li> }</ul></div></div>
+}
+
+<div class="row g-4">
+    <div class="col-xl-7">
+        <form method="post" asp-page-handler="Profile" class="card mb-4" aria-labelledby="aer-profile-title">
+            <div class="card-header">
+                <h2 class="card-title-sm" id="aer-profile-title"><i class="bi bi-sliders"></i>Application profile</h2>
+                @if (p != null) { <a class="ms-auto small" href="/records/@p.Id">@p.Number · changed @Ui.Time(p.ModifiedAt, tz)</a> }
+            </div>
+            <div class="card-body">
+                @if (p == null)
+                {
+                    <div class="vl-banner vl-banner-warn py-2"><i class="bi bi-exclamation-triangle"></i><div><strong>Not set up yet.</strong> No MedWatch can be created until the application profile exists (AER-002). Review the settings below and save.</div></div>
+                }
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="aer-mapping" name="MappingEnabled" value="true" checked="@m.MappingEnabled" />
+                            <label class="form-check-label fw-semibold" for="aer-mapping">MFR / importer mapping</label>
+                        </div>
+                        <input type="hidden" name="MappingEnabled" value="false" />
+                        <div class="form-text">On: the report number's code (and, for sequential locations, the sequence) is assigned from the location's mapping when a report enters Submitted to FDA. Off: every part is entered by hand in Draft (AER-005).</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="aer-delay">Submission receipt delay</label>
+                        <div class="input-group"><input class="form-control" type="number" id="aer-delay" name="ReceiptDelayMinutes" value="@m.ReceiptDelayMinutes" min="5" max="20160" required /><span class="input-group-text">minutes</span></div>
+                        <div class="form-text">How long to wait for ACK1–ACK3 before alerting regulatory affairs (AER-010). @(m.ReceiptDelayMinutes >= 60 ? $"Currently {m.ReceiptDelayMinutes / 60.0:0.#} hours." : "")</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="aer-approvers-input">Default MedWatch approvers</label>
+                        <div class="vl-picker" id="aer-approvers" data-picker="users" data-name="Approvers" data-multi="true">
+                            <div class="vl-picker-box">
+                                @foreach (var uid in m.Approvers)
+                                {
+                                    var u = Shell.Directory.Get(uid);
+                                    if (u == null) { continue; }
+                                    <span class="vl-token">@Ui.Avatar(u, "xs")<span class="t">@u.DisplayName</span><button type="button" class="x" aria-label="Remove @u.DisplayName">×</button><input type="hidden" name="Approvers" value="@u.Id" /></span>
+                                }
+                                <input type="text" id="aer-approvers-input" placeholder="Search people…" autocomplete="off" />
+                            </div>
+                            <div class="vl-picker-menu"></div>
+                        </div>
+                        <div class="form-text">Filled in on new MedWatch reports (never the report owner).</div>
+                    </div>
+                    <div class="col-12">
+                        <fieldset>
+                            <legend class="form-label">E-signature meanings</legend>
+                            <div class="row g-2">
+                                <div class="col-md-4"><label class="form-label small text-body-secondary" for="aer-sign-submit">Submit to FDA</label><input class="form-control" id="aer-sign-submit" name="SignSubmit" value="@m.SignSubmit" maxlength="80" required /></div>
+                                <div class="col-md-4"><label class="form-label small text-body-secondary" for="aer-sign-complete">Complete</label><input class="form-control" id="aer-sign-complete" name="SignComplete" value="@m.SignComplete" maxlength="80" required /></div>
+                                <div class="col-md-4"><label class="form-label small text-body-secondary" for="aer-sign-void">Void</label><input class="form-control" id="aer-sign-void" name="SignVoid" value="@m.SignVoid" maxlength="80" required /></div>
+                            </div>
+                            <div class="form-text">Applied to the MedWatch workflow's routes when you save; the change is recorded in the configuration audit trail [P11].</div>
+                        </fieldset>
+                    </div>
+                    <div class="col-12">
+                        <fieldset>
+                            <legend class="form-label">Complaint data carried into new MedWatch reports</legend>
+                            <div class="d-flex flex-wrap gap-3 mb-2">
+                                @foreach (var g in AerProfileInfo.AllGroups)
+                                {
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="aer-g-@g" name="Groups" value="@g" checked="@m.Groups.Contains(g)" />
+                                        <label class="form-check-label" for="aer-g-@g">@groupLabels[g]</label>
+                                    </div>
+                                }
+                            </div>
+                            <div class="vl-table-wrap">
+                                <table class="table vl-table vl-table-compact mb-0">
+                                    <caption class="visually-hidden">Complaint to MedWatch data mapping</caption>
+                                    <thead><tr><th scope="col">Group</th><th scope="col">Complaint data</th><th scope="col">MedWatch (3500A)</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var r in MedWatchFactory.Mapping)
+                                        {
+                                            <tr class="@(m.Groups.Contains(r.Group) ? "" : "text-body-tertiary")"><td class="text-nowrap">@groupLabels[r.Group]</td><td>@r.ComplaintData</td><td>@r.MedWatchItem</td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="form-text">The report type, location, deadline, links and the manufacturer contact (from the location's mapping) are always carried (CMP-005).</div>
+                        </fieldset>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-end"><button class="btn btn-primary"><i class="bi bi-floppy"></i>@(p == null ? "Create application profile" : "Save profile")</button></div>
+        </form>
+
+        <section class="card mb-4" aria-labelledby="aer-map-title">
+            <div class="card-header">
+                <h2 class="card-title-sm" id="aer-map-title"><i class="bi bi-geo-alt"></i>MFR and importer mappings by location</h2>
+                <a class="btn btn-sm btn-light ms-auto" href="/records/new?form=@AerKeys.Mapping"><i class="bi bi-plus-lg"></i>New mapping</a>
+            </div>
+            @if (m.Mappings.Count == 0)
+            {
+                <div class="card-body"><div class="vl-empty py-3"><div class="vl-empty-icon"><i class="bi bi-geo-alt"></i></div><h3>No mappings yet</h3><p>With mapping on, every location that reports needs one: its reporter type, code and sequence format.</p></div></div>
+            }
+            else
+            {
+                <div class="vl-table-scroll">
+                    <table class="table vl-table vl-table-compact mb-0">
+                        <thead><tr><th scope="col">Location</th><th scope="col">Reporter</th><th scope="col">Code</th><th scope="col">Sequence</th><th scope="col">Next number pattern</th></tr></thead>
+                        <tbody>
+                            @foreach (var map in m.Mappings)
+                            {
+                                var imp = map.ReporterType == AerKeys.Importer;
+                                var code = imp ? map.ImporterCode : map.MfrCode;
+                                <tr data-href="/records/@map.Id">
+                                    <td><a href="/records/@map.Id" class="fw-semibold">@m.LocationLabel(map.Location)</a></td>
+                                    <td>@(imp ? "Importer" : "Manufacturer")</td>
+                                    <td><span class="mono">@(code ?? "–")</span>@if (!imp && map.CodeMode == "advanced") { <div class="x-small text-body-tertiary">Advanced: @Ui.Plural(map.Rules.Count, "rule")</div> }</td>
+                                    <td>@(map.Sequential(map.ReporterType) ? $"Sequential from {map.StartFor(map.ReporterType, year):D5} in {year}" : "Manual")</td>
+                                    <td class="mono small">@(code ?? "code")-@year-@(map.Sequential(map.ReporterType) ? "NNNNN" : "entered")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-footer small text-body-secondary">A location has one mapping. Locations that share a code share one yearly sequence, so numbers stay unique per code and year; sequences restart at 00001 each January (INV-023).</div>
+            }
+        </section>
+    </div>
+
+    <div class="col-xl-5">
+        <section class="card mb-4" aria-labelledby="aer-gw-title">
+            <div class="card-header"><h2 class="card-title-sm" id="aer-gw-title"><i class="bi bi-plug"></i>eMDR gateway (this environment)</h2>
+                @if (m.IsAdmin) { <a class="ms-auto small" href="/admin/emdr">Manage</a> }</div>
+            <div class="card-body">
+                @if (m.Emdr == null)
+                {
+                    <div class="d-flex gap-2 small"><i class="bi bi-exclamation-triangle-fill text-warning" aria-hidden="true"></i><span><strong>No eMDR profile.</strong> Reports can't be submitted until an administrator creates one (INT-902).</span></div>
+                }
+                else
+                {
+                    <dl class="vl-kv mb-0">
+                        <dt>Account</dt><dd>@(m.Emdr.AccountType == "production" ? "Production" : "Test") · @m.Emdr.SenderOrganization</dd>
+                        <dt>Gateway</dt><dd>@(m.Emdr.Gateway switch { "manual" => "Manual (ESG WebTrader)", "simulated" => "Simulated (non-production)", _ => m.Emdr.Gateway })</dd>
+                        <dt>Certificate</dt><dd>@(m.Emdr.CertThumbprint == null ? "Not generated" : m.Emdr.CertFdaConfirmedAt == null ? "Generated; FDA hasn't confirmed it yet" : $"Confirmed by FDA · expires {m.Emdr.CertNotAfter:dd MMM yyyy}")</dd>
+                    </dl>
+                }
+            </div>
+        </section>
+
+        <section class="card mb-4" id="product-codes" aria-labelledby="aer-pc-title">
+            <div class="card-header">
+                <h2 class="card-title-sm" id="aer-pc-title"><i class="bi bi-upc"></i>Product codes</h2><span class="vl-pill-count">@m.ProductCodes.Count</span>
+                <a class="btn btn-sm btn-light ms-auto" href="/records/new?form=@AerKeys.ProductCode"><i class="bi bi-plus-lg"></i>New</a>
+            </div>
+            @if (m.ProductCodes.Count > 0)
+            {
+                <div class="vl-table-scroll vla-scroll-y">
+                    <table class="table vl-table vl-table-compact mb-0">
+                        <thead><tr><th scope="col">Code</th><th scope="col">Device</th><th scope="col">Class</th><th scope="col">Regulation</th></tr></thead>
+                        <tbody>
+                            @foreach (var pc in m.ProductCodes.Take(200))
+                            {
+                                <tr data-href="/records/@pc.Id"><td class="mono fw-semibold"><a href="/records/@pc.Id">@pc.Code</a></td><td>@pc.DeviceName@if (pc.BrandNames.Count > 0) { <div class="x-small text-body-tertiary">@string.Join(", ", pc.BrandNames)</div> }</td><td class="text-nowrap">@pc.DeviceClass</td><td class="mono small">@pc.Regulation</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            <form method="post" asp-page-handler="Import" class="card-body border-top">
+                <label class="form-label" for="aer-csv">Import from CSV</label>
+                <textarea class="form-control mono vl-autogrow" id="aer-csv" name="Csv" rows="4" placeholder="code,device name,class,regulation,panel,brand names&#10;FRN,&quot;Pump, Infusion&quot;,2,880.5725,General Hospital,VX-200">@m.Csv</textarea>
+                <div class="form-text">One product code per line: code, device name, class (1, 2, 3 or U), regulation number, review panel, then our brand names. Quote values that contain commas. Existing codes are updated; nothing is saved if any line is invalid.</div>
+                <div class="d-flex justify-content-end mt-2"><button class="btn btn-light"><i class="bi bi-upload"></i>Import</button></div>
+            </form>
+        </section>
+
+        <section class="card mb-4" aria-labelledby="aer-rules-title">
+            <div class="card-header"><h2 class="card-title-sm" id="aer-rules-title"><i class="bi bi-shield-check"></i>eMDR validation (AER-006)</h2></div>
+            <div class="card-body">
+                <dl class="vl-kv">
+                    <dt>Form</dt><dd>@EmdrSchema.FormVersion</dd>
+                    <dt>Schema</dt><dd>@EmdrSchema.SchemaVersion</dd>
+                    <dt>Rule set</dt><dd>@EmdrSchema.RuleSetVersion (@EmdrSchema.RuleSetDate)</dd>
+                </dl>
+                <p class="small text-body-secondary">Each submission records the versions it was validated and generated with. When the FDA publishes a new form or schema, the rule set is updated and its version changes.</p>
+                <ul class="vla-rules">
+                    @foreach (var r in EmdrValidator.Rules)
+                    {
+                        <li><span class="vl-kw">@r.Id</span><span><span class="fw-semibold">@r.Section:</span> @r.Description</span></li>
+                    }
+                </ul>
+            </div>
+        </section>
+    </div>
+</div>
+<script type="application/json" id="vl-directory">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(Shell.Directory.Assignable.Select(u => new { id = u.Id, name = u.DisplayName, initials = u.Initials, title = u.JobTitle, hue = u.Hue })))</script>

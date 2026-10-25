@@ -1,0 +1,20 @@
+@model List<Vellum.Modules.AdverseEvents.EmdrWidgetItem>
+<div class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-send-exclamation"></i>eMDR needing attention</h2>
+        <a class="ms-auto small" href="/quality/aer">All submissions</a>
+    </div>
+    <div class="vl-list">
+        @foreach (var i in Model)
+        {
+            <a class="vl-list-item" href="/records/@i.Id">
+                <span class="vlq-clock-dot @(i.State == "bad" ? "is-missed" : i.State == "warn" ? "is-soon" : "")" aria-hidden="true"><i class="bi @(i.State == "bad" ? "bi-exclamation-octagon-fill" : i.State == "ok" ? "bi-patch-check-fill" : "bi-hourglass-split")"></i></span>
+                <span class="main">
+                    <span class="line1"><span class="num">@i.Number</span><span class="ttl">@i.Title</span></span>
+                    <span class="line2 d-block">@(i.Due is { } d ? $"Report due {d:dd MMM yyyy}" : "No deadline recorded")</span>
+                </span>
+                <span class="aside small fw-semibold @(i.State == "bad" ? "text-danger" : "")">@i.Label</span>
+            </a>
+        }
+    </div>
+</div>

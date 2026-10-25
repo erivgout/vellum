@@ -1,0 +1,227 @@
+@page
+@model EmdrModel
+@using Vellum.Modules.AdverseEvents
+@{
+    ViewData["Title"] = "eMDR gateway";
+    var p = Model.Profile;
+    var s = Model.Settings;
+    var tz = Shell.TimeZone;
+    var prod = s.EnvironmentType == EnvironmentType.Production;
+    var testDefaults = EmdrProfileService.Defaults("test");
+    var prodDefaults = EmdrProfileService.Defaults("production");
+    var certPending = p?.CertPem != null && p.CertFdaConfirmedAt == null;
+    var forbidden = EmdrProfileService.ForbiddenCertChars;
+}
+<div class="vl-page-head align-items-center">
+    <span class="adm-head-icon tone-brand"><i class="bi bi-send-check"></i></span>
+    <div class="flex-grow-1 min-w-0">
+        <h1 class="vl-page-title">eMDR gateway</h1>
+        <p class="vl-page-sub">The FDA Electronic Submissions Gateway profile Adverse Event Reporting submits MedWatch reports through (INT-902).
+            @if (p != null) { <span class="text-body-tertiary">Last changed @Ui.Time(p.UpdatedAt, tz) by @Shell.Directory.Name(p.UpdatedById).</span> }</p>
+    </div>
+    <a class="btn btn-light" href="/quality/aer"><i class="bi bi-send-check"></i>eMDR submissions</a>
+</div>
+
+<partial name="_Errors" model="Model.Errors" />
+
+<div class="vl-banner vl-banner-violet">
+    <i class="bi bi-pin-map"></i>
+    <div><div class="ttl">One profile per environment: this is @s.EnvironmentName (@s.EnvironmentType)</div>
+        <div class="small">The profile is bound to this environment. It isn't promoted with configuration, and a database copied into another environment won't use it there; that environment needs its own profile, account and certificate.</div></div>
+</div>
+@if (Model.Foreign.Count > 0)
+{
+    <div class="vl-banner vl-banner-warn"><i class="bi bi-exclamation-triangle"></i><div><div class="ttl">Profiles from other environments are in this database</div>
+        <div class="small">@string.Join(", ", Model.Foreign.Select(f => $"{f.EnvironmentName} ({f.AccountType} account)")). They're ignored here and their encrypted secrets can't be read in this environment.</div></div></div>
+}
+@if (certPending)
+{
+    <div class="vl-banner vl-banner-bad" role="alert"><i class="bi bi-shield-exclamation"></i><div><div class="ttl">Submissions will fail until the FDA has the new certificate</div>
+        <div class="small">Download the public certificate below and send it to the FDA ESG with your account request, then record that the FDA installed it.</div></div></div>
+}
+
+<form method="post" asp-page-handler="Save" class="card mb-4" autocomplete="off" aria-labelledby="emdr-account">
+    <div class="card-header"><h2 class="card-title-sm" id="emdr-account"><i class="bi bi-person-badge"></i>Account and routing</h2>
+        @if (p == null) { <span class="ms-auto small text-body-tertiary">Not set up yet</span> }</div>
+    <div class="card-body adm-settings">
+        <div class="adm-setting">
+            <div><span class="form-label" id="emdr-acct-l">Account type</span><div class="form-text">Test submissions go to the FDA's test system; production submissions are official reports.</div></div>
+            <div>
+                <div class="vl-seg" role="radiogroup" aria-labelledby="emdr-acct-l">
+                    <input type="radio" class="btn-check" name="AccountType" id="emdr-acct-test" value="test" checked="@(Model.AccountType == "test")" data-emdr-account /><label for="emdr-acct-test">Test</label>
+                    <input type="radio" class="btn-check" name="AccountType" id="emdr-acct-prod" value="production" checked="@(Model.AccountType == "production")" data-emdr-account /><label for="emdr-acct-prod">Production</label>
+                </div>
+            </div>
+        </div>
+        <div class="adm-setting">
+            <div><label class="form-label" for="emdr-org">Sender organization</label><div class="form-text">As registered with the FDA ESG.</div></div>
+            <div><input class="form-control" id="emdr-org" name="SenderOrganization" value="@Model.SenderOrganization" maxlength="120" required /></div>
+        </div>
+        <div class="adm-setting">
+            <div><label class="form-label" for="emdr-rid">Sender routing ID</label><div class="form-text">Your ESG routing ID (from the account letter).</div></div>
+            <div><input class="form-control mono" id="emdr-rid" name="SenderRoutingId" value="@Model.SenderRoutingId" maxlength="60" required spellcheck="false" /></div>
+        </div>
+        <div class="adm-setting">
+            <div><label class="form-label" for="emdr-email">Sender email</label><div class="form-text">Where the FDA writes about this account.</div></div>
+            <div><input class="form-control" type="email" id="emdr-email" name="SenderEmail" value="@Model.SenderEmail" maxlength="200" required /></div>
+        </div>
+        <div class="adm-setting">
+            <div><label class="form-label" for="emdr-ackurl">Acknowledgment URL</label><div class="form-text">The https:// address the FDA returns acknowledgments to (AS2 only).</div></div>
+            <div><input class="form-control" type="url" id="emdr-ackurl" name="AcknowledgementUrl" value="@Model.AcknowledgementUrl" maxlength="400" placeholder="https://" /></div>
+        </div>
+        <div class="adm-setting adm-setting-wide">
+            <div><span class="form-label">FDA endpoints</span><div class="form-text">FDA defaults for the account type: test @testDefaults.RoutingId · @testDefaults.EsgUrl; production @prodDefaults.RoutingId · @prodDefaults.EsgUrl. Override only when the FDA tells you to.</div></div>
+            <div class="row g-2">
+                <div class="col-md-4"><label class="form-label small text-body-secondary" for="emdr-frid">FDA routing ID</label><input class="form-control mono" id="emdr-frid" name="FdaRoutingId" value="@Model.FdaRoutingId" maxlength="60" data-emdr-default="routing" /></div>
+                <div class="col-md-5"><label class="form-label small text-body-secondary" for="emdr-esg">ESG URL</label><input class="form-control" type="url" id="emdr-esg" name="EsgUrl" value="@Model.EsgUrl" maxlength="400" data-emdr-default="esg" /></div>
+                <div class="col-md-3"><label class="form-label small text-body-secondary" for="emdr-center">Submission center</label><input class="form-control mono" id="emdr-center" name="SubmissionCenter" value="@Model.SubmissionCenter" maxlength="20" /></div>
+            </div>
+            <script type="application/json" id="emdr-defaults">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { test = new { routing = testDefaults.RoutingId, esg = testDefaults.EsgUrl }, production = new { routing = prodDefaults.RoutingId, esg = prodDefaults.EsgUrl } }))</script>
+        </div>
+        <div class="adm-setting adm-setting-wide">
+            <div><span class="form-label" id="emdr-gw-l">Gateway</span><div class="form-text">How eMDR files reach the FDA. Acknowledgements (ACK1, ACK2, ACK3) are tracked on every MedWatch.</div></div>
+            <div class="vla-gateways" role="radiogroup" aria-labelledby="emdr-gw-l">
+                @foreach (var g in Model.Gateways)
+                {
+                    var why = g.Key == "as2" ? EmdrGateways.As2NotAvailable : g.Key == "simulated" && prod ? "The simulated gateway is never available in a production environment." : null;
+                    <label class="vla-gateway @(why != null ? "is-disabled" : "")" for="emdr-gw-@g.Key">
+                        <input class="form-check-input" type="radio" name="Gateway" id="emdr-gw-@g.Key" value="@g.Key" checked="@(Model.Gateway == g.Key)" disabled="@(why != null)" />
+                        <span><span class="fw-semibold d-block">@g.Name</span><span class="small text-body-secondary d-block">@(why ?? g.Description)</span></span>
+                    </label>
+                }
+                <div class="small text-body-secondary mt-1"><i class="bi bi-plug" aria-hidden="true"></i> Direct AS2 sending is a separate integration: Vellum generates the file, validates it and tracks acknowledgements, but sending over AS2 needs your FDA ESG account, AS2 identifiers and exchanged certificates. Until that's in place, use Manual (ESG WebTrader).</div>
+            </div>
+        </div>
+        @if (!prod)
+        {
+            <div class="adm-setting">
+                <div><label class="form-label" for="emdr-sim">Simulated FDA answer</label><div class="form-text">For demonstrations and testing: what ACK3 says.</div></div>
+                <div>
+                    <select class="form-select" id="emdr-sim" name="SimulatedOutcome">
+                        <option value="accept" selected="@(Model.SimulatedOutcome == "accept")">Accept the report</option>
+                        <option value="reject_ack3" selected="@(Model.SimulatedOutcome == "reject_ack3")">Reject it with a load error</option>
+                        <option value="withhold_ack3" selected="@(Model.SimulatedOutcome == "withhold_ack3")">Never send ACK3 (tests the overdue alert)</option>
+                    </select>
+                </div>
+            </div>
+        }
+        else
+        {
+            <input type="hidden" name="SimulatedOutcome" value="accept" />
+        }
+    </div>
+    <div class="card-footer d-flex justify-content-end"><button class="btn btn-primary"><i class="bi bi-floppy"></i>@(p == null ? "Create eMDR profile" : "Save profile")</button></div>
+</form>
+
+<div class="row g-4">
+    <div class="col-xl-7">
+        <section class="card mb-4" id="certificate" aria-labelledby="emdr-cert">
+            <div class="card-header"><h2 class="card-title-sm" id="emdr-cert"><i class="bi bi-patch-check"></i>Encryption and signing certificate</h2></div>
+            <div class="card-body">
+                @if (Model.Ours is { } c)
+                {
+                    <dl class="vl-kv mb-3">
+                        <dt>Subject</dt><dd>@c.Subject</dd>
+                        <dt>SHA-256</dt><dd class="mono">@c.Thumbprint</dd>
+                        <dt>Valid</dt><dd>@c.NotBefore.ToString("dd MMM yyyy") – @c.NotAfter.ToString("dd MMM yyyy")@(c.Expired ? " · EXPIRED" : c.ExpiresSoon ? " · expires soon" : "")</dd>
+                        <dt>Generated</dt><dd>@if (p!.CertGeneratedAt is { } ga) { @Ui.Time(ga, tz) }</dd>
+                        <dt>FDA has it</dt><dd>@if (p.CertFdaConfirmedAt is { } fc) { <span class="vl-kw vl-kw-success">Confirmed @fc.ToString("dd MMM yyyy")</span> } else { <span class="vl-kw vl-kw-danger">Not yet</span> }</dd>
+                    </dl>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <a class="btn btn-light btn-sm" href="/admin/emdr?handler=Certificate"><i class="bi bi-download"></i>Download public certificate (.pem)</a>
+                        @if (certPending)
+                        {
+                            <form method="post" asp-page-handler="ConfirmFda" class="m-0"><button class="btn btn-sm btn-success"><i class="bi bi-check2-circle"></i>Record that the FDA installed it</button></form>
+                        }
+                    </div>
+                    <p class="small text-body-tertiary">The private key is encrypted at rest with ASP.NET Core Data Protection and is never shown or downloaded.</p>
+                }
+                else if (p != null)
+                {
+                    <p class="small text-body-secondary">No certificate yet. Generate one, then send the public certificate to the FDA ESG.</p>
+                }
+                @if (p == null)
+                {
+                    <p class="small text-body-secondary mb-0">Save the profile first.</p>
+                }
+                else
+                {
+                    <form method="post" asp-page-handler="Certificate" class="vla-cert-form" data-emdr-cert-form data-forbidden="@forbidden">
+                        <h3 class="h6 mt-2">Generate a new certificate</h3>
+                        <div class="row g-2">
+                            @foreach (var (name, label, val, req, max) in new[] {
+                                ("CertCommonName", "Common name", Model.CertCommonName, true, 64), ("CertOrganization", "Organization", Model.CertOrganization, true, 64),
+                                ("CertOrganizationalUnit", "Organizational unit", Model.CertOrganizationalUnit, false, 64), ("CertLocality", "City / locality", Model.CertLocality, true, 64),
+                                ("CertState", "State / province", Model.CertState, true, 64), ("CertEmail", "Email", Model.CertEmail, true, 128) })
+                            {
+                                <div class="col-md-6">
+                                    <label class="form-label" for="emdr-@name">@label @if (req) { <span class="req">*</span> }</label>
+                                    <input class="form-control" id="emdr-@name" name="@name" value="@val" maxlength="@max" required="@req" data-emdr-cert-field aria-describedby="emdr-@name-err" />
+                                    <div class="invalid-feedback" id="emdr-@name-err"></div>
+                                </div>
+                            }
+                            <div class="col-md-3">
+                                <label class="form-label" for="emdr-CertCountry">Country <span class="req">*</span></label>
+                                <input class="form-control mono" id="emdr-CertCountry" name="CertCountry" value="@Model.CertCountry" maxlength="2" required data-emdr-cert-field aria-describedby="emdr-CertCountry-err" />
+                                <div class="invalid-feedback" id="emdr-CertCountry-err"></div>
+                            </div>
+                        </div>
+                        <div class="form-text">These fields can't contain <span class="mono">( + &lt; &gt; ; " / \</span>. RSA 3072-bit, SHA-256, valid two years.</div>
+                        <div class="vl-banner vl-banner-warn mt-3 mb-2"><i class="bi bi-exclamation-triangle"></i><div>
+                            <div class="ttl">Submissions will fail until the FDA has the new certificate</div>
+                            <div class="small">@(p.CertPem != null ? "The current certificate stops working for new submissions as soon as you generate a replacement. " : "")Send the new public certificate to the FDA ESG and wait for their confirmation before submitting reports.</div>
+                            <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="emdr-ack" name="AcknowledgeCertificateWarning" value="true" required /><label class="form-check-label" for="emdr-ack">I understand submissions will fail until the FDA has installed the new certificate.</label></div>
+                        </div></div>
+                        <div class="d-flex justify-content-end"><button class="btn btn-danger"><i class="bi bi-key"></i>Generate new certificate</button></div>
+                    </form>
+                }
+            </div>
+        </section>
+    </div>
+    <div class="col-xl-5">
+        <section class="card mb-4" id="secrets" aria-labelledby="emdr-secret">
+            <div class="card-header"><h2 class="card-title-sm" id="emdr-secret"><i class="bi bi-shield-lock"></i>ESG password</h2></div>
+            <div class="card-body">
+                @if (p == null)
+                {
+                    <p class="small text-body-secondary mb-0">Save the profile first.</p>
+                }
+                else
+                {
+                    <p class="small mb-2">@if (p.EsgPasswordProtected != null) { <span class="vl-kw vl-kw-success">Stored</span> <span class="text-body-secondary">since @Ui.Time(p.EsgPasswordSetAt!.Value, tz). It's encrypted and is never shown again.</span> } else { <span class="vl-kw">Not stored</span> <span class="text-body-secondary">Needed only for direct AS2 sending.</span> }</p>
+                    <form method="post" asp-page-handler="Password" class="d-flex gap-2 align-items-end" autocomplete="off">
+                        <div class="flex-grow-1"><label class="form-label" for="emdr-pw">@(p.EsgPasswordProtected != null ? "Replace password" : "Password")</label><input class="form-control" type="password" id="emdr-pw" name="password" autocomplete="new-password" minlength="8" maxlength="256" required /></div>
+                        <button class="btn btn-light"><i class="bi bi-lock"></i>Store</button>
+                    </form>
+                    @if (p.EsgPasswordProtected != null)
+                    {
+                        <form method="post" asp-page-handler="ClearPassword" class="mt-2"><button class="btn btn-sm btn-ghost text-danger" data-confirm="Remove the stored ESG password?"><i class="bi bi-trash3"></i>Remove</button></form>
+                    }
+                }
+            </div>
+        </section>
+        <section class="card mb-4" id="fda-cert" aria-labelledby="emdr-fda">
+            <div class="card-header"><h2 class="card-title-sm" id="emdr-fda"><i class="bi bi-building-lock"></i>FDA ESG certificate (SSL)</h2></div>
+            <div class="card-body">
+                @if (Model.Fda is { } f)
+                {
+                    <dl class="vl-kv mb-2">
+                        <dt>Subject</dt><dd>@f.Subject</dd>
+                        <dt>Issuer</dt><dd>@f.Issuer</dd>
+                        <dt>Valid until</dt><dd>@f.NotAfter.ToString("dd MMM yyyy")@(f.Expired ? " · EXPIRED" : "")</dd>
+                        <dt>SHA-256</dt><dd class="mono">@f.Thumbprint[..32]…</dd>
+                    </dl>
+                    <a class="btn btn-light btn-sm mb-3" href="/admin/emdr?handler=Certificate&amp;which=fda"><i class="bi bi-download"></i>Download</a>
+                }
+                @if (p != null)
+                {
+                    <form method="post" asp-page-handler="FdaCertificate">
+                        <label class="form-label" for="emdr-fdapem">@(Model.Fda != null ? "Replace with" : "Paste the FDA's certificate")</label>
+                        <textarea class="form-control mono x-small" id="emdr-fdapem" name="pem" rows="4" placeholder="-----BEGIN CERTIFICATE-----" required></textarea>
+                        <div class="d-flex justify-content-end mt-2"><button class="btn btn-light btn-sm"><i class="bi bi-upload"></i>Save certificate</button></div>
+                    </form>
+                }
+            </div>
+        </section>
+    </div>
+</div>

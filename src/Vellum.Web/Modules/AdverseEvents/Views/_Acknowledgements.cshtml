@@ -1,0 +1,83 @@
+@model Vellum.Modules.AdverseEvents.MedWatchPanelModel
+@using Vellum.Modules.AdverseEvents
+@{
+    var m = Model;
+    string Local(DateTime? utc) => utc is { } u ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(u, DateTimeKind.Utc), m.Tz).ToString("dd MMM yyyy HH:mm") : "–";
+    string StatusLabel(EmdrSubmission s) => s.Status switch
+    {
+        EmdrStatus.AwaitingUpload => "Awaiting ESG upload", EmdrStatus.Sent => s.OverdueAlertedAt != null ? "Acknowledgements overdue" : "Awaiting acknowledgements",
+        EmdrStatus.Accepted => "Accepted", EmdrStatus.Rejected => "Rejected", _ => "Failed",
+    };
+    string StatusTone(EmdrSubmission s) => s.Status switch
+    {
+        EmdrStatus.Accepted => "success", EmdrStatus.Rejected or EmdrStatus.Failed => "danger", _ => s.OverdueAlertedAt != null ? "danger" : "info",
+    };
+}
+<div class="vl-banner vl-banner-info">
+    <i class="bi bi-info-circle"></i>
+    <div class="small">
+        The FDA answers every eMDR submission three times: <strong>ACK1</strong> when the Electronic Submissions Gateway receives the file,
+        <strong>ACK2</strong> when CDRH receives it (the official receipt date), and <strong>ACK3</strong> when the report has loaded and passed validation.
+        A MedWatch is completed only when all three are recorded without errors and the final acknowledgement is confirmed (INV-048).
+    </div>
+</div>
+
+<section class="card mb-3" aria-labelledby="vla-subs-title">
+    <div class="card-header"><h3 class="card-title-sm" id="vla-subs-title"><i class="bi bi-send"></i>Submissions</h3>
+        <span class="ms-auto small text-body-tertiary">@EmdrSchema.SchemaVersion</span></div>
+    @if (m.History.Count == 0)
+    {
+        <div class="card-body"><div class="vl-empty py-3"><div class="vl-empty-icon"><i class="bi bi-send"></i></div><h3>Not submitted yet</h3>
+            <p>The eMDR file is generated and sent through the gateway when the report enters Submitted to FDA.</p></div></div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table vl-table-compact mb-0">
+                <thead><tr><th scope="col">#</th><th scope="col">Report number</th><th scope="col">File</th><th scope="col">Gateway</th><th scope="col">Sent</th><th scope="col">ACK1</th><th scope="col">ACK2</th><th scope="col">ACK3</th><th scope="col">Status</th></tr></thead>
+                <tbody>
+                    @foreach (var s in m.History)
+                    {
+                        <tr class="@(s.Superseded ? "text-body-tertiary" : "")">
+                            <td class="tabular">@s.Attempt@if (s.Superseded) { <span class="visually-hidden"> (superseded)</span> }</td>
+                            <td class="mono">@s.ReportNumber</td>
+                            <td>@if (s.AttachmentId is { } aid) { <a href="/files/@aid" title="SHA-256 @s.FileSha256"><i class="bi bi-filetype-xml" aria-hidden="true"></i> @s.FileName</a> } else { @s.FileName }
+                                <div class="x-small text-body-tertiary mono">@s.MessageId · @s.AccountType account</div></td>
+                            <td>@(s.Gateway switch { "manual" => "Manual (WebTrader)", "simulated" => "Simulated", _ => s.Gateway })</td>
+                            <td class="text-nowrap">@Local(s.SentAt)</td>
+                            <td class="text-nowrap">@Local(s.Ack1At)</td>
+                            <td class="text-nowrap">@Local(s.Ack2At)</td>
+                            <td class="text-nowrap">@Local(s.Ack3At)</td>
+                            <td>@if (s.Superseded) { <span class="vl-kw">Superseded</span> } else { @Ui.KeywordBadge(StatusLabel(s), StatusTone(s)) }</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="card" aria-labelledby="vla-acks-title">
+    <div class="card-header"><h3 class="card-title-sm" id="vla-acks-title"><i class="bi bi-envelope-check"></i>Acknowledgement records</h3><span class="vl-pill-count ms-1">@m.Acks.Count</span></div>
+    @if (m.Acks.Count == 0)
+    {
+        <div class="card-body small text-body-secondary">No acknowledgements yet. @(m.ManualGateway ? "Record each one with eMDR › Record ACK as the FDA sends it." : "They're recorded automatically as the gateway receives them.")</div>
+    }
+    else
+    {
+        <ul class="vl-list">
+            @foreach (var a in m.Acks)
+            {
+                <li class="vl-list-item vla-ack @(a.Accepted ? "" : "is-bad")">
+                    <span class="vla-ack-icon" aria-hidden="true"><i class="bi @(a.Accepted ? "bi-envelope-check-fill" : "bi-envelope-x-fill")"></i></span>
+                    <span class="main">
+                        <span class="line1"><a class="num" href="/records/@a.Id">@a.Number</a><span class="ttl">@a.Type.ToUpperInvariant() · @(a.Type switch { "ack1" => "ESG receipt", "ack2" => "CDRH receipt", _ => "Load and validation" })</span></span>
+                        <span class="line2 d-block">@Local(a.ReceivedAt)@(a.Reference != null ? $" · FDA reference {a.Reference}" : "") · @a.Source</span>
+                        @if (a.Detail != null) { <span class="d-block small mt-1 @(a.Accepted ? "text-body-secondary" : "text-danger")">@a.Detail</span> }
+                    </span>
+                    <span class="aside">@Ui.KeywordBadge(a.Accepted ? "Accepted" : "Rejected / error", a.Accepted ? "success" : "danger")</span>
+                </li>
+            }
+        </ul>
+    }
+</section>

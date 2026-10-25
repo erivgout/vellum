@@ -1,0 +1,23 @@
+@model List<Vellum.Modules.AdverseEvents.LinkedMedWatch>
+@using Vellum.Modules.AdverseEvents
+<ul class="vl-list vlq-bleed">
+    @foreach (var w in Model)
+    {
+        var acks = new[] { ("ACK1", w.Ack1), ("ACK2", w.Ack2), ("ACK3", w.Ack3) };
+        <li>
+            <a class="vl-list-item py-2" href="/records/@w.Id">
+                <span class="main">
+                    <span class="line1"><span class="num">@w.Number</span><span class="ttl small">@w.Kind@(w.ReportNumber != null ? $" · {w.ReportNumber}" : "")</span></span>
+                    <span class="line2 d-flex flex-wrap gap-1 mt-1" aria-label="Acknowledgements">
+                        @foreach (var (label, got) in acks)
+                        {
+                            <span class="vla-ack-pill @(got ? "is-done" : "")"><i class="bi @(got ? "bi-check" : "bi-dot")" aria-hidden="true"></i>@label<span class="visually-hidden">@(got ? " received" : " not received")</span></span>
+                        }
+                        @if (w.SubmissionStatus is EmdrStatus.Rejected or EmdrStatus.Failed) { <span class="vla-ack-pill is-bad"><i class="bi bi-x" aria-hidden="true"></i>Rejected</span> }
+                    </span>
+                </span>
+                <span class="aside">@Ui.Phase(w.Phase, w.PhaseType)</span>
+            </a>
+        </li>
+    }
+</ul>
