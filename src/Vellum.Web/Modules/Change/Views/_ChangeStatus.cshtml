@@ -1,0 +1,134 @@
+@model Vellum.Modules.Change.ChangeStatusModel
+@{
+    var m = Model;
+    var cov = m.Coverage;
+    var covered = cov.Types.Count(t => t.Covered);
+    var snap = m.Snap;
+    var phase = snap.PhaseKey;
+}
+<section class="card vl-chg-status mb-3" aria-label="Change status">
+    @if (cov.Types.Count > 0 && phase != "draft")
+    {
+        <div class="card-header">
+            <span class="vl-section-icon"><i class="bi bi-people"></i></span>
+            <div class="min-w-0">
+                <h3 class="card-title-sm">Approvals by type</h3>
+                <p class="vl-section-desc">@(m.RequireAll ? "Every approver of each type must approve (template rule)." : "One approval per approval type is enough. Approvers of types already approved are released automatically (CHG-021).")</p>
+            </div>
+            <span class="vl-chg-progress ms-auto @(cov.Complete ? "ok" : m.InApproval ? "wait" : "")">
+                <i class="bi @(cov.Complete ? "bi-check-circle-fill" : "bi-hourglass-split")" aria-hidden="true"></i>@covered of @cov.Types.Count types approved
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="vl-chg-types">
+                @foreach (var t in cov.Types)
+                {
+                    var state = t.Covered ? "ok" : m.InApproval ? "wait" : "idle";
+                    <div class="vl-chg-type @state">
+                        <div class="vl-chg-type-head">
+                            <span class="vl-chg-type-name">@t.TypeLabel</span>
+                            @if (t.Covered)
+                            {
+                                <span class="vl-kw vl-kw-success"><i class="bi bi-check2" aria-hidden="true"></i>Approved</span>
+                            }
+                            else if (m.InApproval)
+                            {
+                                <span class="vl-kw vl-kw-warning"><i class="bi bi-hourglass-split" aria-hidden="true"></i>Waiting</span>
+                            }
+                            else
+                            {
+                                <span class="vl-kw">Not yet</span>
+                            }
+                        </div>
+                        @if (t.Required > 1)
+                        {
+                            <div class="x-small text-body-tertiary mb-1">@t.ApprovedBy.Count of @t.Required approvers</div>
+                        }
+                        <ul class="vl-chg-approvers">
+                            @foreach (var uid in t.Approvers)
+                            {
+                                <li>
+                                    @Ui.Avatar(m.Dir.Get(uid), "xs")
+                                    <span class="nm">@m.Dir.Name(uid)</span>
+                                    <span class="st">
+                                        @if (m.ApprovedAt.TryGetValue(uid, out var at))
+                                        {
+                                            <i class="bi bi-pen-fill text-success" aria-hidden="true"></i><span>Signed @Ui.Time(at, m.Tz)</span>
+                                        }
+                                        else if (m.Released.Contains(uid))
+                                        {
+                                            <span title="Another approver of this type already approved">Not needed</span>
+                                        }
+                                        else if (m.Pending.Contains(uid))
+                                        {
+                                            <span>Waiting</span>
+                                        }
+                                        else
+                                        {
+                                            <span>–</span>
+                                        }
+                                    </span>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    @if (m.Filing is "pas" or "cbe30" or "cbe0")
+    {
+        var met = m.RegulatoryBlockers.Count == 0;
+        <div class="vl-chg-reg @(cov.Types.Count > 0 && phase != "draft" ? "border-top" : "")">
+            <span class="vl-section-icon"><i class="bi bi-bank"></i></span>
+            <div class="min-w-0 flex-grow-1">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="fw-semibold">Regulatory filing</span>
+                    @Ui.Keyword(m.FilingKeyword)
+                    @if (snap.Text("submission_number") is { } num) { <span class="vl-kw mono">@num</span> }
+                </div>
+                <div class="small text-body-secondary mt-1">
+                    @switch (m.Filing)
+                    {
+                        case "pas":
+                            <span>Agency approval is needed before distribution (CHG-051).</span>
+                            <span>Submitted @(snap.Date("submission_date")?.ToString("dd MMM yyyy") ?? "–") · Approved @(snap.Date("approval_date")?.ToString("dd MMM yyyy") ?? "not yet") · Approval letter @(Vellum.Modules.Change.ModuleKit.HasAttachment(snap, "approval_evidence") ? "attached" : "missing")</span>
+                            break;
+                        case "cbe30":
+                            <span>Changes being effected in 30 days.</span>
+                            <span>Submitted @(snap.Date("submission_date")?.ToString("dd MMM yyyy") ?? "–")@(m.CbeFrom is { } from ? $" · may become effective from {from:dd MMM yyyy}" : "")@(snap.Date("agency_response_date") is { } resp ? $" (agency responded {resp:dd MMM yyyy})" : "")</span>
+                            break;
+                        default:
+                            <span>Changes being effected immediately on submission. Submitted @(snap.Date("submission_date")?.ToString("dd MMM yyyy") ?? "not yet").</span>
+                            break;
+                    }
+                </div>
+            </div>
+            <span class="vl-chg-progress @(met ? "ok" : "bad")">
+                <i class="bi @(met ? "bi-shield-check" : "bi-shield-exclamation")" aria-hidden="true"></i>@(met ? "Precondition met" : m.Filing == "pas" ? "Awaiting agency approval" : "Waiting period")
+            </span>
+        </div>
+    }
+    @if (m.ShowCompletion)
+    {
+        <div class="card-body pt-0">
+            @if (m.CompletionBlockers.Count > 0)
+            {
+                <div class="vl-banner vl-banner-bad mb-0" role="status">
+                    <i class="bi bi-sign-stop" aria-hidden="true"></i>
+                    <div>
+                        <div class="ttl">Completion blocked (SAF-022)</div>
+                        <ul>@foreach (var b in m.CompletionBlockers) { <li>@b</li> }</ul>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="vl-banner vl-banner-ok mb-0" role="status">
+                    <i class="bi bi-check-circle" aria-hidden="true"></i>
+                    <div><div class="ttl">Regulatory and document preconditions are met</div><div class="small">The change can be completed once the action items are closed@(snap.Bool("verification_required") == true ? " and verification is recorded" : "").</div></div>
+                </div>
+            }
+        </div>
+    }
+</section>

@@ -1,0 +1,207 @@
+@page "/change/timeliness"
+@model Vellum.Areas.Audits.Pages.ChangeTimelinessModel
+@using Vellum.Areas.Audits.Pages
+@{
+    ViewData["Title"] = "Change timeliness";
+    ViewData["ActiveApp"] = "change";
+    var m = Model;
+    var buckets = ChangeTimelinessModel.Buckets;
+    var avgOpen = m.Open.Count == 0 ? 0 : m.Open.Average(i => i.AgeDays);
+    var since = DateTime.UtcNow.AddDays(-90);
+    var done90 = m.Done.Count(d => d.CompletedAt >= since);
+    var avgDone = m.Done.Count == 0 ? 0 : m.Done.Average(i => i.AgeDays);
+    var maxAging = Math.Max(1, m.Aging.Select(a => a.Counts.Sum()).DefaultIfEmpty(0).Max());
+    var maxMonth = Math.Max(1, m.Monthly.Select(x => Math.Max(x.Created, x.Completed)).DefaultIfEmpty(0).Max());
+    var maxTtc = Math.Max(1, m.TimeToComplete.Select(x => x.Avg).DefaultIfEmpty(0).Max());
+    string Pct(double v, double max) => (v * 100 / max).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%";
+    (string Key, string Label)[] groups = [("type", "Change type"), ("department", "Department"), ("reason", "Reason")];
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/change">Change Management</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Timeliness</span>
+}
+<div class="vl-page-head">
+    <div>
+        <h1 class="vl-page-title">Change timeliness</h1>
+        <p class="vl-page-sub">Aging, throughput, time to complete and timeliness by phase for change records you can read (CHG-061).</p>
+    </div>
+    <div class="vl-aud-filter" role="group" aria-label="Group by">
+        @foreach (var (key, label) in groups) { <a href="@m.Link(key)" class="@(m.By == key ? "active" : "")">@label</a> }
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="/apps/change?view=aging"><span class="vl-stat-icon tone-info"><i class="bi bi-folder2-open"></i></span><div class="vl-stat-value">@m.Open.Count</div><div class="vl-stat-label">Open changes</div></a></div>
+    <div class="col-6 col-lg-3"><div class="vl-stat"><span class="vl-stat-icon tone-warn"><i class="bi bi-hourglass-split"></i></span><div class="vl-stat-value">@avgOpen.ToString("0")<span class="small text-body-tertiary"> d</span></div><div class="vl-stat-label">Average age of open changes</div></div></div>
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="/apps/change?view=completed"><span class="vl-stat-icon tone-ok"><i class="bi bi-check2-circle"></i></span><div class="vl-stat-value">@done90</div><div class="vl-stat-label">Completed in the last 90 days</div></a></div>
+    <div class="col-6 col-lg-3"><div class="vl-stat"><span class="vl-stat-icon tone-violet"><i class="bi bi-stopwatch"></i></span><div class="vl-stat-value">@avgDone.ToString("0")<span class="small text-body-tertiary"> d</span></div><div class="vl-stat-label">Average time to complete</div></div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-7">
+        <section class="card h-100 vl-viz" aria-labelledby="aging-title">
+            <div class="card-header">
+                <h2 class="card-title-sm" id="aging-title"><i class="bi bi-bar-chart-steps"></i>Aging of open changes by @m.GroupLabel.ToLowerInvariant()</h2>
+            </div>
+            <div class="card-body">
+                <div class="vl-legend mb-3" aria-hidden="true">
+                    @for (var i = 0; i < buckets.Length; i++) { <span><span class="sw age-@i"></span>@buckets[i].Label</span> }
+                </div>
+                @if (m.Aging.Count == 0)
+                {
+                    <div class="vl-empty py-3"><div class="vl-empty-icon"><i class="bi bi-inbox"></i></div><h3>No open changes</h3><p>Everything is completed or voided.</p></div>
+                }
+                else
+                {
+                    <div class="vl-bars" role="list">
+                        @foreach (var (group, counts) in m.Aging)
+                        {
+                            var total = counts.Sum();
+                            <div class="row-bar" role="listitem">
+                                <span class="text-truncate" title="@group">@group</span>
+                                <span class="track" style="width:@Pct(total, maxAging)" aria-label="@group: @string.Join(", ", buckets.Select((b, i) => $"{counts[i]} {b.Label}"))">
+                                    @for (var i = 0; i < counts.Length; i++)
+                                    {
+                                        if (counts[i] == 0) { continue; }
+                                        <span class="seg age-@i" style="flex:@counts[i]" data-tip="@group · @buckets[i].Label: @counts[i] change@(counts[i] == 1 ? "" : "s")"></span>
+                                    }
+                                </span>
+                                <span class="val">@total</span>
+                            </div>
+                        }
+                    </div>
+                    <div class="table-responsive mt-3">
+                        <table class="table vl-table vl-table-compact mb-0">
+                            <caption class="visually-hidden">Open changes by age</caption>
+                            <thead><tr><th>@m.GroupLabel</th>@foreach (var b in buckets) { <th class="text-end">@b.Label</th> }<th class="text-end">Total</th></tr></thead>
+                            <tbody>
+                                @foreach (var (group, counts) in m.Aging)
+                                {
+                                    <tr><td>@group</td>@foreach (var n in counts) { <td class="text-end tabular @(n == 0 ? "text-body-tertiary" : "")">@n</td> }<td class="text-end tabular fw-semibold">@counts.Sum()</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </section>
+    </div>
+    <div class="col-xl-5">
+        <section class="card h-100 vl-viz" aria-labelledby="monthly-title">
+            <div class="card-header"><h2 class="card-title-sm" id="monthly-title"><i class="bi bi-arrow-left-right"></i>Created vs completed</h2></div>
+            <div class="card-body">
+                <div class="vl-legend mb-3" aria-hidden="true"><span><span class="sw s1"></span>Created</span><span><span class="sw s2"></span>Completed</span></div>
+                <div class="vl-months" role="table" aria-label="Changes created and completed per month">
+                    @foreach (var (month, created, completed) in m.Monthly)
+                    {
+                        <div class="vl-month" role="row">
+                            <span class="lbl" role="rowheader">@month.ToString("MMM yyyy")</span>
+                            <span class="bars" role="cell">
+                                <span class="pair"><span class="bar s1" style="width:@Pct(created, maxMonth)" data-tip="@month.ToString("MMMM yyyy") · created: @created"></span><span class="num">@created<span class="visually-hidden"> created</span></span></span>
+                                <span class="pair"><span class="bar s2" style="width:@Pct(completed, maxMonth)" data-tip="@month.ToString("MMMM yyyy") · completed: @completed"></span><span class="num">@completed<span class="visually-hidden"> completed</span></span></span>
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-xl-6">
+        <section class="card h-100 vl-viz" aria-labelledby="ttc-title">
+            <div class="card-header"><h2 class="card-title-sm" id="ttc-title"><i class="bi bi-stopwatch"></i>Time to complete by @m.GroupLabel.ToLowerInvariant()</h2></div>
+            @if (m.TimeToComplete.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-stopwatch"></i></div><h3>No completed changes yet</h3><p>Times appear once changes are completed.</p></div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table vl-table mb-0">
+                        <thead><tr><th>@m.GroupLabel</th><th class="text-end">Completed</th><th style="width:42%">Average days</th><th class="text-end">Fastest</th><th class="text-end">Slowest</th></tr></thead>
+                        <tbody>
+                            @foreach (var (group, count, avg, min, max) in m.TimeToComplete)
+                            {
+                                <tr>
+                                    <td>@group</td>
+                                    <td class="text-end tabular">@count</td>
+                                    <td><span class="vl-inline-bar"><span class="bar s1" style="width:@Pct(avg, maxTtc)" data-tip="@group · average @avg.ToString("0") days"></span><span class="num">@avg.ToString("0") d</span></span></td>
+                                    <td class="text-end tabular">@min d</td>
+                                    <td class="text-end tabular">@max d</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+    <div class="col-xl-6">
+        <section class="card h-100" aria-labelledby="phase-title">
+            <div class="card-header"><h2 class="card-title-sm" id="phase-title"><i class="bi bi-signpost-split"></i>Timeliness by phase</h2></div>
+            <div class="card-body pb-2">
+                <p class="small text-body-secondary mb-2">Days = due date − date the phase was completed. Back routes and voids aren't counted.</p>
+                <div class="vl-legend mb-2"><span class="vl-tl-early"><i class="bi bi-arrow-up-circle-fill"></i> Early (&gt; 0)</span><span class="vl-tl-ontime"><i class="bi bi-dash-circle-fill"></i> On time (= 0)</span><span class="vl-tl-late"><i class="bi bi-arrow-down-circle-fill"></i> Late (&lt; 0)</span></div>
+            </div>
+            <div class="table-responsive">
+                <table class="table vl-table mb-0">
+                    <thead><tr><th>Phase</th><th style="width:38%">Share</th><th class="text-end">Early</th><th class="text-end">On time</th><th class="text-end">Late</th></tr></thead>
+                    <tbody>
+                        @foreach (var p in m.ByPhase)
+                        {
+                            <tr>
+                                <td class="fw-medium">@p.Phase</td>
+                                <td>
+                                    @if (p.Total == 0) { <span class="x-small text-body-tertiary">No completed entries</span> }
+                                    else
+                                    {
+                                        <span class="track vl-tl-track" aria-label="@p.Phase: @p.Early early, @p.OnTime on time, @p.Late late">
+                                            @if (p.Early > 0) { <span class="seg early" style="flex:@p.Early" data-tip="@p.Phase · early: @p.Early"></span> }
+                                            @if (p.OnTime > 0) { <span class="seg ontime" style="flex:@p.OnTime" data-tip="@p.Phase · on time: @p.OnTime"></span> }
+                                            @if (p.Late > 0) { <span class="seg late" style="flex:@p.Late" data-tip="@p.Phase · late: @p.Late"></span> }
+                                        </span>
+                                    }
+                                </td>
+                                <td class="text-end tabular vl-tl-early">@p.Early</td>
+                                <td class="text-end tabular vl-tl-ontime">@p.OnTime</td>
+                                <td class="text-end tabular @(p.Late > 0 ? "vl-tl-late fw-semibold" : "text-body-tertiary")">@p.Late</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <div class="col-12">
+        <section class="card" aria-labelledby="oldest-title">
+            <div class="card-header"><h2 class="card-title-sm" id="oldest-title"><i class="bi bi-clock-history"></i>Oldest open changes</h2><span class="vl-pill-count ms-auto">@m.Open.Count</span></div>
+            @if (m.Open.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon"><i class="bi bi-inbox"></i></div><h3>No open changes</h3><p>Nothing to age.</p></div>
+            }
+            else
+            {
+                <div class="vl-table-wrap border-0"><div class="vl-table-scroll">
+                    <table class="table vl-table mb-0">
+                        <thead><tr><th>Number</th><th>Title</th><th>@m.GroupLabel</th><th>Phase</th><th class="text-end">Age</th><th>Due</th></tr></thead>
+                        <tbody>
+                            @foreach (var i in m.Open.OrderByDescending(x => x.AgeDays).Take(10))
+                            {
+                                <tr data-href="/records/@i.Record.Id">
+                                    <td class="col-number"><a href="/records/@i.Record.Id">@i.Record.Number</a></td>
+                                    <td class="col-title"><span class="t">@i.Record.Title</span></td>
+                                    <td class="small">@i.Group</td>
+                                    <td>@Ui.Phase(Shell.Config.Phase(i.Record.PhaseId)?.Name, i.Record.PhaseType, i.Record.DueDate)</td>
+                                    <td class="text-end tabular">@i.AgeDays d</td>
+                                    <td>@Ui.Due(i.Record.DueDate)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div></div>
+            }
+        </section>
+    </div>
+</div>

@@ -1,0 +1,71 @@
+@page "/audits/program"
+@model Vellum.Areas.Audits.Pages.ProgramModel
+@{
+    ViewData["Title"] = "Audit program";
+    ViewData["ActiveApp"] = "audits";
+    var e = Model.Entities;
+    string Variant(string tone) => tone switch { "bad" => "danger", "warn" => "warning", "ok" => "success", "info" => "info", _ => "secondary" };
+    string Link(string? s) => "/audits/program" + (s != null ? "?status=" + Uri.EscapeDataString(s) : "");
+    string[] statuses = ["Overdue", "Due soon", "Never audited", "Scheduled", "On track"];
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/audits">Audits</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Audit program</span>
+}
+<div class="vl-page-head">
+    <div>
+        <h1 class="vl-page-title">Risk-based audit program</h1>
+        <p class="vl-page-sub">Every audited or planned process, supplier, site and department, with its last result and the next audit due from the audit type's frequency, adjusted by the last frequency recommendation (AUD-015).</p>
+    </div>
+    <a class="btn btn-light" href="/audits/findings"><i class="bi bi-flag"></i>Findings</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg"><a class="vl-stat" href="@Link(null)"><span class="vl-stat-icon tone-brand"><i class="bi bi-diagram-3"></i></span><div class="vl-stat-value">@e.Count</div><div class="vl-stat-label">Auditable entities</div></a></div>
+    <div class="col-6 col-lg"><a class="vl-stat" href="@Link("Overdue")"><span class="vl-stat-icon tone-bad"><i class="bi bi-exclamation-octagon"></i></span><div class="vl-stat-value">@e.Count(x => x.Status == "Overdue")</div><div class="vl-stat-label">Overdue</div></a></div>
+    <div class="col-6 col-lg"><a class="vl-stat" href="@Link("Due soon")"><span class="vl-stat-icon tone-warn"><i class="bi bi-hourglass-split"></i></span><div class="vl-stat-value">@e.Count(x => x.Status == "Due soon")</div><div class="vl-stat-label">Due in 60 days</div></a></div>
+    <div class="col-6 col-lg"><a class="vl-stat" href="@Link("Scheduled")"><span class="vl-stat-icon tone-info"><i class="bi bi-calendar-check"></i></span><div class="vl-stat-value">@e.Count(x => x.Status == "Scheduled")</div><div class="vl-stat-label">Scheduled or in progress</div></a></div>
+    <div class="col-6 col-lg"><a class="vl-stat" href="@Link("Never audited")"><span class="vl-stat-icon tone-violet"><i class="bi bi-question-diamond"></i></span><div class="vl-stat-value">@e.Count(x => x.Status == "Never audited")</div><div class="vl-stat-label">Never audited</div></a></div>
+</div>
+
+<div class="card">
+    <div class="card-header flex-wrap gap-2">
+        <h2 class="card-title-sm"><i class="bi bi-calendar2-week"></i>Program</h2>
+        <div class="vl-aud-filter ms-auto" role="group" aria-label="Filter by status">
+            <a href="@Link(null)" class="@(string.IsNullOrEmpty(Model.Status) ? "active" : "")">All</a>
+            @foreach (var s in statuses) { <a href="@Link(s)" class="@(Model.Status == s ? "active" : "")">@s</a> }
+        </div>
+    </div>
+    @if (!Model.Shown.Any())
+    {
+        <div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-calendar2-week"></i></div><h3>Nothing here</h3><p>No entities match this status.</p></div>
+    }
+    else
+    {
+        <div class="vl-table-wrap border-0"><div class="vl-table-scroll">
+            <table class="table vl-table mb-0">
+                <thead><tr><th>Entity</th><th>Last audit</th><th>Result</th><th>Frequency</th><th>Next due</th><th>Scheduled / planned</th><th class="text-end">Open CAPAs</th><th>Status</th></tr></thead>
+                <tbody>
+                    @foreach (var x in Model.Shown)
+                    {
+                        <tr>
+                            <td><div class="fw-semibold">@x.Name</div><div class="x-small text-body-tertiary">@(x.Kind?.Label ?? "–")</div></td>
+                            <td class="text-nowrap">@if (x.LastAudit != null) { <a href="/records/@x.LastAudit.Id">@x.LastAudit.Number</a><div class="x-small text-body-tertiary">@x.LastDate?.ToString("dd MMM yyyy")</div> } else { <span class="text-body-tertiary">Never</span> }</td>
+                            <td>@if (x.LastResult != null) { @Ui.Keyword(x.LastResult) } else { <span class="text-body-tertiary">–</span> }</td>
+                            <td class="text-nowrap small">Every @x.FrequencyMonths mo@if (x.Frequency != null) { <div>@Ui.Keyword(x.Frequency)</div> }</td>
+                            <td class="text-nowrap">@if (x.NextDue is { } n) { @Ui.Due(n, x.OpenAudit == null) } else { <span class="text-body-tertiary">Not set</span> }</td>
+                            <td class="text-nowrap">
+                                @if (x.OpenAudit != null) { <a href="/records/@x.OpenAudit.Id">@x.OpenAudit.Number</a> @Ui.Phase(x.OpenPhase?.Name, x.OpenAudit.PhaseType, x.OpenAudit.DueDate) }
+                                else if (x.PlannedDate is { } p) { <span class="small">Planned @p.ToString("dd MMM yyyy")</span>@if (x.Plan != null) { <div class="x-small"><a href="/records/@x.Plan.Id">@x.Plan.Number</a></div> } }
+                                else { <span class="text-body-tertiary small">Not planned</span> }
+                            </td>
+                            <td class="text-end tabular">@if (x.OpenCapas > 0) { <span class="vl-kw vl-kw-warning">@x.OpenCapas</span> } else { <span class="text-body-tertiary">0</span> }</td>
+                            <td>@Ui.KeywordBadge(x.Status, Variant(x.Tone))</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div></div>
+    }
+</div>

@@ -1,0 +1,44 @@
+@model Vellum.Engine.Records.RecordSnapshot
+@using Vellum.Modules.Inspections
+@{
+    var snap = Model;
+    var rows = snap.Rows("measurements");
+    var results = rows.Select(r => InspectionEvaluator.ParseResult(snap.KeywordKey(r, "result"))).ToList();
+    var sample = InspectionEvaluator.ParseResult(snap.KeywordKey("sample_result"));
+    var review = snap.Bool("review_needed") == true;
+}
+<section class="card vl-ins-sample-card mb-3" aria-label="Sample result">
+    <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center gap-4">
+            <div>
+                <div class="vl-meta-label">Sample result</div>
+                @InspectionUi.Chip(sample, large: true)
+            </div>
+            <div class="vl-ins-tally">
+                @foreach (var r in new[] { InspectionResult.Pass, InspectionResult.Warn, InspectionResult.Fail, InspectionResult.Pending })
+                {
+                    var n = results.Count(x => x == r);
+                    <div class="t @(n > 0 ? "has" : "")"><span class="v">@n</span>@InspectionUi.Chip(r)</div>
+                }
+            </div>
+            <div class="ms-auto small text-body-secondary text-end">
+                <div>@rows.Count criteria</div>
+                <div>Fails only on the point's failure classes (INV-167)</div>
+            </div>
+        </div>
+        @if (review && snap.Record.PhaseType == PhaseType.Normal)
+        {
+            <div class="vl-banner vl-banner-warn mt-3 mb-0" role="status"><i class="bi bi-person-check" aria-hidden="true"></i><div><div class="ttl">Review required</div><div class="small">This sample meets its point's review condition, so it goes through Review before it can be closed (INV-169).</div></div></div>
+        }
+        @if (snap.Text("summary") is { } summary)
+        {
+            <ul class="vl-ins-flags mt-3 mb-0">
+                @foreach (var line in summary.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var fail = line.Contains("→ Fail");
+                    <li class="@(fail ? "fail" : "warn")"><i class="bi @(fail ? "bi-x-circle-fill" : "bi-exclamation-triangle-fill")" aria-hidden="true"></i>@line</li>
+                }
+            </ul>
+        }
+    </div>
+</section>

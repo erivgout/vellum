@@ -1,0 +1,68 @@
+@model Vellum.Modules.Audits.FindingsModel
+@{
+    var m = Model;
+    var s = m.Summary;
+    var snap = m.Snap;
+    var result = snap.Keyword("result");
+    var suggested = snap.Config.Keyword("aud_result", s.SuggestedResult);
+    var freq = snap.Keyword("frequency_rec");
+    var pct = s.Percent ?? 0;
+    var tone = pct >= 85 ? "ok" : pct >= 70 ? "warn" : "bad";
+    var followOpen = m.Findings.SelectMany(f => f.FollowUps).Count(u => u.Record.PhaseType == PhaseType.Normal);
+    var followAll = m.Findings.SelectMany(f => f.FollowUps).Count();
+    var ncWithout = m.Findings.Count(f => f.Classification?.Key is "minor_nc" or "major_nc" && f.FollowUps.All(u => u.Kind != "CAPA"));
+    (string Key, string Label, string Icon, string Tone)[] tiles =
+    [
+        ("major_nc", "Major NC", "bi-x-octagon-fill", "bad"), ("minor_nc", "Minor NC", "bi-exclamation-triangle-fill", "warn"),
+        ("observation", "Observations", "bi-eye-fill", "info"), ("ofi", "OFIs", "bi-lightbulb-fill", "violet"), ("conforming", "Conforming", "bi-check-circle-fill", "ok"),
+    ];
+}
+<section class="card vl-aud-summary mb-3" aria-label="Audit summary">
+    <div class="vl-aud-grid">
+        <div class="vl-aud-score">
+            <div class="vl-meta-label">@(m.Scoring ? "Total score" : "Checklist")</div>
+            @if (m.Scoring && s.Max > 0)
+            {
+                <div class="vl-aud-big tone-text-@tone">@pct.ToString("0.#")<span class="unit">%</span></div>
+                <div class="small text-body-secondary">@s.Total.ToString("0.#") of @s.Max.ToString("0.#") points</div>
+                <div class="vl-aud-bar" role="progressbar" aria-label="Score" aria-valuenow="@pct.ToString("0")" aria-valuemin="0" aria-valuemax="100"><span class="tone-@tone" style="width:@Math.Clamp(pct, 0, 100).ToString("0", System.Globalization.CultureInfo.InvariantCulture)%"></span></div>
+            }
+            else
+            {
+                <div class="vl-aud-big">@s.Answered<span class="unit">/@s.Questions</span></div>
+                <div class="small text-body-secondary">questions answered</div>
+            }
+        </div>
+        <div class="vl-aud-counts">
+            @foreach (var t in tiles)
+            {
+                var n = s.Count(t.Key);
+                <div class="vl-aud-count @(n > 0 ? "has" : "")">
+                    <span class="vl-stat-icon tone-@t.Tone"><i class="bi @t.Icon" aria-hidden="true"></i></span>
+                    <span class="v">@n</span>
+                    <span class="l">@t.Label</span>
+                </div>
+            }
+        </div>
+        <div class="vl-aud-result">
+            <dl class="vl-kv">
+                <dt>Result</dt>
+                <dd>@if (result != null) { @Ui.Keyword(result) } else if (suggested != null && s.Answered > 0) { <span class="text-body-tertiary">Suggested</span> @Ui.Keyword(suggested) } else { <span class="text-body-tertiary">–</span> }</dd>
+                <dt>Frequency</dt>
+                <dd>@if (freq != null) { @Ui.Keyword(freq) } else { <span class="text-body-tertiary">–</span> }</dd>
+                <dt>Answered</dt>
+                <dd>@s.Answered of @s.Questions</dd>
+                <dt>Required open</dt>
+                <dd>@if (s.RequiredUnanswered > 0) { <span class="vl-kw vl-kw-warning">@s.RequiredUnanswered</span> } else { <span class="text-success"><i class="bi bi-check2" aria-hidden="true"></i> None</span> }</dd>
+                <dt>Follow-ups</dt>
+                <dd>@(followAll == 0 ? "–" : $"{followAll - followOpen} of {followAll} closed")</dd>
+            </dl>
+        </div>
+    </div>
+    @if (ncWithout > 0 && snap.Record.PhaseType != PhaseType.Voided)
+    {
+        <div class="card-body pt-0">
+            <div class="vl-banner vl-banner-warn mb-0"><i class="bi bi-shield-exclamation" aria-hidden="true"></i><div>@ncWithout nonconformance@(ncWithout == 1 ? " has" : "s have") no CAPA yet. Use <strong>Findings › Raise CAPA</strong> to create one pre-filled from the question.</div></div>
+        </div>
+    }
+</section>

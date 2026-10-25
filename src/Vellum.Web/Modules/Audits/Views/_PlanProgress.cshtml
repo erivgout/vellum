@@ -1,0 +1,27 @@
+@model Vellum.Modules.Audits.PlanProgressModel
+@{
+    var m = Model;
+    var total = m.Rows.Count;
+    var pct = total == 0 ? 0 : m.Completed * 100 / total;
+    string Variant(string tone) => tone switch { "bad" => "danger", "warn" => "warning", "ok" => "success", "info" => "info", _ => "secondary" };
+}
+<div class="d-flex align-items-end justify-content-between gap-2">
+    <div>
+        <div class="vl-aud-big sm">@m.Completed<span class="unit">/@total</span></div>
+        <div class="x-small text-body-tertiary">audits completed · @m.Scheduled scheduled</div>
+    </div>
+    @if (m.Late > 0) { <span class="vl-kw vl-kw-danger"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i>@m.Late late</span> }
+</div>
+<div class="vl-aud-bar mt-2" role="progressbar" aria-label="Plan completion" aria-valuenow="@pct" aria-valuemin="0" aria-valuemax="100"><span class="tone-ok" style="width:@(pct)%"></span></div>
+<ul class="vl-chg-mini mt-3">
+    @foreach (var r in m.Rows)
+    {
+        <li>
+            <span class="lbl">
+                <span class="d-block text-truncate fw-medium">@r.Auditee</span>
+                <span class="d-block x-small text-body-tertiary">@(r.PlannedStart?.ToString("dd MMM yyyy") ?? "No date")@if (r.Audit != null) { <text> · </text><a href="/records/@r.Audit.Id">@r.Audit.Number</a> }</span>
+            </span>
+            @if (r.Result != null) { @Ui.Keyword(r.Result) } else { @Ui.KeywordBadge(r.State, Variant(r.Tone)) }
+        </li>
+    }
+</ul>
