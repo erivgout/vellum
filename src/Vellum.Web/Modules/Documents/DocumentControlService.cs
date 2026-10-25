@@ -238,7 +238,8 @@ public sealed class DocumentControlService(
 
         var snap = await records.LoadRequiredAsync(rev.Id);
         await training.CarryForwardAsync(source.Record.Id, snap);
-        await SyncDraftReadersAsync(snap, extraReaders);
+        // DOC-080: the authors keep reading their revision after it leaves Draft (its creator is the requester, DOC-093).
+        await SyncDraftReadersAsync(snap, assignees.Concat(extraReaders ?? []));
         await db.SaveChangesAsync();
         return rev;
     }
