@@ -1,0 +1,106 @@
+@page "/portal/account"
+@model Vellum.Areas.Portal.Pages.Account.IndexModel
+@{
+    ViewData["Title"] = "Account & security";
+    var u = Model.Me;
+    var tz = Shell.TimeZone;
+}
+<nav class="vp-crumbs" aria-label="Breadcrumb"><a href="/portal">Home</a><i class="bi bi-chevron-right" aria-hidden="true"></i><span aria-current="page">Account &amp; security</span></nav>
+<div class="vp-page-head">
+    <div>
+        <h1 class="vp-title">Account &amp; security</h1>
+        <p class="vp-lead">Your supplier portal account for @(await Portal.CompanyAsync()).</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <section class="vp-card mb-3" aria-labelledby="profile-title">
+            <div class="vp-card-head"><h2 class="vp-h3" id="profile-title"><i class="bi bi-person" aria-hidden="true"></i>Profile</h2></div>
+            <dl class="vp-dl">
+                <div><dt>Name</dt><dd>@u.DisplayName</dd></div>
+                <div><dt>Username</dt><dd class="mono">@u.Username</dd></div>
+                <div><dt>Email</dt><dd>@u.Email</dd></div>
+                <div><dt>Company</dt><dd>@(await Portal.CompanyAsync())</dd></div>
+                @if (u.JobTitle != null) { <div><dt>Role</dt><dd>@u.JobTitle</dd></div> }
+                <div><dt>Last sign-in</dt><dd>@(u.LastLoginAt is { } ll ? Ui.Time(ll, tz) : new Microsoft.AspNetCore.Html.HtmlString("–"))</dd></div>
+            </dl>
+            <p class="vp-card-body x-small text-body-tertiary mb-0 pt-0">To change your name or email, ask your contact at @Portal.OrganizationName.</p>
+        </section>
+
+        <section class="vp-card mb-3" aria-labelledby="prefs-title">
+            <div class="vp-card-head"><h2 class="vp-h3" id="prefs-title"><i class="bi bi-sliders" aria-hidden="true"></i>Preferences</h2></div>
+            <form method="post" asp-page-handler="Preferences" class="vp-card-body d-flex flex-wrap gap-2 align-items-end">
+                <div class="flex-grow-1" style="min-width:220px">
+                    <label class="form-label" for="tz">Time zone</label>
+                    <select class="form-select" id="tz" name="timeZone">
+                        @foreach (var z in Vellum.Areas.Portal.Pages.Account.IndexModel.TimeZones) { <option value="@z" selected="@(z == u.TimeZone)">@z.Replace('_', ' ')</option> }
+                    </select>
+                </div>
+                <button class="btn btn-light"><i class="bi bi-check2" aria-hidden="true"></i>Save</button>
+            </form>
+        </section>
+
+        <section class="vp-card mb-3" aria-labelledby="sessions-title">
+            <div class="vp-card-head"><h2 class="vp-h3" id="sessions-title"><i class="bi bi-laptop" aria-hidden="true"></i>Where you're signed in</h2></div>
+            <ul class="vp-files">
+                @foreach (var s in Model.Sessions)
+                {
+                    <li>
+                        <span class="vp-file-ico" aria-hidden="true"><i class="bi @(s.UserAgent?.Contains("Mobile") == true ? "bi-phone" : "bi-laptop")"></i></span>
+                        <span class="min-w-0 flex-grow-1">
+                            <span class="d-block small fw-semibold">@(Model.IsCurrent(s) ? "This device" : "Another device")@(s.Ip != null ? " · " + s.Ip : "")</span>
+                            <span class="d-block x-small text-body-tertiary">Signed in @Ui.Ago(s.CreatedAt) · last active @Ui.Ago(s.LastSeenAt)</span>
+                        </span>
+                        @if (!Model.IsCurrent(s))
+                        {
+                            <form method="post" asp-page-handler="EndSession" class="m-0"><input type="hidden" name="id" value="@s.Id" /><button class="btn btn-sm btn-light">Sign out</button></form>
+                        }
+                    </li>
+                }
+            </ul>
+        </section>
+    </div>
+
+    <div class="col-lg-5">
+        <section class="vp-card mb-3" aria-labelledby="pw-title">
+            <div class="vp-card-head"><h2 class="vp-h3" id="pw-title"><i class="bi bi-key" aria-hidden="true"></i>Password</h2></div>
+            <div class="vp-card-body">
+                <p class="small text-body-secondary">Last changed @(u.PasswordChangedAt is { } pc ? Ui.Ago(pc) : "never").@(Model.Settings.PasswordExpiryDays > 0 ? $" Passwords expire after {Model.Settings.PasswordExpiryDays} days." : "")</p>
+                <a class="btn btn-light" href="/portal/account/password"><i class="bi bi-key" aria-hidden="true"></i>Change password</a>
+            </div>
+        </section>
+
+        <section class="vp-card" aria-labelledby="mfa-title">
+            <div class="vp-card-head">
+                <h2 class="vp-h3" id="mfa-title"><i class="bi bi-shield-lock" aria-hidden="true"></i>Two-step verification</h2>
+                @if (u.MfaEnrolled) { <span class="vp-status vp-ok ms-auto"><i class="bi bi-check-circle" aria-hidden="true"></i>On</span> } else { <span class="vp-status vp-neutral ms-auto">Off</span> }
+            </div>
+            <div class="vp-card-body">
+                @if (Model.Error != null) { <div class="vl-banner vl-banner-bad" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><div>@Model.Error</div></div> }
+                @if (Model.PendingSecret != null)
+                {
+                    <ol class="small ps-3">
+                        <li>In your authenticator app (Microsoft Authenticator, Google Authenticator, 1Password…), add an account with this key:</li>
+                    </ol>
+                    <div class="vp-secret mono" aria-label="Setup key">@string.Join(" ", Enumerable.Range(0, (Model.PendingSecret.Length + 3) / 4).Select(i => Model.PendingSecret.Substring(i * 4, Math.Min(4, Model.PendingSecret.Length - i * 4))))</div>
+                    <p class="x-small text-body-tertiary">Or open this link on your phone: <a href="@Model.OtpUri(Model.PendingSecret)">add to authenticator</a></p>
+                    <form method="post" asp-page-handler="MfaConfirm" class="d-flex gap-2 align-items-end flex-wrap">
+                        <input type="hidden" name="secret" value="@Model.PendingSecret" />
+                        <div><label class="form-label" for="code">2. Enter the 6-digit code it shows</label><input class="form-control tabular" id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required /></div>
+                        <button class="btn btn-primary"><i class="bi bi-shield-check" aria-hidden="true"></i>Turn on</button>
+                    </form>
+                }
+                else if (u.MfaEnrolled)
+                {
+                    <p class="small text-body-secondary mb-0">You enter a code from your authenticator app each time you sign in. If you lose your device, ask your contact at @Portal.OrganizationName to reset it.</p>
+                }
+                else
+                {
+                    <p class="small text-body-secondary">Protect your account with a code from an authenticator app as well as your password.@(Model.Settings.MfaRequired ? " " + Portal.OrganizationName + " requires it." : "")</p>
+                    <form method="post" asp-page-handler="MfaStart"><button class="btn btn-light"><i class="bi bi-phone" aria-hidden="true"></i>Set up an authenticator app</button></form>
+                }
+            </div>
+        </section>
+    </div>
+</div>

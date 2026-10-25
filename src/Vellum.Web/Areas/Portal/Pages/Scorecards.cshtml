@@ -1,0 +1,81 @@
+@page "/portal/scorecards"
+@model ScorecardsModel
+@{
+    ViewData["Title"] = "Scorecards";
+    var latest = Model.Scores.FirstOrDefault();
+    var trend = Model.Scores.Where(s => s.Overall != null).OrderBy(s => s.Start).TakeLast(8).ToList();
+}
+<nav class="vp-crumbs" aria-label="Breadcrumb"><a href="/portal">Home</a><i class="bi bi-chevron-right" aria-hidden="true"></i><span aria-current="page">Scorecards</span></nav>
+<div class="vp-page-head">
+    <div>
+        <h1 class="vp-title">Scorecards</h1>
+        <p class="vp-lead">How @Portal.OrganizationName rates @(await Portal.CompanyAsync()): quality, on-time delivery, responsiveness and audit results.</p>
+    </div>
+</div>
+
+@if (latest == null)
+{
+    <div class="vp-card vl-empty">
+        <div class="vl-empty-icon"><i class="bi bi-speedometer2" aria-hidden="true"></i></div>
+        <h3>No scorecards shared yet</h3>
+        <p>When @Portal.OrganizationName publishes and shares a scorecard for your company, it appears here and you get an email.</p>
+    </div>
+}
+else
+{
+    <div class="row g-4 mb-4">
+        <div class="col-lg-5">
+            <a class="vp-card vp-score-hero" href="@PortalService.Url(latest.ShareId)">
+                <div class="vp-grade vp-grade-xl @ScorecardsModel.Tone(latest.GradeKey)" aria-hidden="true">@(latest.GradeKey?.ToUpperInvariant() ?? "–")</div>
+                <div class="min-w-0">
+                    <div class="vp-eyebrow">Latest · @latest.Period</div>
+                    <div class="vp-h2 mb-1">@(latest.GradeLabel ?? "Not graded")</div>
+                    <div class="text-body-secondary">Overall <strong class="tabular text-body">@(latest.Overall?.ToString("0.0", CultureInfo.InvariantCulture) ?? "–")</strong> of 100</div>
+                    <span class="small mt-2 d-inline-flex align-items-center gap-1">Open the scorecard<i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+                </div>
+            </a>
+        </div>
+        <div class="col-lg-7">
+            <section class="vp-card h-100" aria-labelledby="trend-title">
+                <div class="vp-card-head"><h2 class="vp-h3" id="trend-title"><i class="bi bi-graph-up" aria-hidden="true"></i>Overall score by period</h2></div>
+                <div class="vp-card-body">
+                    <ol class="vp-trend" aria-label="Overall score by period, oldest first">
+                        @foreach (var s in trend)
+                        {
+                            var h = Math.Clamp(s.Overall ?? 0, 0, 100);
+                            <li>
+                                <span class="vp-trend-bar @ScorecardsModel.Tone(s.GradeKey)" style="height:@h.ToString("0.#", CultureInfo.InvariantCulture)%"><span class="vp-trend-val tabular">@s.Overall?.ToString("0", CultureInfo.InvariantCulture)</span></span>
+                                <span class="vp-trend-label">@s.Period</span>
+                                <span class="visually-hidden">@s.Period: @s.Overall?.ToString("0.0", CultureInfo.InvariantCulture), grade @s.GradeLabel</span>
+                            </li>
+                        }
+                    </ol>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <section class="vp-card" aria-labelledby="all-title">
+        <div class="vp-card-head"><h2 class="vp-h3" id="all-title"><i class="bi bi-table" aria-hidden="true"></i>All shared scorecards</h2></div>
+        <div class="vl-table-scroll">
+            <table class="table vl-table mb-0">
+                <caption class="visually-hidden">Scorecards shared with your company</caption>
+                <thead><tr><th scope="col">Period</th><th scope="col" class="text-end">Overall</th><th scope="col">Grade</th><th scope="col" class="text-end">Quality</th><th scope="col" class="text-end">Delivery</th><th scope="col" class="text-end">Responsiveness</th><th scope="col" class="text-end">Audit</th></tr></thead>
+                <tbody>
+                    @foreach (var s in Model.Scores)
+                    {
+                        <tr data-href="@PortalService.Url(s.ShareId)">
+                            <td class="col-title"><a href="@PortalService.Url(s.ShareId)">@s.Period</a><span class="d-block x-small text-body-tertiary mono">@s.Number</span></td>
+                            <td class="text-end tabular fw-semibold">@(s.Overall?.ToString("0.00", CultureInfo.InvariantCulture) ?? "–")</td>
+                            <td><span class="vp-grade-chip @ScorecardsModel.Tone(s.GradeKey)">@(s.GradeKey?.ToUpperInvariant() ?? "–")</span> <span class="small">@s.GradeLabel</span></td>
+                            <td class="text-end tabular">@(s.Quality ?? "–")</td>
+                            <td class="text-end tabular">@(s.Delivery ?? "–")</td>
+                            <td class="text-end tabular">@(s.Response ?? "–")</td>
+                            <td class="text-end tabular">@(s.Audit ?? "n/a")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
