@@ -1,0 +1,16 @@
+@model Vellum.Modules.Quality.CostSummary
+@{
+    var max = Model.Lines.Count == 0 ? 1m : Math.Max(1m, Model.Lines.Max(l => l.Amount));
+}
+<ul class="vlq-cost-list">
+    @foreach (var l in Model.Lines)
+    {
+        <li>
+            <div class="d-flex justify-content-between gap-2 small"><span>@l.Category <span class="text-body-tertiary">(@l.Count)</span></span><span class="tabular fw-semibold">USD @l.Amount.ToString("N2")</span></div>
+            <div class="vlq-meter is-thin" aria-hidden="true"><span style="width:@((int)Math.Round(l.Amount / max * 100))%"></span></div>
+        </li>
+    }
+</ul>
+<dl class="vl-kv mt-2">
+    <dt>Total cost of poor quality</dt><dd>USD @Model.Total.ToString("N2")</dd>
+</dl>

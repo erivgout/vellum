@@ -1,0 +1,33 @@
+@model Vellum.Modules.Quality.QeBannerModel
+@{
+    var m = Model;
+}
+@if (m.Critical)
+{
+    <div class="vl-banner vl-banner-bad" role="status">
+        <i class="bi bi-megaphone-fill"></i>
+        <div class="flex-grow-1 min-w-0">
+            <div class="ttl">Critical quality event</div>
+            <div class="small">The escalation list was alerted when the event was raised and is notified at every phase change (QE-103).</div>
+            @if (m.Escalation.Count > 0)
+            {
+                <div class="d-flex flex-wrap gap-2 mt-2">@foreach (var u in m.Escalation) { @Ui.Avatar(u, "xs", showName: true) }</div>
+            }
+        </div>
+    </div>
+}
+@if (m.TrackTrend)
+{
+    <div class="vl-banner vl-banner-info py-2" role="status"><i class="bi bi-graph-up"></i><div><strong>Track &amp; Trend.</strong> No investigation; the event is recorded for trending and goes straight to Final Approval (QE-102).</div></div>
+}
+@if (m.Capas.Count > 0)
+{
+    <div class="vl-banner vl-banner-ok py-2" role="status">
+        <i class="bi bi-shield-check"></i>
+        <div><strong>CAPA linked:</strong> @foreach (var c in m.Capas) { <a href="/records/@c.Id" class="me-2">@c.Number · @c.Title</a> }</div>
+    </div>
+}
+else if (m.CapaRequired == true && !m.Closed)
+{
+    <div class="vl-banner vl-banner-warn py-2" role="status"><i class="bi bi-shield-exclamation"></i><div><strong>A CAPA is required.</strong> Use <em>Create › Initiate CAPA</em>. The event can't reach Final Approval until the CAPA exists (QE-005).</div></div>
+}

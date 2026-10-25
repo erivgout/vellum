@@ -1,0 +1,24 @@
+@model Vellum.Modules.Quality.RmaSummaryModel
+@{
+    var m = Model;
+}
+<table class="table table-sm vlq-mini-table mb-2">
+    <thead><tr><th scope="col">Part</th><th scope="col" class="text-end">Authorized</th><th scope="col" class="text-end">Received</th></tr></thead>
+    <tbody>
+        @foreach (var l in m.Lines)
+        {
+            <tr class="@(l.Over ? "is-over" : "")">
+                <td class="text-truncate">@l.Part</td>
+                <td class="text-end tabular">@l.Authorized.ToString("0.##")</td>
+                <td class="text-end tabular">@if (l.Over) { <i class="bi bi-exclamation-triangle-fill text-warning" title="More than authorized" aria-label="More than authorized"></i> } @(m.Receiving ? l.Received.ToString("0.##") : "–")</td>
+            </tr>
+        }
+    </tbody>
+</table>
+<dl class="vl-kv">
+    <dt>Authorized value</dt><dd>USD @m.Total.ToString("N2")</dd>
+</dl>
+@if (m.Lines.Any(l => l.Over))
+{
+    <div class="small mt-2 @(m.Override ? "text-body-secondary" : "text-danger")"><i class="bi @(m.Override ? "bi-shield-check" : "bi-shield-exclamation")"></i> @(m.Override ? "Over-receipt accepted with a justified override (INV-066)." : "Received more than authorized: an override with a justification is required (INV-066).")</div>
+}

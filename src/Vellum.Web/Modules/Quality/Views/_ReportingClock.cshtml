@@ -1,0 +1,79 @@
+@model Vellum.Modules.Quality.ReportingClockModel
+@{
+    var m = Model;
+    var ordered = m.Deadlines.OrderBy(d => d.SubmittedOn != null).ThenBy(d => d.Due).ToList();
+}
+<section class="card vlq-clock mb-3" aria-labelledby="vlq-clock-title">
+    <div class="card-header">
+        <span class="vl-section-icon"><i class="bi bi-alarm"></i></span>
+        <div class="min-w-0">
+            <h3 class="card-title-sm" id="vlq-clock-title">Regulatory reporting clock</h3>
+            <p class="vl-section-desc">Runs from the awareness date (@(m.Awareness?.ToString("dd MMM yyyy") ?? "not set")), not from when the complaint was entered (CMP-009).</p>
+        </div>
+        <span class="ms-auto">@Ui.Keyword(m.Status)</span>
+    </div>
+    <div class="card-body">
+        @if (m.LateEntryDays is { } late)
+        {
+            <div class="vl-banner vl-banner-warn py-2"><i class="bi bi-hourglass-bottom"></i><div><strong>Late entry.</strong> Logged @late days after Acme became aware of the event. This is flagged in the audit trail (SAF-023).</div></div>
+        }
+        @if (ordered.Count == 0)
+        {
+            <div class="d-flex align-items-center gap-2 small text-body-secondary"><i class="bi bi-check-circle-fill text-success"></i>No regulatory report is due: the completed decision trees concluded the event isn't reportable.</div>
+        }
+        else
+        {
+            <div class="vlq-deadlines">
+                @foreach (var d in ordered)
+                {
+                    var left = d.DaysLeft(m.Today);
+                    var state = d.SubmittedOn != null ? "done" : m.Closed ? "closed" : left < 0 ? "missed" : left <= Vellum.Modules.Quality.ReportingClock.DueSoonDays ? "soon" : "ok";
+                    var icon = state switch { "done" => "bi-send-check-fill", "missed" => "bi-exclamation-octagon-fill", "soon" => "bi-hourglass-split", _ => "bi-clock" };
+                    <div class="vlq-deadline is-@state @(d.Provisional ? "is-provisional" : "")">
+                        <div class="vlq-deadline-head">
+                            <span class="vl-kw">@d.Jurisdiction</span>
+                            <span class="vlq-deadline-rule">@d.Rule</span>
+                        </div>
+                        <div class="vlq-deadline-due">
+                            <i class="bi @icon" aria-hidden="true"></i>
+                            @if (d.SubmittedOn is { } sub)
+                            {
+                                <span>Submitted @sub.ToString("dd MMM yyyy")@(d.SubmittedLate ? " (after the deadline)" : "")</span>
+                            }
+                            else if (m.Closed)
+                            {
+                                <span>Not submitted</span>
+                            }
+                            else
+                            {
+                                <span class="vlq-countdown" data-vlq-deadline="@d.Due.ToString("yyyy-MM-dd")">@(left < 0 ? $"Overdue {-left}d" : left == 0 ? "Due today" : $"{left}d left")</span>
+                            }
+                        </div>
+                        <div class="vlq-deadline-meta">Due <strong>@d.Due.ToString("ddd dd MMM yyyy")</strong> · @d.Basis</div>
+                        @if (d.Provisional)
+                        {
+                            <div class="vlq-deadline-meta"><i class="bi bi-info-circle"></i> Provisional until the decision tree is completed.</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        <div class="vlq-decisions">
+            <div><div class="vl-meta-label">FDA MDR decision</div>@Ui.Keyword(m.MdrDecision)</div>
+            <div><div class="vl-meta-label">EU vigilance</div>@Ui.Keyword(m.VigilanceDecision)</div>
+            <div class="min-w-0">
+                <div class="vl-meta-label">Decision trees</div>
+                @if (m.Trees.Count == 0)
+                {
+                    <span class="small text-body-tertiary">Started automatically when the complaint enters Investigation.</span>
+                }
+                <span class="d-inline-flex flex-wrap gap-2">
+                    @foreach (var t in m.Trees)
+                    {
+                        <a class="vlq-tree-link" href="/records/@t.Id" title="@t.Form"><i class="bi bi-diagram-2"></i>@t.Number</a>@Ui.Phase(t.Phase, t.Type)
+                    }
+                </span>
+            </div>
+        </div>
+    </div>
+</section>

@@ -1,0 +1,34 @@
+@model Vellum.Modules.Quality.NcrSummaryModel
+@{
+    var m = Model;
+    var closed = m.PhaseKey is "completed" or "voided";
+}
+@if (m.HoldStatus == "on_hold")
+{
+    <div class="vl-banner vl-banner-bad" role="status">
+        <i class="bi bi-sign-stop-fill"></i>
+        <div><div class="ttl">Material on hold@(m.HoldLocation != null ? $" at {m.HoldLocation}" : "")</div>
+            <div class="small">@m.Affected.ToString("0.##") @m.Uom held in ERP/MES. The hold is released automatically when Quality approves the disposition (NC-007).</div></div>
+    </div>
+}
+@if (m.PartDeviations.Count > 0)
+{
+    <div class="vl-banner vl-banner-violet" role="status">
+        <i class="bi bi-sign-turn-right-fill"></i>
+        <div><div class="ttl">This item has an active deviation</div>
+            <ul class="small">
+                @foreach (var d in m.PartDeviations)
+                {
+                    <li><a href="/records/@d.Id">@d.Number</a> · @d.DefectLabel · until @d.ValidTo?.ToString("dd MMM yyyy")</li>
+                }
+            </ul>
+        </div>
+    </div>
+}
+@if (m.UseAsIs && m.UseAsIsProblem != null && !closed)
+{
+    <div class="vl-banner vl-banner-warn" role="status">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div><div class="ttl">Use As Is needs an active planned deviation</div><div class="small">@m.UseAsIsProblem</div></div>
+    </div>
+}
