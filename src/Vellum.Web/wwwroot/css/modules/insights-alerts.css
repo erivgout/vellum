@@ -74,7 +74,8 @@
 .ins-created details { margin-top: .45rem; }
 .ins-created summary { font-size: .76rem; color: var(--vl-text-2); cursor: pointer; width: fit-content; }
 .ins-created summary:focus-visible { outline: 0; box-shadow: var(--vl-ring); border-radius: 4px; }
-.ins-created-detail { margin-top: .5rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: .75rem 1.25rem; }
+.ins-created-detail { margin-top: .5rem; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: .75rem 1.25rem; align-items: start; }
+.ins-created-detail > .ins-origin { align-content: start; }
 @media (max-width: 767.98px) { .ins-created-detail { grid-template-columns: minmax(0, 1fr); } }
 .ins-created-fields { width: 100%; font-size: .76rem; border-collapse: collapse; }
 .ins-created-fields th { font-weight: 540; color: var(--vl-text-3); padding: .2rem .6rem .2rem 0; vertical-align: top; width: 38%; text-align: left; }

@@ -240,7 +240,9 @@ public sealed class AlertCreateAction(IServiceScopeFactory scopes, VellumDbConte
                 var line = $"{open.Number} (created for {item.Label} by an earlier report) is still open.";
                 outcome.Skipped++;
                 outcome.SkippedLines.Add(line);
-                db.Set<InsightsAlertCreation>().Add(Row(t, report, item, "Skipped", line, null));
+                var skipped = Row(t, report, item, "Skipped", line, null);
+                (skipped.RecordId, skipped.RecordNumber, skipped.RecordTitle) = (open.Id, open.Number, Clip(open.Title, 1000));
+                db.Set<InsightsAlertCreation>().Add(skipped);
                 continue;
             }
             var row = await AttemptAsync(t, report, result, c, form, phase.Workflow, phase.Phase, item, dryRun, outcome.Notified);

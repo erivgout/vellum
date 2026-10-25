@@ -108,7 +108,7 @@ else if (r.ActionDetail != null)
                                     default: <span class="vl-chip vl-chip-overdue"><i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>Not created</span> break;
                                 }
                                 <span class="ins-created-rec min-w-0">
-                                    @if (c.Status == "Created")
+                                    @if (c.Status is "Created" or "Skipped" && c.RecordNumber != null)
                                     {
                                         if (canOpen) { <a href="/records/@c.RecordId"><span class="num">@c.RecordNumber</span>@c.RecordTitle</a> }
                                         else { <span class="num">@c.RecordNumber</span><span class="text-body-tertiary">(you can't open this record)</span> }
