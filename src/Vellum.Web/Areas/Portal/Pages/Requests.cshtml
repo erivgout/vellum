@@ -1,0 +1,47 @@
+@page "/portal/requests"
+@model RequestsModel
+@{
+    ViewData["Title"] = "Requests";
+    var kinds = PortalKinds.All.Where(k => !k.ReadOnly && Model.All.Any(i => i.Kind.Key == k.Key)).ToList();
+    string Href(string? status, string? kind) => "/portal/requests?status=" + status + (kind != null ? "&kind=" + kind : "");
+}
+<nav class="vp-crumbs" aria-label="Breadcrumb"><a href="/portal">Home</a><i class="bi bi-chevron-right" aria-hidden="true"></i><span aria-current="page">Requests</span></nav>
+<div class="vp-page-head">
+    <div>
+        <h1 class="vp-title">Requests</h1>
+        <p class="vp-lead">Everything @Portal.OrganizationName has asked of @(await Portal.CompanyAsync()), newest due dates first.</p>
+    </div>
+</div>
+
+<nav class="vp-tabs" aria-label="Filter by status">
+    @foreach (var (key, label) in RequestsModel.Tabs)
+    {
+        var n = Model.All.Count(i => RequestsModel.InTab(i, key) && (Model.Kind == null || i.Kind.Key == Model.Kind));
+        <a class="vp-tab @(Model.Status == key ? "active" : "")" aria-current="@(Model.Status == key ? "page" : null)" href="@Href(key, Model.Kind)">@label<span class="vp-tab-count">@n</span></a>
+    }
+</nav>
+@if (kinds.Count > 1)
+{
+    <div class="vp-chips" role="group" aria-label="Filter by kind">
+        <a class="vp-chip @(Model.Kind == null ? "active" : "")" href="@Href(Model.Status, null)">All kinds</a>
+        @foreach (var k in kinds)
+        {
+            <a class="vp-chip @(Model.Kind == k.Key ? "active" : "")" href="@Href(Model.Status, k.Key)"><i class="bi @k.Icon" aria-hidden="true"></i>@k.Noun</a>
+        }
+    </div>
+}
+
+@if (Model.Shown.Count == 0)
+{
+    <div class="vp-card vl-empty">
+        <div class="vl-empty-icon"><i class="bi bi-inbox" aria-hidden="true"></i></div>
+        <h3>@(Model.Status == "open" ? "Nothing needs your response" : "No requests here")</h3>
+        <p>@(Model.Status == "open" ? "You're all caught up. New requests are emailed to you as well." : "Try another filter.")</p>
+    </div>
+}
+else
+{
+    <div class="vp-items">
+        @foreach (var i in Model.Shown) { <partial name="_RequestItem" model="i" /> }
+    </div>
+}

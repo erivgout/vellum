@@ -1,0 +1,69 @@
+@page "/portal/welcome"
+@model WelcomeModel
+@{
+    Layout = "/Pages/Shared/_AuthLayout.cshtml";
+    ViewData["Title"] = "Set your password";
+    var org = Model.Settings.OrganizationName;
+}
+@section Head { <link rel="stylesheet" href="~/css/modules/portal.css" asp-append-version="true" /> }
+<div class="vp-welcome">
+    <div class="vp-welcome-card">
+        <div class="d-flex align-items-center gap-2 mb-4">
+            <span class="vp-brand-mark" aria-hidden="true">@string.Concat(org.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])))</span>
+            <span><span class="d-block fw-bold">@org</span><span class="d-block small text-body-tertiary">Supplier portal</span></span>
+        </div>
+
+        @if (Model.Settings.EnvironmentType != EnvironmentType.Production)
+        {
+            <div class="vl-banner vl-banner-warn py-2"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><div class="small"><strong>@Model.Settings.EnvironmentName environment.</strong> Not for production use.</div></div>
+        }
+
+        @if (Model.Done)
+        {
+            <div class="text-center py-2">
+                <div class="vl-empty-icon tone-ok mx-auto mb-3"><i class="bi bi-check2" aria-hidden="true"></i></div>
+                <h1 class="h3 fw-bold">Your password is set</h1>
+                <p class="text-body-secondary">Sign in with your username <strong class="mono">@Model.Username</strong> and your new password.</p>
+                <a class="btn btn-primary btn-lg w-100" href="/login?u=@Uri.EscapeDataString(Model.Username ?? "")&returnUrl=%2Fportal"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i>Sign in to the supplier portal</a>
+            </div>
+        }
+        else if (!Model.Valid)
+        {
+            <h1 class="h3 fw-bold">This link doesn't work any more</h1>
+            <p class="text-body-secondary">@(Model.Errors.FirstOrDefault() ?? "This link has expired or has already been used.")</p>
+            <p class="small text-body-tertiary mb-0">For your security, invitation and password links work once and expire. If you already set your password, <a href="/login">sign in</a>.</p>
+        }
+        else
+        {
+            <h1 class="h3 fw-bold mb-1">@(Model.FirstTime ? $"Welcome, {Model.DisplayName?.Split(' ')[0]}" : "Set a new password")</h1>
+            <p class="text-body-secondary">@(Model.FirstTime ? $"{org} invited you to its supplier portal{(Model.Company != null ? " for " + Model.Company : "")}. Choose a password to activate your account." : "Choose a new password for your supplier portal account.")</p>
+            @if (Model.Errors.Count > 0)
+            {
+                <div class="vl-banner vl-banner-bad py-2" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><div class="small"><ul class="mb-0 ps-3">@foreach (var e in Model.Errors) { <li>@e</li> }</ul></div></div>
+            }
+            <form method="post" novalidate>
+                <input type="hidden" name="Token" value="@Model.Token" />
+                <div class="mb-3">
+                    <label class="form-label" for="un">Username</label>
+                    <input class="form-control mono" id="un" value="@Model.Username" readonly autocomplete="username" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="pw">New password</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="pw" name="password" autocomplete="new-password" required autofocus aria-describedby="pw-rules" />
+                        <button type="button" class="btn btn-light" data-toggle-password="#pw" aria-label="Show password"><i class="bi bi-eye" aria-hidden="true"></i></button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="pw2">Confirm password</label>
+                    <input type="password" class="form-control" id="pw2" name="confirm" autocomplete="new-password" required />
+                </div>
+                <div class="vl-prompt mb-3" id="pw-rules"><i class="bi bi-shield-lock" aria-hidden="true"></i>
+                    <div class="small"><div class="fw-semibold mb-1">Password rules</div><ul class="mb-0 ps-3">@foreach (var r in Vellum.Engine.Security.PasswordPolicy.Describe(Model.Settings)) { <li>@r</li> }</ul></div>
+                </div>
+                <button class="btn btn-primary btn-lg w-100"><i class="bi bi-check2" aria-hidden="true"></i>@(Model.FirstTime ? "Activate my account" : "Set password")</button>
+            </form>
+        }
+        <p class="x-small text-body-tertiary mt-4 mb-0">@(Model.Settings.LoginMessage ?? "Authorized use only.")</p>
+    </div>
+</div>

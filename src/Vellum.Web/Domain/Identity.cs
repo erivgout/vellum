@@ -29,7 +29,13 @@ public class User
     /// <summary>SEC-806: the built-in non-interactive principal. Can never log in or sign.</summary>
     public bool IsSystemIdentity { get; set; }
     public LicenseType License { get; set; } = LicenseType.Full;
+    /// <summary>
+    /// SEC-804: external users (supplier portal contacts) can reach only /portal and never hold application roles,
+    /// administrator rights or assignments. Enforced by ExternalUserBoundary and AccessService (docs/architecture.md).
+    /// </summary>
     public bool IsExternal { get; set; }
+    /// <summary>INV-088: the organization (supplier profile record) an external user belongs to. Null for internal users.</summary>
+    public Guid? ExternalOrgId { get; set; }
     /// <summary>SEC-612: acknowledgment of the e-signature certification.</summary>
     public DateTime? ESignatureCertifiedAt { get; set; }
     public string? TotpSecret { get; set; }

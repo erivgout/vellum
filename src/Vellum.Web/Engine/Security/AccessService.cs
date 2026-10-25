@@ -13,6 +13,8 @@ public sealed record AccessDecision(bool Allowed, string? Reason = null, int? On
 /// <summary>
 /// The authorization model (SEC §4.5). Every server-side operation must go through this service:
 /// UI hiding never counts as access control (SEC-519, INV-082). Deny by default (INV-083).
+/// External (supplier portal) users get no application roles at all: they read exactly the records shared with their
+/// organization (<see cref="ExternalShare"/>, INV-088) and never edit through the engine's normal rights (SEC-804).
 /// </summary>
 public sealed class AccessService(VellumDbContext db, CurrentUser me, UserDirectory dir, ConfigCache cfg)
 {
@@ -46,7 +48,7 @@ public sealed class AccessService(VellumDbContext db, CurrentUser me, UserDirect
     public AppRole RoleFor(int appId, string? formKey = null)
     {
         if (me.IsSystem || me.IsAdmin) return AppRole.Manager;
-        if (!me.IsAuthenticated) return AppRole.None;
+        if (!me.IsAuthenticated || me.IsExternal) return AppRole.None; // SEC-804: no default access, no grants
         EnsureGrants();
         var role = cfg.Current.AppsById.TryGetValue(appId, out var app) && !app.Disabled ? app.DefaultAccess : AppRole.None;
         if (_grants!.TryGetValue((appId, null), out var a) && a > role) role = a;
@@ -60,12 +62,13 @@ public sealed class AccessService(VellumDbContext db, CurrentUser me, UserDirect
 
     public bool IsDesigner(int appId)
     {
+        if (me.IsExternal) return false;
         if (me.IsAdmin) return true;
         EnsureGrants();
         return _designerApps!.Contains(appId);
     }
 
-    public bool IsAnyDesigner { get { if (me.IsAdmin) return true; EnsureGrants(); return _designerApps!.Count > 0; } }
+    public bool IsAnyDesigner { get { if (me.IsExternal) return false; if (me.IsAdmin) return true; EnsureGrants(); return _designerApps!.Count > 0; } }
 
     /// <summary>SEC-506: creation rights.</summary>
     public bool CanCreate(FormDefinition form) =>
@@ -80,7 +83,7 @@ public sealed class AccessService(VellumDbContext db, CurrentUser me, UserDirect
         {
             if (_delegators != null) return _delegators;
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            _delegators = me.IsAuthenticated && !me.IsSystem
+            _delegators = me.IsAuthenticated && !me.IsSystem && !me.IsExternal
                 ? db.Delegations.AsNoTracking()
                     .Where(d => d.DelegateId == me.Id && d.Status == DelegationStatus.Active && d.StartDate <= today && d.EndDate >= today)
                     .Select(d => d.RequesterId).ToList()
@@ -101,6 +104,7 @@ public sealed class AccessService(VellumDbContext db, CurrentUser me, UserDirect
     {
         if (me.IsSystem || me.IsAdmin) return db.Records;
         if (!me.IsAuthenticated) return db.Records.Where(_ => false);
+        if (me.IsExternal) return ExternalReadable();
         var formIds = ReadableFormIds();
         var managerForms = cfg.Current.FormsById.Values.Where(f => RoleFor(f.AppId, f.Key) >= AppRole.Manager).Select(f => f.Id).ToList();
         var uid = me.Id;
@@ -115,12 +119,23 @@ public sealed class AccessService(VellumDbContext db, CurrentUser me, UserDirect
             db.Assignments.Any(a => a.RecordId == r.Id && a.UserId == uid && a.Status == AssignmentStatus.Active)));
     }
 
+    /// <summary>
+    /// INV-088: an external user reads only records shared (and not withdrawn) with their own organization. No organization
+    /// means nothing. Grants, readers lists, assignments and creator rights never apply to external users.
+    /// </summary>
+    private IQueryable<Record> ExternalReadable()
+    {
+        if (me.ExternalOrgId is not { } org) return db.Records.Where(_ => false);
+        return db.Records.Where(r => db.Set<ExternalShare>().Any(s =>
+            s.RecordId == r.Id && s.OrgId == org && s.Status != ExternalShareStatus.Withdrawn));
+    }
+
     public Task<bool> CanReadAsync(Guid recordId) => Readable().AnyAsync(r => r.Id == recordId);
 
     /// <summary>Active assignment of the current user, or of someone who delegated to them (PLT-604, INV-070).</summary>
     public async Task<Assignment?> ActingAssignmentAsync(Guid recordId)
     {
-        if (!me.IsAuthenticated || me.IsSystem) return null;
+        if (!me.IsAuthenticated || me.IsSystem || me.IsExternal) return null;
         var ids = DelegatorIds.Append(me.Id).ToList();
         var mine = await db.Assignments.Where(a => a.RecordId == recordId && a.Status == AssignmentStatus.Active && ids.Contains(a.UserId))
             .ToListAsync();
@@ -134,6 +149,9 @@ public sealed class AccessService(VellumDbContext db, CurrentUser me, UserDirect
         if (r.PhaseType != PhaseType.Normal && r.WorkflowId != null)
             return AccessDecision.No($"This record is {r.PhaseType.ToString().ToLowerInvariant()} and read-only.");
         if (me.IsSystem) return AccessDecision.Yes;
+        // SEC-804: supplier portal writes are made by the portal service after it has checked the share and the fields meant
+        // for the supplier; the engine's normal edit rights never apply to external users.
+        if (me.IsExternal) return AccessDecision.No("Supplier portal users respond through the portal.");
         var role = RoleFor(r.AppId, cfg.Current.FormsById[r.FormId].Key);
         if (role == AppRole.Manager) return AccessDecision.Yes;
         if (role < AppRole.Reader) return AccessDecision.No("You don't have access to this application.");
@@ -154,6 +172,7 @@ public sealed class AccessService(VellumDbContext db, CurrentUser me, UserDirect
     /// <summary>SEC-508: who can edit the record security section.</summary>
     public async Task<bool> CanManageSecurityAsync(Record r)
     {
+        if (me.IsExternal) return false;
         if (RoleFor(r.AppId) == AppRole.Manager) return true;
         var gids = dir.GroupsOf(me.Id).ToList();
         return await db.RecordAccess.AnyAsync(a => a.RecordId == r.Id && a.Level == RecordAccessLevel.Manager &&
@@ -164,7 +183,7 @@ public sealed class AccessService(VellumDbContext db, CurrentUser me, UserDirect
     public bool UserCanReadForm(int userId, FormDefinition form)
     {
         var u = dir.Get(userId);
-        if (u == null || u.IsSystem) return false;
+        if (u == null || u.IsSystem || u.IsExternal) return false; // SEC-804: never a candidate for internal work
         if (u.IsAdmin) return true;
         var gids = dir.GroupsOf(userId);
         var role = form.App.DefaultAccess;

@@ -20,6 +20,19 @@ public static class MiddlewareExtensions
         if (ctx.User.Identity?.IsAuthenticated == true && ctx.User.HasClaim("must_change_password", "1"))
         {
             var p = ctx.Request.Path;
+            // External users change their password inside the portal (they can't reach /account, SEC-804).
+            if (Auth.ExternalUserBoundary.IsExternal(ctx))
+            {
+                if (!p.StartsWithSegments("/portal/account/password") && !p.StartsWithSegments("/logout") && !p.StartsWithSegments("/lib") &&
+                    !p.StartsWithSegments("/css") && !p.StartsWithSegments("/js") && !p.StartsWithSegments("/img") &&
+                    !p.StartsWithSegments("/api/session") && !p.StartsWithSegments("/error"))
+                {
+                    ctx.Response.Redirect("/portal/account/password?forced=1");
+                    return;
+                }
+                await next();
+                return;
+            }
             if (!p.StartsWithSegments("/account") && !p.StartsWithSegments("/logout") && !p.StartsWithSegments("/lib") &&
                 !p.StartsWithSegments("/css") && !p.StartsWithSegments("/js") && !p.StartsWithSegments("/img") && !p.StartsWithSegments("/api/session"))
             {

@@ -60,7 +60,9 @@ builder.Services.AddVellumModules(typeof(Program).Assembly);
 builder.Services.AddAuthentication(SessionDefaults.Scheme)
     .AddScheme<AuthenticationSchemeOptions, SessionAuthenticationHandler>(SessionDefaults.Scheme, null);
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("Admin", p => p.RequireRole("admin"));
+    .AddPolicy("Admin", p => p.RequireRole("admin"))
+    // SEC-804: the supplier portal is for external users only (internal users get /forbidden there).
+    .AddPolicy(SessionDefaults.PortalPolicy, p => p.RequireAuthenticatedUser().RequireClaim(SessionDefaults.ExternalClaim, "1"));
 
 builder.Services.AddRazorPages(o =>
 {
@@ -68,6 +70,8 @@ builder.Services.AddRazorPages(o =>
     o.Conventions.AllowAnonymousToPage("/Account/Login");
     o.Conventions.AllowAnonymousToPage("/Error");
     o.Conventions.AuthorizeAreaFolder("Admin", "/", "Admin");
+    o.Conventions.AuthorizeAreaFolder("Portal", "/", SessionDefaults.PortalPolicy);
+    o.Conventions.AllowAnonymousToAreaPage("Portal", "/Welcome"); // one-time set-password link from the invitation email
 });
 builder.Services.AddAntiforgery(o => o.HeaderName = "X-CSRF-TOKEN");
 
@@ -85,6 +89,7 @@ app.UseStatusCodePagesWithReExecute("/Error", "?code={0}");
 app.UseSecurityHeaders();
 app.UseRouting();
 app.UseAuthentication();
+app.UseExternalUserBoundary(); // SEC-804 / INV-088: external users reach only /portal (deny by default)
 app.UseAuthorization();
 app.UseMustChangePassword();
 

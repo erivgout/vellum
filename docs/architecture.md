@@ -15,7 +15,7 @@ dotnet test                                # integration tests use a throw-away 
 ```
 
 Sign in with any demo account (password `Vellum!Demo2026`), for example `jlee` (quality engineer), `sortiz` (quality manager/approver),
-`pshah` (document control) or `admin` (system administrator). Use a different database per checkout with
+`pshah` (document control) or `admin` (system administrator). Supplier portal demo contacts: `portal.polymera` and `portal.precision`. Use a different database per checkout with
 `$env:ConnectionStrings__Vellum = "Server=localhost,14333;Database=Vellum_Mine;User Id=sa;Password=Vellum_Dev_2026!;TrustServerCertificate=True"`.
 
 ## Layout
@@ -101,6 +101,43 @@ Gates: `MustComplete("action_item")`. Conditional routes: `when: "field=value"`.
 * Never use inline `<script>` or `on*=` attributes (strict CSP). Add behaviour in `wwwroot/js/modules/<module>.js` with `data-*` hooks; JSON data islands (`<script type="application/json">`) are fine. People pickers: `.vl-picker[data-picker=users]` plus a `#vl-directory` JSON island.
 * Accessibility: labelled controls, visible focus, never colour alone for status (icon + text), keyboard reachable.
 * `Shell` (the injected `UiContext`) gives the current user, settings, navigation and config in any view.
+
+## External users and the supplier portal (SEC-804, INV-088)
+
+Supplier contacts sign in to a separate **supplier portal** (`/portal`, `Areas/Portal`, `Modules/Portal`). Open question 4 is
+settled as **named external users**: every contact has their own `User` row with `IsExternal = true`, `License = External` and
+`ExternalOrgId` = their supplier profile record. They use the normal authentication stack (Argon2id, lockout, sessions, TOTP,
+login block, password policy); there are no shared or anonymous portal accounts. A supplier quality engineer or administrator
+invites them from the supplier profile (Supplier portal tab), which creates the account and emails a one-time, expiring
+set-password link (`AccountToken`; only the SHA-256 of the token is stored, and the admin-visible email log keeps a redacted copy).
+
+Isolation is enforced in three independent layers, so one mistake can't open a hole:
+
+1. **The boundary** (`Infrastructure/Auth/ExternalUserBoundary.cs`, registered right after `UseAuthentication`). The session
+   handler puts the `vellum:external` claim on every request of an external user (and never the `admin` role). For those
+   requests the boundary is deny-by-default: only `ExternalUserBoundary.AllowedPrefixes` (`/portal`, `/login`, `/logout`,
+   `/error`, `/api/session/status|ping`, `/api/me/theme` and static assets) pass; everything else answers 403, whatever
+   authorization the endpoint itself declares. **A new internal page or endpoint is closed to externals automatically.** Don't
+   add to the allow-list unless the portal needs it, and never add a prefix that also serves internal data. The portal pages
+   themselves require the `Portal` policy (external claim), so internal users get `/forbidden` there.
+2. **Authorization** (`AccessService`). For an external user `RoleFor` is always `None` (no default access, no grants),
+   `IsAdmin`/designer rights are false whatever the profile says, there are no delegations or acting assignments,
+   `CanEditAsync` is false, and `Readable()` returns exactly the records with a non-withdrawn `ExternalShare` for the user's own
+   organization (INV-088). `UserDirectory.All` and `Assignable` leave external users out, so they're never offered as people to
+   pick or assign (`UserDirectory.Externals(orgId)` lists them). Notifications to external users only ever carry `/portal` links.
+3. **The portal whitelist** (`Modules/Portal/PortalKinds.cs`). The portal pages render a `PortalView` built only from the
+   fields, subform columns and attachment fields listed for the request kind; internal notes, verification, reviews, comments,
+   the audit trail and other people never leave the server. `PortalService.RespondAsync` writes only the kind's editable fields
+   and upload fields, through `RecordService.SaveAsync` (system save, so the engine's edit rights don't apply) **as the external
+   user**: the audit trail names them, with the source "Supplier portal". Submitting notifies the internal owner and, for
+   document requests, questionnaires and audit finding responses, routes the record to Review through `WorkflowEngine`.
+
+`ExternalShare` rows are created only by internal users through the "Send to supplier portal" actions (SCARs, scorecards,
+supplier audits, and the Supplier Requests forms, whose With Supplier phase shares them). A record is shared with one
+supplier at a time, and a request with a supplier link can only be shared with that supplier. To add a new kind of portal
+request: add a `PortalKind` (fields the supplier sees and fills in), an action that calls `PortalService.ShareAsync`, and
+behaviors that move the share's status (`SetStatusAsync`) as the record moves on. Tests in `tests/Vellum.Tests/PortalTests.cs`
+include a sweep of every route in the endpoint data source, signed in as a portal user, that expects 403 for all of them.
 
 ## Database schema and migrations
 

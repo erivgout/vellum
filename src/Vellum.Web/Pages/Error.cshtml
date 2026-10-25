@@ -3,7 +3,23 @@
 @{
     ViewData["Title"] = Model.Code == 404 ? "Not found" : Model.Code == 403 ? "No access" : "Something went wrong";
     var signedIn = User.Identity?.IsAuthenticated == true;
+    var external = Shell.Me.IsExternal;
     if (!signedIn) { Layout = "_AuthLayout"; }
+}
+@if (external)
+{
+    // Supplier portal users: the refusal of anything outside /portal (ExternalUserBoundary) and portal errors.
+    <div class="vp-error">
+        <div class="vl-empty-icon @(Model.Code == 404 ? "" : "tone-warn")"><i class="bi @(Model.Code == 404 ? "bi-signpost-split" : Model.Code == 403 ? "bi-shield-lock" : "bi-exclamation-triangle")" aria-hidden="true"></i></div>
+        <div class="small fw-semibold text-body-tertiary mt-2">Error @Model.Code</div>
+        <h1 class="h3 fw-bold mt-1">@(Model.Code == 404 ? "We couldn't find that" : Model.Code == 403 ? "This page isn't part of the supplier portal" : "Something went wrong")</h1>
+        <p class="text-body-secondary">
+            @(Model.Code == 404 ? "The request doesn't exist, or it isn't shared with your company." : Model.Code == 403 ? "Your account can only open the supplier portal. Everything your customer has shared with you is on your portal home page." : "The problem has been logged. Your answers haven't been lost: go back and try again.")
+        </p>
+        <a class="btn btn-primary mt-2" href="/portal"><i class="bi bi-house"></i>Portal home</a>
+        @if (Model.Code >= 500) { <p class="x-small text-body-tertiary mt-4">Reference: <code>@Model.RequestId</code></p> }
+    </div>
+    return;
 }
 <div class="d-flex align-items-center justify-content-center" style="min-height:60vh">
     <div class="text-center" style="max-width:460px">

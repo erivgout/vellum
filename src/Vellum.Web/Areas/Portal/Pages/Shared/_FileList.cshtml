@@ -1,0 +1,23 @@
+@model Vellum.Areas.Portal.Pages.PortalFileListVm
+@if (Model.Files.Count > 0)
+{
+    <ul class="vp-files">
+        @foreach (var f in Model.Files)
+        {
+            <li>
+                <span class="vp-file-ico" aria-hidden="true"><i class="bi @Ui.FileIcon(f.Name)"></i></span>
+                <span class="min-w-0 flex-grow-1">
+                    <a class="d-block text-truncate fw-semibold small" href="@RequestModel.FileHref(Model.ShareId, f)" download>@f.Name</a>
+                    <span class="d-block x-small text-body-tertiary">@Ui.FileSize(f.Size) · @(f.FromSupplier ? "uploaded by you" : "from " + Portal.OrganizationName) · @Ui.Ago(f.At)</span>
+                </span>
+                @if (Model.AllowRemove && f.Removable)
+                {
+                    <span class="form-check form-check-inline m-0" title="Remove this file when you save">
+                        <input class="form-check-input" type="checkbox" name="remove" value="@f.Id" id="rm-@f.Id" />
+                        <label class="form-check-label x-small" for="rm-@f.Id">Remove</label>
+                    </span>
+                }
+            </li>
+        }
+    </ul>
+}

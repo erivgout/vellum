@@ -29,6 +29,10 @@ Sign in with any demo account; the password is `Vellum!Demo2026`:
 | `cwu` | Supplier quality engineer |
 | `kpatel` | Training coordinator |
 | `nflores` | Production operator (trainee) |
+| `portal.polymera` | Supplier portal: Dana Whitfield, Polymera Resins (open SCAR, SDS request, self-assessment, audit findings, scorecards) |
+| `portal.precision` | Supplier portal: Greg Halvorsen, Precision Molding (certificate under review, SCAR returned for changes, scorecard) |
+
+Supplier portal contacts sign in at the same `/login` page and land in their own portal (`/portal`); they can't open anything else.
 
 ## What's included
 
@@ -43,6 +47,8 @@ Sign in with any demo account; the password is `Vellum!Demo2026`:
   Lab Investigations (OOS/OOT), Customer Returns (RMA), Change Management, Audits, Inspections, Supplier Quality,
   Risk Register, FMEA, EHS (incidents with OSHA clocks, JSAs, permits, OSHA log and rates), Assets & Calibration,
   Projects & Tasks.
+- **Supplier portal:** invited supplier contacts answer SCARs, upload requested certificates and SDSs, complete
+  questionnaires, respond to audit findings and see their scorecards, isolated to their own company's shared records.
 - **Administration Center**, a visual **Designer** (draft → validate → publish with versioning) and **Insights**
   dashboards, a chart builder and threshold alerts.
 
