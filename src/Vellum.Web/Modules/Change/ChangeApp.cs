@@ -310,5 +310,6 @@ public sealed class ChangeApp : IPackagedApp
             .Columns("number", "title", "modified"));
     }
 
+    public Task SeedBaselineAsync(DemoContext d) => ChangeDemo.SeedTemplatesAsync(d);
     public Task SeedDemoAsync(DemoContext d) => ChangeDemo.SeedAsync(d);
 }

@@ -6,14 +6,15 @@ namespace Vellum.Modules.Change;
 /// <summary>Change Management demo data: the packaged change templates (CHG-003) and changes in every phase.</summary>
 internal static class ChangeDemo
 {
-    public static async Task SeedAsync(DemoContext d)
+    /// <summary>CHG-003: the packaged change templates. Baseline data, seeded at install even without demo data.</summary>
+    public static async Task SeedTemplatesAsync(DemoContext d)
     {
         Dictionary<string, object?> Approval(string type, params string[] users) => new() { ["approval_type"] = type, ["approvers"] = users.Select(d.User).ToList() };
         Dictionary<string, object?> Impact(string area, string assessor) => new() { ["area"] = area, ["assessor"] = d.User(assessor) };
         Dictionary<string, object?> Step(string action, decimal days, bool verify) => new() { ["action"] = action, ["days"] = days, ["verify"] = verify };
 
         // ------------------------------------------------------------------ packaged templates (CHG-003)
-        var engineering = await d.CreateAsync("change_template", new()
+        await d.CreateAsync("change_template", new()
         {
             ["name"] = "Engineering change", ["enabled"] = true, ["default_impact"] = "medium", ["all_approvers"] = false, ["ia_required"] = false,
             ["description"] = "Design changes to product, drawings, bills of material or tooling (legacy ECN). Feasibility is assessed in Review; ad-hoc action items can be added during implementation.",
@@ -31,7 +32,7 @@ internal static class ChangeDemo
                 Step("Update affected work instructions and train operators", 10, false),
             ],
         });
-        var process = await d.CreateAsync("change_template", new()
+        await d.CreateAsync("change_template", new()
         {
             ["name"] = "Process change", ["enabled"] = true, ["default_impact"] = "medium", ["all_approvers"] = false, ["ia_required"] = true,
             ["description"] = "Changes to validated manufacturing processes, parameters, equipment or cleaning. Impact assessments must be completed, and the change is verified after implementation.",
@@ -60,7 +61,7 @@ internal static class ChangeDemo
             ["template_impacts"] = [Impact("quality", "jlee"), Impact("supply_chain", "cwu")],
             ["template_plan"] = [Step("Update the specification and the inspection plan", 5, false), Step("Notify affected suppliers of the revised specification", 5, false)],
         });
-        var supplier = await d.CreateAsync("change_template", new()
+        await d.CreateAsync("change_template", new()
         {
             ["name"] = "Supplier change", ["enabled"] = true, ["default_impact"] = "high", ["all_approvers"] = false, ["ia_required"] = false,
             ["description"] = "New, alternate or relocated suppliers and contract manufacturers, and supplier-initiated process changes.",
@@ -78,7 +79,7 @@ internal static class ChangeDemo
                 Step("Add the supplier to the approved supplier list", 3, false),
             ],
         });
-        var document = await d.CreateAsync("change_template", new()
+        await d.CreateAsync("change_template", new()
         {
             ["name"] = "Document change", ["enabled"] = true, ["default_impact"] = "low", ["all_approvers"] = false, ["ia_required"] = false,
             ["description"] = "Revisions to procedures, work instructions and forms that need change control but no product or process change.",
@@ -94,11 +95,20 @@ internal static class ChangeDemo
             ["description"] = "Retired: replaced by the Engineering change template. Kept for changes migrated from the legacy system.",
             ["verification_required"] = false,
         }, "sortiz", daysAgo: 400, rows: new() { ["template_approvals"] = [Approval("engineering", "akim")] });
+    }
+
+    public static async Task SeedAsync(DemoContext d)
+    {
+        Dictionary<string, object?> Impact(string area, string assessor) => new() { ["area"] = area, ["assessor"] = d.User(assessor) };
+        var engineering = await FindTemplateAsync(d, "Engineering change");
+        var process = await FindTemplateAsync(d, "Process change");
+        var supplier = await FindTemplateAsync(d, "Supplier change");
+        var document = await FindTemplateAsync(d, "Document change");
 
         // ------------------------------------------------------------------ 1. Engineering change in Approval with partial signatures
         var c1 = await d.CreateAsync("change", new()
         {
-            ["change_template"] = engineering.Id,
+            ["change_template"] = engineering,
             ["subject"] = "Change VX-200 pump housing resin from Makrolon 2458 to Lexan HPX4",
             ["owner"] = d.User("akim"), ["planned_date"] = DemoContext.Days(35), ["impact_level"] = "high", ["reason_code"] = "obsolescence",
             ["products"] = "VX-200 infusion pump – front and rear housings (P/N 200-1101, 200-1102)",
@@ -136,7 +146,7 @@ internal static class ChangeDemo
         // ------------------------------------------------------------------ 2. Completed process change
         var c2 = await d.CreateAsync("change", new()
         {
-            ["change_template"] = process.Id,
+            ["change_template"] = process,
             ["subject"] = "Increase ultrasonic weld time on ST-40 Y-connector from 0.8 s to 1.1 s",
             ["owner"] = d.User("jlee"), ["planned_date"] = DemoContext.Days(-20), ["impact_level"] = "medium", ["reason_code"] = "capa",
             ["products"] = "ST-40 sterile tubing set – Y-connector weld (line 2, Kalamazoo)",
@@ -178,7 +188,7 @@ internal static class ChangeDemo
         // ------------------------------------------------------------------ 3. PAS change blocked awaiting FDA approval
         var c3 = await d.CreateAsync("change", new()
         {
-            ["change_template"] = supplier.Id,
+            ["change_template"] = supplier,
             ["subject"] = "Add Steri-Pro Galway as a second EO sterilization site for ST-40",
             ["owner"] = d.User("cwu"), ["planned_date"] = DemoContext.Days(10), ["impact_level"] = "high", ["reason_code"] = "capacity",
             ["products"] = "ST-40 sterile tubing set (all configurations)",
@@ -220,7 +230,7 @@ internal static class ChangeDemo
         // ------------------------------------------------------------------ 4. Document change in Review
         var c4 = await d.CreateAsync("change", new()
         {
-            ["change_template"] = document.Id,
+            ["change_template"] = document,
             ["subject"] = "Revise SOP-QA-007 Complaint handling to add the MDR reportability decision tree",
             ["owner"] = d.User("pshah"), ["planned_date"] = DemoContext.Days(21), ["impact_level"] = "low", ["reason_code"] = "regulatory",
             ["products"] = "Quality system – complaint handling (all products)",
@@ -254,7 +264,7 @@ internal static class ChangeDemo
         // ------------------------------------------------------------------ 6. Engineering change in Implementation (one action item overdue)
         var c6 = await d.CreateAsync("change", new()
         {
-            ["change_template"] = engineering.Id,
+            ["change_template"] = engineering,
             ["subject"] = "Add molded strain relief to the VX-200 power cord entry",
             ["owner"] = d.User("akim"), ["planned_date"] = DemoContext.Days(12), ["impact_level"] = "medium", ["reason_code"] = "quality_improvement",
             ["products"] = "VX-200 infusion pump – rear housing, power cord assembly 200-3300",
@@ -287,7 +297,7 @@ internal static class ChangeDemo
         // ------------------------------------------------------------------ 7. Completed CBE-30 change
         var c7 = await d.CreateAsync("change", new()
         {
-            ["change_template"] = engineering.Id,
+            ["change_template"] = engineering,
             ["subject"] = "VX-200 firmware 3.2.1: revised downstream occlusion alarm threshold",
             ["owner"] = d.User("akim"), ["planned_date"] = DemoContext.Days(-5), ["impact_level"] = "high", ["reason_code"] = "safety",
             ["products"] = "VX-200 infusion pump – firmware 3.2.0 → 3.2.1",

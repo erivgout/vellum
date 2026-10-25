@@ -49,6 +49,19 @@ public sealed class DbInitializer(IServiceProvider services, ILogger<DbInitializ
         var issues = ConfigValidator.Validate(cache.Current);
         foreach (var i in issues) log.LogWarning("Configuration: {Issue}", i);
 
+        foreach (var pkg in installed)
+        {
+            using var baselineScope = services.CreateScope();
+            try
+            {
+                await pkg.SeedBaselineAsync(new DemoContext(baselineScope.ServiceProvider));
+            }
+            catch (Exception ex)
+            {
+                log.LogError(ex, "Baseline data for {App} failed", pkg.Key);
+            }
+        }
+
         if (installed.Count > 0 && config.GetValue("Vellum:SeedDemoData", true))
         {
             foreach (var pkg in installed)

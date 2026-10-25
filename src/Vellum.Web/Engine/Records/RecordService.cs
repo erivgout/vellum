@@ -139,7 +139,11 @@ public sealed class RecordService(
         foreach (var section in form.Sections)
         {
             if (FormRules.StateOf(section, phase, probe) != SectionState.Editable) continue;
-            var fields = form.Fields.Where(f => f.SectionKey == section.Key && FieldCodec.StoresValues(f.Type) && !f.ReadOnly).ToList();
+            // SEC-520: a sensitive field the user can't see renders as "Restricted" with no input, so it must never be
+            // read from the post (an absent input would otherwise clear the stored value).
+            var seeSensitive = access.CanSeeSensitive(form.AppId);
+            var fields = form.Fields.Where(f => f.SectionKey == section.Key && FieldCodec.StoresValues(f.Type) && !f.ReadOnly &&
+                (seeSensitive || !f.Sensitive)).ToList();
             if (!section.IsSubform)
             {
                 foreach (var f in fields)
@@ -356,6 +360,7 @@ public sealed class RecordService(
                 var next = new List<RowBag>();
                 foreach (var row in rows)
                 {
+                    // Rows the user can't see sensitive values of keep them: only keys present in the proposed row are taken.
                     var target = existing.TryGetValue(row.Id, out var old) ? old.Clone() : new RowBag { Id = row.Id, IsNew = true };
                     target.Order = row.Order;
                     target.CreatedRecordId = row.CreatedRecordId ?? target.CreatedRecordId;

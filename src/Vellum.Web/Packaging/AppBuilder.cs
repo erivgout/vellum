@@ -12,6 +12,8 @@ public interface IPackagedApp
     /// <summary>Install order. Apps that others link to (e.g. Action Items, Document Control) install first.</summary>
     int Order => 100;
     void Define(AppBuilder app);
+    /// <summary>Reference data every installation needs (templates, profiles), seeded once at install even without demo data.</summary>
+    Task SeedBaselineAsync(DemoContext ctx) => Task.CompletedTask;
     Task SeedDemoAsync(DemoContext demo) => Task.CompletedTask;
 }
 
