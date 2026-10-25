@@ -1,0 +1,73 @@
+@page "/insights/alerts/{id:int}"
+@model Vellum.Areas.Insights.Pages.Alerts.TemplateModel
+@{
+    var t = Model.T;
+    ViewData["Title"] = t.Name;
+    var cfg = Shell.Config;
+    var dir = Shell.Directory;
+    var app = cfg.AppsByKey.GetValueOrDefault(t.AppKey);
+    var view = app?.Views.FirstOrDefault(v => v.Key == t.ViewKey);
+    var fields = app?.Forms.SelectMany(f => f.Fields).ToList() ?? [];
+    string Col(string k) => Vellum.Engine.Views.ViewService.SystemColumns.GetValueOrDefault(k) ?? fields.FirstOrDefault(f => f.Key == k)?.Label ?? k;
+    var due = AlertEngine.IsDue(t, DateTime.UtcNow);
+}
+@section Crumbs {
+    <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <a href="/insights/alerts">Alerts</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">@t.Number</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <div class="min-w-0 flex-grow-1">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h1 class="vl-page-title">@t.Name</h1>
+            <span class="vl-kw">@t.Number</span>
+            @if (t.Enabled) { <span class="vl-kw vl-kw-success">Enabled</span> } else { <span class="vl-kw">Disabled</span> }
+        </div>
+        <p class="vl-page-sub">@(t.Description ?? $"{t.MinMatches} or more records with the same {string.Join(" + ", Model.Match.Select(Col)).ToLowerInvariant()} in {app?.Name ?? t.AppKey} › {view?.Name ?? t.ViewKey}.")</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <form method="post" action="/insights/alerts/@t.Id?handler=Test" class="m-0">@Html.AntiForgeryToken()<button class="btn btn-light" title="Run now and see what would be sent. Nothing is sent."><i class="bi bi-play-circle" aria-hidden="true"></i>Test report</button></form>
+        <form method="post" action="/insights/alerts/@t.Id?handler=Toggle" class="m-0">@Html.AntiForgeryToken()<button class="btn btn-light"><i class="bi @(t.Enabled ? "bi-pause-circle" : "bi-check-circle")" aria-hidden="true"></i>@(t.Enabled ? "Disable" : "Enable")</button></form>
+        <a class="btn btn-primary" href="/insights/alerts/edit/@t.Id"><i class="bi bi-pencil" aria-hidden="true"></i>Edit</a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <section class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-sliders" aria-hidden="true"></i>Settings</h2></div>
+            <div class="card-body">
+                <dl class="ins-origin">
+                    <dt>Watches</dt><dd>@if (app != null) { <a href="/apps/@app.Key?view=@t.ViewKey">@app.Name › @(view?.Name ?? t.ViewKey)</a> } else { @t.AppKey }</dd>
+                    <dt>Match on</dt><dd>@string.Join(", ", Model.Match.Select(Col))</dd>
+                    <dt>Minimum</dt><dd>@t.MinMatches per group</dd>
+                    <dt>Records</dt><dd>@(t.LookbackDays is { } lb ? $"Created in the last {lb} days" : "Every record in the view")</dd>
+                    <dt>Report columns</dt><dd>@(Model.Extra.Count == 0 ? "Number and title" : "Number, title, " + string.Join(", ", Model.Extra.Select(Col)))</dd>
+                    <dt>Frequency</dt><dd>Every @Ui.Plural(t.FrequencyDays, "day")</dd>
+                    <dt>Window</dt><dd>@RelativeDates.Span(t.WindowStart, t.WindowEnd)@(t.IncrementDates ? " · slides each run" : "")</dd>
+                    <dt>Next run</dt><dd>@(!t.Enabled ? "Disabled" : due ? "At the next scheduler check" : t.LastReportAt is { } lr ? Shell.Local(lr.AddDays(t.FrequencyDays)).ToString("dd MMM yyyy HH:mm") : "–")</dd>
+                    <dt>Notify</dt>
+                    <dd>
+                        @foreach (var u in Model.To.Users) { <div>@Ui.Avatar(dir.Get(u), showName: true)</div> }
+                        @foreach (var g in Model.To.Groups) { <div><i class="bi bi-people text-body-tertiary" aria-hidden="true"></i> @(dir.Group(g)?.Name ?? g)</div> }
+                        @if (Model.Cc.Users.Count > 0) { <div class="text-body-tertiary small mt-1">Cc @string.Join(", ", Model.Cc.Users.Select(dir.Name))</div> }
+                    </dd>
+                    <dt>Only on change</dt><dd>@(t.OnlyWhenChanged ? "Yes" : "No")</dd>
+                    <dt>Owner</dt><dd>@Ui.Avatar(dir.Get(t.OwnerId), showName: true)</dd>
+                </dl>
+                <div class="mt-3 small"><span class="text-body-tertiary">Subject</span><div class="fw-medium">@t.Subject</div></div>
+            </div>
+        </section>
+        @if (!Model.HasReports)
+        {
+            <form method="post" action="/insights/alerts/@t.Id?handler=Delete" class="mb-4">@Html.AntiForgeryToken()
+                <button class="btn btn-sm btn-ghost text-danger" data-confirm="Delete @t.Number? This can't be undone."><i class="bi bi-trash" aria-hidden="true"></i>Delete this alert</button>
+            </form>
+        }
+    </div>
+    <div class="col-lg-8 min-w-0">
+        <h2 class="h6 fw-semibold mb-2">Reports</h2>
+        <partial name="_Reports" model="Model.Reports" />
+    </div>
+</div>

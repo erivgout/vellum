@@ -1,0 +1,91 @@
+@page "/insights/charts/{id:int}"
+@model Vellum.Areas.Insights.Pages.Charts.ViewModel
+@{
+    var c = Model.Chart;
+    var r = Model.Result;
+    ViewData["Title"] = c.Title;
+    var cfg = Shell.Config;
+    var app = cfg.AppsByKey.GetValueOrDefault(c.AppKey);
+    var view = app?.Views.FirstOrDefault(v => v.Key == c.ViewKey);
+    var typeLabel = ChartDefinition.Types.FirstOrDefault(t => t.Key == c.Type).Label ?? c.Type;
+}
+@section Crumbs {
+    <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <a href="/insights/charts">Charts</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">@c.Number</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <div class="min-w-0 flex-grow-1">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h1 class="vl-page-title">@c.Title</h1>
+            <span class="vl-kw">@c.Number</span>
+            @if (c.IsTemplate) { <span class="vl-kw vl-kw-violet">Template</span> }
+            @if (c.Pinned) { <span class="vl-kw vl-kw-info"><i class="bi bi-pin-angle-fill" aria-hidden="true"></i>On your homepage</span> }
+        </div>
+        <p class="vl-page-sub">@(c.Description ?? $"{typeLabel} chart of {(app != null ? $"{app.Name} › {view?.Name ?? c.ViewKey}" : c.AppKey)}")</p>
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        <partial name="~/Modules/Insights/Views/_Refreshed.cshtml" model='new Refreshed(Model.At, $"/insights/charts/{c.Id}?refresh=true")' />
+        @if (Model.IsOwner && !c.IsTemplate)
+        {
+            <div class="dropdown">
+                <button class="btn btn-light" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi @(c.Pinned ? "bi-pin-angle-fill" : "bi-pin-angle")" aria-hidden="true"></i>@(c.Pinned ? "Pinned" : "Pin to homepage")</button>
+                <div class="dropdown-menu dropdown-menu-end">
+                    @foreach (var (mode, label, icon) in new[] { ("chart", "Show the chart", "bi-bar-chart"), ("table", "Show the report table", "bi-table"), ("both", "Show chart and table", "bi-layout-split") })
+                    {
+                        <form method="post" action="/insights/charts/@c.Id?handler=Pin" class="m-0">@Html.AntiForgeryToken()
+                            <input type="hidden" name="pin" value="true" /><input type="hidden" name="mode" value="@mode" />
+                            <button class="dropdown-item"><i class="bi @icon" aria-hidden="true"></i>@label @if (c.Pinned && c.PinMode == mode) { <i class="bi bi-check2 ms-auto" aria-label="current"></i> }</button>
+                        </form>
+                    }
+                    @if (c.Pinned)
+                    {
+                        <div class="dropdown-divider"></div>
+                        <form method="post" action="/insights/charts/@c.Id?handler=Pin" class="m-0">@Html.AntiForgeryToken()<input type="hidden" name="pin" value="false" /><button class="dropdown-item"><i class="bi bi-x-lg" aria-hidden="true"></i>Unpin</button></form>
+                    }
+                </div>
+            </div>
+        }
+        @if (r.Ok) { <a class="btn btn-light" href="/insights/charts/@c.Id?handler=Csv"><i class="bi bi-download" aria-hidden="true"></i>Export</a> }
+        <form method="post" action="/insights/charts/@c.Id?handler=Duplicate" class="m-0">@Html.AntiForgeryToken()
+            <button class="btn btn-light"><i class="bi @(c.IsTemplate ? "bi-plus-square" : "bi-copy")" aria-hidden="true"></i>@(c.IsTemplate ? "Use template" : "Duplicate")</button>
+        </form>
+        @if (Model.CanEdit)
+        {
+            <a class="btn btn-primary" href="/insights/charts/edit/@c.Id"><i class="bi bi-pencil" aria-hidden="true"></i>Edit</a>
+        }
+    </div>
+</div>
+
+<section class="card mb-4">
+    <div class="card-header flex-wrap">
+        <div class="d-flex flex-wrap gap-2">
+            <span class="vl-kw"><i class="bi bi-calendar3" aria-hidden="true"></i>@r.RangeText</span>
+            @if (app != null) { <a class="vl-kw" href="/apps/@app.Key?view=@c.ViewKey"><i class="bi bi-table" aria-hidden="true"></i>@app.Name › @(view?.Name ?? c.ViewKey)</a> }
+            @if (r.Ok) { <span class="vl-kw">@Ui.Plural(r.Records, "record")</span> }
+            @if (r.Truncated) { <span class="vl-kw vl-kw-warning">Only the first @ChartEngine.MaxRows.ToString("N0") records are charted</span> }
+        </div>
+        <span class="ms-auto small text-body-tertiary">Select a bar, point or cell to open its records</span>
+    </div>
+    <div class="card-body">
+        @if (!r.Ok)
+        {
+            <div class="vl-banner vl-banner-warn mb-0" role="alert">
+                <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+                <div><div class="ttl">This chart can't be shown</div><ul class="ins-issues">@foreach (var i in r.Issues.Select(i => i.Message).Distinct()) { <li>@i</li> }</ul></div>
+            </div>
+        }
+        else
+        {
+            @ChartRenderer.Figure(r.Chart!, TableMode.Open, 1000, 340)
+        }
+    </div>
+</section>
+
+@if (Model.CanEdit)
+{
+    <form method="post" action="/insights/charts/@c.Id?handler=Delete" class="text-end mb-4">@Html.AntiForgeryToken()
+        <button class="btn btn-sm btn-ghost text-danger" data-confirm="Delete @c.Number? This can't be undone."><i class="bi bi-trash" aria-hidden="true"></i>Delete this @(c.IsTemplate ? "template" : "chart")</button>
+    </form>
+}

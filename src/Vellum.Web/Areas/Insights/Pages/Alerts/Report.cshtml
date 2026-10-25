@@ -1,0 +1,106 @@
+@page "/insights/alerts/reports/{id:long}"
+@model Vellum.Areas.Insights.Pages.Alerts.ReportModel
+@{
+    var r = Model.R;
+    var t = Model.T;
+    ViewData["Title"] = r.Number;
+    string O(string k) => Model.Origin.TryGetProperty(k, out var v) && v.ValueKind != System.Text.Json.JsonValueKind.Null ? (v.ValueKind == System.Text.Json.JsonValueKind.Array ? string.Join(", ", v.EnumerateArray().Select(x => x.ToString())) : v.ToString()) : "–";
+    var matchCols = Model.Result.Columns.Where(c => c.Match).ToList();
+    var extraCols = Model.Result.Columns.Where(c => !c.Match).ToList();
+}
+@section Crumbs {
+    <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <a href="/insights/alerts?tab=reports">Alert reports</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">@r.Number</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <div class="min-w-0 flex-grow-1">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h1 class="vl-page-title">@t.Name</h1>
+            <span class="vl-kw">@r.Number</span>
+            @if (r.IsTest) { <span class="vl-kw vl-kw-violet">Test report</span> }
+            <partial name="_ActionStatus" model="r" />
+        </div>
+        <p class="vl-page-sub">Generated @Ui.Time(r.GeneratedAt, Shell.TimeZone, relative: false) · @Ui.Plural(r.GroupCount, "group") reached the minimum · @Ui.Plural(r.RecordCount, "record")</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-light" href="/insights/alerts/reports/@r.Id?handler=Json"><i class="bi bi-filetype-json" aria-hidden="true"></i>Data (JSON)</a>
+        <a class="btn btn-light" href="/insights/alerts/@t.Id"><i class="bi bi-bell" aria-hidden="true"></i>Alert @t.Number</a>
+    </div>
+</div>
+
+@if (r.ActionStatus == "Failed")
+{
+    <div class="vl-banner vl-banner-bad" role="alert">
+        <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>
+        <div><div class="ttl">The alert's action failed@(r.IsTest ? " (test run)" : "")</div>@r.ActionDetail @if (!r.IsTest) { <div class="small mt-1">The owner and every administrator were sent a safety-critical alert about this failure.</div> }</div>
+    </div>
+}
+else if (r.ActionDetail != null)
+{
+    <div class="vl-banner vl-banner-info" role="status"><i class="bi bi-info-circle-fill" aria-hidden="true"></i><div>@r.ActionDetail</div></div>
+}
+@if (Model.Hidden > 0)
+{
+    <div class="vl-banner vl-banner-warn" role="status"><i class="bi bi-shield-lock" aria-hidden="true"></i><div>Some matched records aren't shown because you don't have access to them.</div></div>
+}
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <section class="card mb-4">
+            <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-diagram-2" aria-hidden="true"></i>Origin</h2></div>
+            <div class="card-body">
+                <dl class="ins-origin">
+                    <dt>Alert</dt><dd>@O("template") · @O("name")</dd>
+                    <dt>Application</dt><dd>@O("application")</dd>
+                    <dt>Forms</dt><dd>@O("forms")</dd>
+                    <dt>View</dt><dd>@O("view")</dd>
+                    <dt>Match columns</dt><dd>@string.Join(", ", matchCols.Select(c => c.Label))</dd>
+                    <dt>Minimum</dt><dd>@O("minimum")</dd>
+                    <dt>Look back</dt><dd>@(O("lookbackDays") == "–" ? "Every record" : O("lookbackDays") + " days")</dd>
+                    <dt>Frequency</dt><dd>Every @O("frequencyDays") day(s)</dd>
+                    <dt>Window</dt><dd>@O("windowStart") – @O("windowEnd")</dd>
+                    <dt>Evaluated</dt><dd>@Ui.Plural(Model.Result.Evaluated, "record") as @O("owner")@(Model.Result.Truncated ? " (truncated)" : "")</dd>
+                </dl>
+            </div>
+        </section>
+    </div>
+    <div class="col-lg-8 min-w-0">
+        @if (Model.Result.Groups.Count == 0)
+        {
+            <div class="card"><div class="vl-empty"><div class="vl-empty-icon tone-ok"><i class="bi bi-check2-all"></i></div><h3>No group reached the minimum</h3><p>Nothing matched the threshold when this report ran.</p></div></div>
+        }
+        @foreach (var g in Model.Result.Groups)
+        {
+            var rows = g.Records.Where(x => Model.Visible.Contains(x.Id)).ToList();
+            <section class="card mb-3">
+                <div class="ins-group-head">
+                    @for (var i = 0; i < matchCols.Count && i < g.Values.Count; i++)
+                    {
+                        <span><span class="text-body-tertiary small">@matchCols[i].Label</span> <span class="vals">@g.Values[i]</span></span>
+                    }
+                    <span class="ms-auto vl-kw vl-kw-danger">@Ui.Plural(g.Count, "record")</span>
+                </div>
+                @if (rows.Count > 0)
+                {
+                    <div class="vl-table-scroll">
+                        <table class="table vl-table vl-table-compact mb-0">
+                            <thead><tr><th scope="col">Number</th><th scope="col">Title</th>@foreach (var c in matchCols.Concat(extraCols)) { <th scope="col">@c.Label</th> }</tr></thead>
+                            <tbody>
+                                @foreach (var x in rows)
+                                {
+                                    <tr data-href="/records/@x.Id">
+                                        <td class="col-number"><a href="/records/@x.Id">@x.Number</a></td>
+                                        <td class="col-title"><span class="t">@x.Title</span></td>
+                                        @foreach (var c in matchCols.Concat(extraCols)) { <td class="text-body-secondary">@(x.Cells.GetValueOrDefault(c.Key) is { Length: > 0 } v ? v : "–")</td> }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        }
+    </div>
+</div>

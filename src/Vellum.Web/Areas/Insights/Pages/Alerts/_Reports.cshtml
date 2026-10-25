@@ -1,0 +1,36 @@
+@model List<(InsightsAlertReport Report, InsightsAlertTemplate Template)>
+@{
+    var cfg = Shell.Config;
+}
+<div class="vl-table-wrap mb-4">
+    @if (Model.Count == 0)
+    {
+        <div class="vl-empty">
+            <div class="vl-empty-icon"><i class="bi bi-file-earmark-bar-graph"></i></div>
+            <h3>No alert reports</h3>
+            <p>Reports appear here each time an alert runs, including test reports.</p>
+        </div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead><tr><th scope="col">Report</th><th scope="col">Alert</th><th scope="col">Application</th><th scope="col">Generated</th><th scope="col" class="numeric">Groups</th><th scope="col" class="numeric">Records</th><th scope="col">Action</th></tr></thead>
+                <tbody>
+                    @foreach (var (r, t) in Model)
+                    {
+                        <tr data-href="/insights/alerts/reports/@r.Id">
+                            <td class="col-number"><a href="/insights/alerts/reports/@r.Id">@r.Number</a>@if (r.IsTest) { <span class="vl-kw ms-1">Test</span> }</td>
+                            <td class="col-title"><span class="t">@t.Name</span></td>
+                            <td class="text-body-secondary text-nowrap">@(cfg.AppsByKey.GetValueOrDefault(t.AppKey)?.Name ?? t.AppKey)</td>
+                            <td class="text-nowrap text-body-secondary">@Ui.Time(r.GeneratedAt, Shell.TimeZone)</td>
+                            <td class="numeric">@r.GroupCount</td>
+                            <td class="numeric">@r.RecordCount</td>
+                            <td><partial name="_ActionStatus" model="r" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

@@ -1,0 +1,25 @@
+@model ChartCard
+@{
+    var c = Model.Chart;
+}
+<section class="card ins-card">
+    <div class="card-header">
+        <div class="min-w-0">
+            <h2 class="card-title-sm">@if (Model.Icon != null) { <i class="bi @Model.Icon" aria-hidden="true"></i> }@c.Title</h2>
+            @if (Model.Sub != null) { <span class="ins-card-sub">@Model.Sub</span> }
+        </div>
+        <div class="ins-card-actions">
+            @if (Model.MoreHref != null)
+            {
+                <a class="btn btn-sm btn-ghost" href="@Model.MoreHref">@Model.MoreLabel<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            }
+            @if (Model.CsvHref != null && !c.IsEmpty && c.Kind != ChartKind.Gauge)
+            {
+                <a class="btn btn-sm btn-ghost btn-icon" href="@Model.CsvHref" title="Export the report table (CSV)" aria-label="Export @c.Title as CSV"><i class="bi bi-download" aria-hidden="true"></i></a>
+            }
+        </div>
+    </div>
+    <div class="card-body">
+        @ChartRenderer.Figure(c, Model.Table, Model.Width)
+    </div>
+</section>

@@ -1,0 +1,90 @@
+@page "/insights/records"
+@model RecordsModel
+@{
+    ViewData["Title"] = Model.Heading;
+    var cfg = Shell.Config;
+    var dir = Shell.Directory;
+    var first = Model.Total == 0 ? 0 : (Model.P - 1) * RecordsModel.PageSize + 1;
+    var last = Math.Min(Model.Total, Model.P * RecordsModel.PageSize);
+}
+@section Crumbs {
+    <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    @if (Model.BackHref != null) { <a href="@Model.BackHref">@Model.BackLabel</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i> }
+    <span class="current">@Model.Heading</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <div class="min-w-0 flex-grow-1">
+        <h1 class="vl-page-title">@Model.Heading</h1>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+            @foreach (var chip in Model.Chips)
+            {
+                <span class="vl-kw">@chip</span>
+            }
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        @if (Model.BackHref != null) { <a class="btn btn-light" href="@Model.BackHref"><i class="bi bi-arrow-left" aria-hidden="true"></i>Back</a> }
+        @if (Model.Total > 0) { <a class="btn btn-light" href="@Model.CsvLink()"><i class="bi bi-download" aria-hidden="true"></i>Export</a> }
+    </div>
+</div>
+
+@if (Model.Error != null)
+{
+    <div class="vl-banner vl-banner-warn" role="alert"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><div><div class="ttl">These records can't be listed</div>@Model.Error</div></div>
+    return;
+}
+
+<div class="vl-table-wrap">
+    @if (Model.Total == 0)
+    {
+        <div class="vl-empty">
+            <div class="vl-empty-icon"><i class="bi bi-inbox"></i></div>
+            <h3>No records</h3>
+            <p>Nothing you can open matches this selection right now. The underlying data may have changed since the chart was refreshed.</p>
+        </div>
+    }
+    else
+    {
+        <div class="vl-table-scroll">
+            <table class="table vl-table">
+                <thead>
+                    <tr><th scope="col">Number</th><th scope="col">Title</th><th scope="col">Application</th><th scope="col">Phase</th><th scope="col">Due</th><th scope="col">Assigned to</th><th scope="col">Created</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Rows)
+                    {
+                        var app = cfg.AppsById[r.AppId];
+                        var form = cfg.FormsById[r.FormId];
+                        var phase = cfg.Phase(r.PhaseId);
+                        <tr data-href="/records/@r.Id">
+                            <td class="col-number"><a href="/records/@r.Id">@r.Number</a></td>
+                            <td class="col-title"><span class="t">@r.Title</span></td>
+                            <td class="text-nowrap"><span class="vl-app-tile xs me-1" style="--app:@app.Color"><i class="bi @form.Icon"></i></span>@form.Name</td>
+                            <td>@Ui.Phase(phase?.Name, r.PhaseType, r.DueDate, r.IsArchived, r.IsEffective)</td>
+                            <td class="text-nowrap">@Ui.Due(r.PhaseType == PhaseType.Normal ? r.DueDate : null, r.PhaseType == PhaseType.Normal)</td>
+                            <td class="text-nowrap">@Ui.Avatars(Model.Assignees.GetValueOrDefault(r.Id, []).Select(id => dir.Get(id)), 3)</td>
+                            <td class="text-nowrap text-body-secondary">@r.CreatedAt.ToString("dd MMM yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="vl-table-foot">
+            <span class="tabular">@first–@last of @Model.Total</span>
+            @if (Model.Pages > 1)
+            {
+                <nav aria-label="Pages">
+                    <ul class="pagination pagination-sm">
+                        <li class="page-item @(Model.P <= 1 ? "disabled" : "")"><a class="page-link" href="@Model.PageLink(Model.P - 1)" aria-label="Previous"><i class="bi bi-chevron-left"></i></a></li>
+                        @for (var i = Math.Max(1, Model.P - 2); i <= Math.Min(Model.Pages, Model.P + 2); i++)
+                        {
+                            <li class="page-item @(i == Model.P ? "active" : "")"><a class="page-link" href="@Model.PageLink(i)">@i</a></li>
+                        }
+                        <li class="page-item @(Model.P >= Model.Pages ? "disabled" : "")"><a class="page-link" href="@Model.PageLink(Model.P + 1)" aria-label="Next"><i class="bi bi-chevron-right"></i></a></li>
+                    </ul>
+                </nav>
+            }
+        </div>
+    }
+</div>

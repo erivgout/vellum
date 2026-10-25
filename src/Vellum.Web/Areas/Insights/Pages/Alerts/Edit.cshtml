@@ -1,0 +1,173 @@
+@page "/insights/alerts/edit/{id:int?}"
+@model Vellum.Areas.Insights.Pages.Alerts.EditModel
+@{
+    var a = Model.Input;
+    var isNew = Model.Existing == null;
+    ViewData["Title"] = isNew ? "New alert" : $"Edit {Model.Existing!.Number}";
+    var apps = Model.Catalog.Apps();
+    var app = apps.FirstOrDefault(x => x.Key == a.App);
+    var cols = Model.Catalog.Columns(a.App, a.View);
+    var dir = Shell.Directory;
+    string Err(string f) => Model.FieldError(f);
+}
+@section Crumbs {
+    <a href="/insights">Insights</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <a href="/insights/alerts">Alerts</a><i class="bi bi-chevron-right sep" aria-hidden="true"></i>
+    <span class="current">@(isNew ? "New alert" : Model.Existing!.Number)</span>
+}
+
+<div class="vl-page-head align-items-center">
+    <div class="min-w-0 flex-grow-1">
+        <h1 class="vl-page-title">@(isNew ? "New alert" : $"Edit {Model.Existing!.Name}")</h1>
+        <p class="vl-page-sub">The view is checked as you (the owner), so the alert never reports records you can't open.</p>
+    </div>
+</div>
+
+@if (Model.Issues.Count > 0)
+{
+    <div class="vl-banner vl-banner-bad" role="alert">
+        <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>
+        <div><div class="ttl">The alert can't be saved yet</div><ul class="ins-issues">@foreach (var i in Model.Issues.Select(i => i.Message).Distinct()) { <li>@i</li> }</ul></div>
+    </div>
+}
+
+<form method="post" action="/insights/alerts/edit@(Model.Id != null ? "/" + Model.Id : "")" data-ins-alert novalidate class="mb-4" style="max-width:860px">
+    @Html.AntiForgeryToken()
+    <section class="card mb-3">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-eye" aria-hidden="true"></i>What to watch</h2></div>
+        <div class="card-body row g-3">
+            <div class="col-12">
+                <label class="form-label" for="al-name">Name</label>
+                <input class="form-control" id="al-name" name="Input.Name" value="@a.Name" maxlength="200" required placeholder="For example: Repeat CAPAs from the same source" />
+                @if (Err("Name") is { Length: > 0 } e0) { <div class="invalid-feedback d-block">@e0</div> }
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="al-app">Application</label>
+                <select class="form-select" id="al-app" name="Input.App" data-ins-app>
+                    @foreach (var x in apps) { <option value="@x.Key" selected="@(x.Key == a.App)">@x.Name</option> }
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="al-view">View</label>
+                <select class="form-select" id="al-view" name="Input.View" data-ins-view>
+                    @if (app != null) { foreach (var g in app.Views.GroupBy(v => v.Category)) { <optgroup label="@g.Key">@foreach (var v in g) { <option value="@v.Key" selected="@(v.Key == a.View)">@v.Name</option> }</optgroup> } }
+                </select>
+                @if (Err("View") is { Length: > 0 } e1) { <div class="invalid-feedback d-block">@e1</div> }
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="al-match">Match columns</label>
+                <select class="form-select" id="al-match" name="Input.MatchColumns" multiple size="6" data-columns="match" aria-describedby="al-match-help">
+                    @foreach (var c in cols.Where(c => !c.IsNumber && !c.IsDate)) { <option value="@c.Key" data-kind="@c.Kind" selected="@a.MatchColumns.Contains(c.Key)">@c.Label</option> }
+                </select>
+                <div class="form-text" id="al-match-help">Records are grouped by these values (for example Source). Ctrl+click to choose several.</div>
+                @if (Err("MatchColumns") is { Length: > 0 } e2) { <div class="invalid-feedback d-block">@e2</div> }
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="al-report">Extra report columns</label>
+                <select class="form-select" id="al-report" name="Input.ReportColumns" multiple size="6" data-columns="all">
+                    @foreach (var c in cols) { <option value="@c.Key" data-kind="@c.Kind" selected="@a.ReportColumns.Contains(c.Key)">@c.Label</option> }
+                </select>
+                <div class="form-text">Number and title are always included.</div>
+                @if (Err("ReportColumns") is { Length: > 0 } e3) { <div class="invalid-feedback d-block">@e3</div> }
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label" for="al-min">Minimum matches</label>
+                <input class="form-control" type="number" min="1" max="10000" id="al-min" name="Input.MinMatches" value="@a.MinMatches" aria-describedby="al-min-help" />
+                <div class="form-text" id="al-min-help">Per distinct group.</div>
+                @if (Err("MinMatches") is { Length: > 0 } e4) { <div class="invalid-feedback d-block">@e4</div> }
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label" for="al-look">Created in the last</label>
+                <div class="input-group"><input class="form-control" type="number" min="1" max="3660" id="al-look" name="Input.LookbackDays" value="@a.LookbackDays" /><span class="input-group-text">days</span></div>
+                <div class="form-text">Blank = every record in the view.</div>
+                @if (Err("LookbackDays") is { Length: > 0 } e5) { <div class="invalid-feedback d-block">@e5</div> }
+            </div>
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-calendar-range" aria-hidden="true"></i>When it runs</h2></div>
+        <div class="card-body row g-3">
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label" for="al-freq">Every</label>
+                <div class="input-group"><input class="form-control" type="number" min="1" max="366" id="al-freq" name="Input.FrequencyDays" value="@a.FrequencyDays" /><span class="input-group-text">days</span></div>
+                @if (Err("FrequencyDays") is { Length: > 0 } e6) { <div class="invalid-feedback d-block">@e6</div> }
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label" for="al-ws">Window starts</label>
+                <input class="form-control" type="date" id="al-ws" name="Input.WindowStart" value="@a.WindowStart?.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <label class="form-label" for="al-we">Window ends</label>
+                <input class="form-control" type="date" id="al-we" name="Input.WindowEnd" value="@a.WindowEnd?.ToString("yyyy-MM-dd")" />
+                @if (Err("WindowEnd") is { Length: > 0 } e7) { <div class="invalid-feedback d-block">@e7</div> }
+            </div>
+            <div class="col-sm-6 col-md-3 d-flex flex-column justify-content-end gap-1">
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="al-inc" name="Input.IncrementDates" value="true" checked="@a.IncrementDates" /><label class="form-check-label small" for="al-inc">Slide the window each run</label></div>
+                @if (Err("IncrementDates") is { Length: > 0 } e8) { <div class="invalid-feedback d-block">@e8</div> }
+            </div>
+            <div class="col-12 d-flex flex-wrap gap-4">
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="al-en" name="Input.Enabled" value="true" checked="@a.Enabled" /><label class="form-check-label" for="al-en">Enabled</label><input type="hidden" name="Input.Enabled" value="false" /></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" id="al-chg" name="Input.OnlyWhenChanged" value="true" checked="@a.OnlyWhenChanged" /><label class="form-check-label" for="al-chg">Only notify when the results differ from the previous run</label></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-header"><h2 class="card-title-sm"><i class="bi bi-send" aria-hidden="true"></i>Notify</h2></div>
+        <div class="card-body row g-3">
+            <div class="col-md-6">
+                <label class="form-label" for="al-to">To (people)</label>
+                <div class="vl-picker" id="al-to" data-picker="users" data-name="Input.Users" data-multi="true">
+                    <div class="vl-picker-box">
+                        @foreach (var u in a.Users.Select(id => dir.Get(id)).OfType<UserInfo>())
+                        {
+                            <span class="vl-token">@Ui.Avatar(u, "xs")<span class="t">@u.DisplayName</span><button type="button" class="x" aria-label="Remove @u.DisplayName">×</button><input type="hidden" name="Input.Users" value="@u.Id" /></span>
+                        }
+                        <input type="text" placeholder="Add people…" aria-label="Recipients" autocomplete="off" />
+                    </div>
+                    <div class="vl-picker-menu" role="listbox"></div>
+                </div>
+                @if (Err("Users") is { Length: > 0 } e9) { <div class="invalid-feedback d-block">@e9</div> }
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="al-groups">To (groups)</label>
+                <select class="form-select" id="al-groups" name="Input.Groups" multiple size="4">
+                    @foreach (var g in dir.Groups.Where(g => !g.Inactive)) { <option value="@g.Key" selected="@a.Groups.Contains(g.Key)">@g.Name</option> }
+                </select>
+                @if (Err("Groups") is { Length: > 0 } e10) { <div class="invalid-feedback d-block">@e10</div> }
+            </div>
+            <div class="col-md-6">
+                <label class="form-label" for="al-cc">Cc</label>
+                <div class="vl-picker" id="al-cc" data-picker="users" data-name="Input.CcUsers" data-multi="true">
+                    <div class="vl-picker-box">
+                        @foreach (var u in a.CcUsers.Select(id => dir.Get(id)).OfType<UserInfo>())
+                        {
+                            <span class="vl-token">@Ui.Avatar(u, "xs")<span class="t">@u.DisplayName</span><button type="button" class="x" aria-label="Remove @u.DisplayName">×</button><input type="hidden" name="Input.CcUsers" value="@u.Id" /></span>
+                        }
+                        <input type="text" placeholder="Add people…" aria-label="Cc" autocomplete="off" />
+                    </div>
+                    <div class="vl-picker-menu" role="listbox"></div>
+                </div>
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="al-subject">Subject</label>
+                <input class="form-control" id="al-subject" name="Input.Subject" value="@a.Subject" maxlength="400" />
+                @if (Err("Subject") is { Length: > 0 } e11) { <div class="invalid-feedback d-block">@e11</div> }
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="al-body">Message</label>
+                <textarea class="form-control" id="al-body" name="Input.Body" rows="3" maxlength="4000" aria-describedby="al-body-help">@a.Body</textarea>
+                <div class="form-text" id="al-body-help">Placeholders: @string.Join(" ", AlertEngine.Placeholders.Select(p => "{" + p + "}")). Recipients who can't open the application are skipped; a person without an email address is replaced by their manager.</div>
+                @if (Err("Body") is { Length: > 0 } e12) { <div class="invalid-feedback d-block">@e12</div> }
+            </div>
+        </div>
+    </section>
+
+    <div class="d-flex justify-content-end gap-2">
+        <a class="btn btn-light" href="@(isNew ? "/insights/alerts" : $"/insights/alerts/{Model.Existing!.Id}")">Cancel</a>
+        <button class="btn btn-primary"><i class="bi bi-check2" aria-hidden="true"></i>Save alert</button>
+    </div>
+</form>
+<script type="application/json" id="ins-catalog">@Html.Raw(Model.Catalog.Json())</script>
+<script type="application/json" id="vl-directory">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(dir.All.Where(u => u.IsActive).Select(u => new { id = u.Id, name = u.DisplayName, initials = u.Initials, title = u.JobTitle, hue = u.Hue })))</script>

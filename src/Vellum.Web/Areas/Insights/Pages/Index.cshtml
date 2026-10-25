@@ -1,0 +1,129 @@
+@page "/insights"
+@model IndexModel
+@{
+    ViewData["Title"] = "Insights";
+    var d = Model.Data;
+    var dir = Shell.Directory;
+}
+@section Crumbs { <span class="current">Insights</span> }
+
+<div class="vl-page-head align-items-center">
+    <div class="min-w-0 flex-grow-1">
+        <h1 class="vl-page-title">Insights</h1>
+        <p class="vl-page-sub">Quality KPIs across the @Ui.Plural(d.Apps.Count, "application") you can see. Every number opens the records behind it.</p>
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-3">
+        <partial name="~/Modules/Insights/Views/_Refreshed.cshtml" model="new Refreshed(Model.At, Model.RefreshHref)" />
+        <a class="btn btn-light" href="/insights/alerts"><i class="bi bi-bell" aria-hidden="true"></i>Alerts</a>
+        <a class="btn btn-primary" href="/insights/charts/edit"><i class="bi bi-plus-lg" aria-hidden="true"></i>New chart</a>
+    </div>
+</div>
+
+@if (d.Apps.Count == 0)
+{
+    <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-bar-chart"></i></div><h3>No applications to report on</h3><p>You don't have access to any application with workflow records yet.</p></div></div>
+    return;
+}
+
+<partial name="~/Modules/Insights/Views/_Kpis.cshtml" model="d.Tiles" />
+
+<h2 class="ins-section-title">Workload</h2>
+<div class="row g-4">
+    <div class="col-xl-7 min-w-0">
+        <partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='new ChartCard(d.Chart("open-by-app"), Sub: "Overdue highlighted · select a bar to open its records", CsvHref: Model.Csv("open-by-app"), Icon: "bi-grid-1x2", Width: 640)' />
+    </div>
+    <div class="col-xl-5 min-w-0">
+        <partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='new ChartCard(d.Chart("overdue-by-owner"), Sub: "Current assignees of overdue records", CsvHref: Model.Csv("overdue-by-owner"), Icon: "bi-person-exclamation", Width: 460)' />
+    </div>
+    <div class="col-12 min-w-0">
+        <section class="card">
+            <div class="card-header">
+                <h2 class="card-title-sm"><i class="bi bi-alarm" aria-hidden="true"></i>Most overdue records</h2>
+                <a class="ms-auto small" href="@(new RecordFilter { Status = "overdue", Title = "Overdue items" }.Href())">View all overdue <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </div>
+            @if (d.TopOverdue.Count == 0)
+            {
+                <div class="vl-empty py-4"><div class="vl-empty-icon tone-ok"><i class="bi bi-check2-all"></i></div><h3>Nothing overdue</h3><p>Every open record you can see is within its due date.</p></div>
+            }
+            else
+            {
+                <div class="vl-table-scroll">
+                    <table class="table vl-table mb-0 ins-rank">
+                        <thead><tr><th scope="col">Record</th><th scope="col">Title</th><th scope="col">Application</th><th scope="col">Phase</th><th scope="col">Due</th><th scope="col">Assigned to</th></tr></thead>
+                        <tbody>
+                            @foreach (var r in d.TopOverdue)
+                            {
+                                <tr data-href="/records/@r.Id">
+                                    <td class="col-number"><a href="/records/@r.Id">@r.Number</a></td>
+                                    <td class="col-title"><span class="t">@r.Title</span></td>
+                                    <td class="text-nowrap"><span class="vl-app-tile xs me-1" style="--app:@r.App.Color"><i class="bi @r.App.Icon"></i></span>@r.App.Name</td>
+                                    <td>@Ui.Phase(r.Phase, PhaseType.Normal, r.Due)</td>
+                                    <td class="text-nowrap">@Ui.Due(r.Due)</td>
+                                    <td class="text-nowrap">@Ui.Avatars(r.Assignees.Select(id => dir.Get(id)), 3)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+</div>
+
+<h2 class="ins-section-title">Flow, last 12 weeks</h2>
+<div class="row g-4">
+    <div class="col-xl-7 min-w-0">
+        <partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='new ChartCard(d.Chart("throughput"), Sub: "Records created and records reaching a completed phase, per week", CsvHref: Model.Csv("throughput"), Icon: "bi-arrow-left-right", Width: 640)' />
+    </div>
+    <div class="col-xl-5 min-w-0">
+        <partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='new ChartCard(d.Chart("signatures"), Sub: "Electronic signatures applied, per week", CsvHref: Model.Csv("signatures"), Icon: "bi-pen", Width: 460)' />
+    </div>
+</div>
+
+<h2 class="ins-section-title">Timeliness, last 90 days</h2>
+<div class="row g-4">
+    <div class="col-lg-5 col-xl-4 min-w-0">
+        <partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='new ChartCard(d.Chart("on-time"), Sub: "Phase exits finished on or before their due date", Icon: "bi-stopwatch")' />
+    </div>
+    <div class="col-lg-7 col-xl-8 min-w-0">
+        <partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='new ChartCard(d.Chart("on-time-by-app"), Sub: "Lowest first · select a bar for the late completions", CsvHref: Model.Csv("on-time-by-app"), Icon: "bi-bar-chart-line", Width: 700)' />
+    </div>
+</div>
+
+<h2 class="ins-section-title">Cycle time, last 180 days</h2>
+<form class="ins-filterbar" method="get" action="/insights">
+    <label class="small fw-semibold text-body-secondary" for="ins-cycle">Application</label>
+    <select class="form-select form-select-sm" id="ins-cycle" name="cycle" data-autosubmit>
+        @foreach (var (key, name) in d.CycleChoices)
+        {
+            <option value="@key" selected="@(key == d.CycleApp)">@name</option>
+        }
+    </select>
+    <noscript><button class="btn btn-sm btn-light" type="submit">Apply</button></noscript>
+    @if (d.CycleApp != null)
+    {
+        <a class="small ms-auto" href="/insights/apps/@d.CycleApp">Open the @(Shell.Config.AppsByKey.GetValueOrDefault(d.CycleApp)?.Name) dashboard <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+    }
+</form>
+<div class="row g-4">
+    <div class="col-12 min-w-0">
+        <partial name="~/Modules/Insights/Views/_ChartCard.cshtml" model='new ChartCard(d.Chart("cycle-time"), Sub: "Median and 90th percentile calendar days in each phase, from phase tracking", CsvHref: Model.Csv("cycle-time"), Icon: "bi-hourglass-split", Width: 1080)' />
+    </div>
+</div>
+
+<h2 class="ins-section-title">Application dashboards</h2>
+<div class="row g-3 mb-4">
+    @foreach (var a in d.Apps)
+    {
+        <div class="col-sm-6 col-lg-4 col-xxl-3">
+            <a class="ins-app-card" href="/insights/apps/@a.App.Key">
+                <span class="vl-app-tile" style="--app:@a.App.Color"><i class="bi @a.App.Icon"></i></span>
+                <span class="main">
+                    <span class="name d-block">@a.App.Name</span>
+                    <span class="meta d-block">@a.Open open@if (a.Overdue > 0) { <text> · </text><span class="od">@a.Overdue overdue</span> }</span>
+                </span>
+                @ChartRenderer.Sparkline(a.CreatedWeekly, $"Created per week, last 12 weeks: {string.Join(", ", a.CreatedWeekly)}", "s1", 72, 28)
+            </a>
+        </div>
+    }
+</div>
