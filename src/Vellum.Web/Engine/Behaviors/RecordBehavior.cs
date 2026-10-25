@@ -95,6 +95,9 @@ public sealed class RoutingContext(RecordSnapshot snapshot, IServiceProvider ser
     public bool IsSystem { get; init; }
     public List<string> Errors { get; } = [];
     public void Error(string message) => Errors.Add(message);
+    /// <summary>Field-level route blockers (shown against the field, like required-field errors).</summary>
+    public List<FieldError> FieldErrors { get; } = [];
+    public void Error(string fieldKey, string message, Guid? rowId = null) => FieldErrors.Add(new FieldError(fieldKey, message, rowId));
 }
 
 public sealed record FieldError(string? FieldKey, string Message, Guid? RowId = null);

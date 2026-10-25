@@ -232,6 +232,7 @@ public sealed class WorkflowEngine(
                 var rctx = new RoutingContext(snap, services, route) { Comment = req.Comment };
                 foreach (var b in behaviors.For(snap.Form)) await b.ValidateRouteAsync(rctx);
                 errors.AddRange(rctx.Errors);
+                fieldErrors.AddRange(rctx.FieldErrors);
                 if (fieldErrors.Count > 0 || errors.Count > 0)
                     return RouteResult.Fail([.. fieldErrors, .. errors.Select(e => new FieldError(null, e))]);
 
