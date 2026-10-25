@@ -1,0 +1,41 @@
+@model Vellum.Modules.Quality.NcrSummaryModel
+@{
+    var m = Model;
+    var balanced = m.Lines.Count > 0 && m.Remaining == 0;
+}
+<div class="d-flex align-items-baseline justify-content-between mb-1">
+    <span class="small text-body-secondary">Dispositioned</span>
+    <span class="tabular fw-semibold">@m.Disposed.ToString("0.##") / @m.Affected.ToString("0.##") @m.Uom</span>
+</div>
+<div class="vlq-meter @(m.Remaining < 0 ? "is-bad" : balanced ? "is-ok" : "")" role="meter" aria-label="Quantity dispositioned" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@m.Percent"><span style="width:@m.Percent%"></span></div>
+<div class="small mt-2 @(balanced ? "text-success" : "text-body-secondary")">
+    @if (m.Lines.Count == 0)
+    {
+        <text><i class="bi bi-info-circle"></i> No disposition lines yet.</text>
+    }
+    else if (balanced)
+    {
+        <text><i class="bi bi-check-circle-fill"></i> Quantities add up to the quantity affected (INV-065).</text>
+    }
+    else if (m.Remaining > 0)
+    {
+        <text><i class="bi bi-exclamation-circle"></i> @m.Remaining.ToString("0.##") @m.Uom still to disposition before the NCR can leave Disposition (INV-065).</text>
+    }
+    else
+    {
+        <text><i class="bi bi-exclamation-octagon text-danger"></i> @((-m.Remaining).ToString("0.##")) @m.Uom more than the quantity affected.</text>
+    }
+</div>
+@if (m.Lines.Count > 0)
+{
+    <ul class="vlq-lines">
+        @foreach (var l in m.Lines)
+        {
+            <li>@Ui.KeywordBadge(l.Label, l.Color)<span class="tabular ms-auto">@l.Qty.ToString("0.##")</span>@if (l.Done) { <i class="bi bi-check-circle-fill text-success" title="Done" aria-label="Done"></i> } else { <i class="bi bi-circle text-body-tertiary" title="Not done yet" aria-label="Not done yet"></i> }</li>
+        }
+    </ul>
+}
+<dl class="vl-kv mt-3">
+    <dt>Material hold</dt>
+    <dd>@(m.HoldStatus switch { "on_hold" => "On hold", "released" => "Released", _ => "None" })</dd>
+</dl>

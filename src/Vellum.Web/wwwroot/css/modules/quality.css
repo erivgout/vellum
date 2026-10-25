@@ -1,0 +1,100 @@
+/* ==========================================================================
+   Quality events & product safety suite (vlq-*). Builds on the design system tokens in site.css.
+   ========================================================================== */
+
+/* ---- Regulatory reporting clock (CMP-009) ---- */
+.vlq-clock .card-header { display: flex; align-items: flex-start; gap: 0.75rem; }
+.vlq-deadlines { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+.vlq-deadline { position: relative; padding: 0.75rem 0.9rem 0.75rem 1.05rem; border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); background: var(--vl-surface-2); }
+.vlq-deadline::before { content: ""; position: absolute; left: 0; top: 0.6rem; bottom: 0.6rem; width: 3px; border-radius: 0 3px 3px 0; background: var(--vl-info); }
+.vlq-deadline.is-soon { background: var(--vl-warn-bg); border-color: var(--vl-warn-border); }
+.vlq-deadline.is-soon::before { background: var(--vl-warn); }
+.vlq-deadline.is-missed { background: var(--vl-bad-bg); border-color: var(--vl-bad-border); }
+.vlq-deadline.is-missed::before { background: var(--vl-bad); }
+.vlq-deadline.is-done::before { background: var(--vl-ok); }
+.vlq-deadline.is-closed::before { background: var(--vl-neutral); }
+.vlq-deadline.is-provisional { border-style: dashed; }
+.vlq-deadline-head { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.vlq-deadline-rule { font-size: 0.8rem; font-weight: 600; color: var(--vl-text); min-width: 0; }
+.vlq-deadline-due { display: flex; align-items: center; gap: 0.45rem; margin: 0.45rem 0 0.25rem; font-size: 1.15rem; font-weight: 680; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--vl-text); }
+.vlq-deadline.is-soon .vlq-deadline-due .bi { color: var(--vl-warn); }
+.vlq-deadline.is-missed .vlq-deadline-due .bi { color: var(--vl-bad); }
+.vlq-deadline.is-done .vlq-deadline-due { font-size: 0.95rem; }
+.vlq-deadline.is-done .vlq-deadline-due .bi { color: var(--vl-ok); }
+.vlq-deadline-meta { font-size: 0.75rem; color: var(--vl-text-2); }
+.vlq-decisions { display: flex; flex-wrap: wrap; gap: 0.75rem 2rem; padding-top: 0.85rem; border-top: 1px dashed var(--vl-border); }
+.vlq-tree-link { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; font-weight: 600; margin-right: 0.15rem; }
+.vlq-countdown { font-variant-numeric: tabular-nums; }
+
+/* Home widget dot */
+.vlq-clock-dot { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 8px; display: grid; place-items: center; font-size: 0.9rem; color: var(--vl-info); background: var(--vl-info-bg); }
+.vlq-clock-dot.is-soon { color: var(--vl-warn); background: var(--vl-warn-bg); }
+.vlq-clock-dot.is-missed { color: var(--vl-bad); background: var(--vl-bad-bg); }
+
+/* ---- Meters (deviation usage, disposition balance, costs) ---- */
+.vlq-meter { position: relative; height: 8px; border-radius: 999px; background: var(--vl-info-bg); overflow: hidden; flex: 1 1 auto; min-width: 80px; }
+.vlq-meter > span { display: block; height: 100%; border-radius: 999px; background: var(--vl-info); transition: width .3s ease; }
+.vlq-meter.is-ok { background: var(--vl-ok-bg); }
+.vlq-meter.is-ok > span { background: var(--vl-ok); }
+.vlq-meter.is-warn { background: var(--vl-warn-bg); }
+.vlq-meter.is-warn > span { background: var(--vl-warn); }
+.vlq-meter.is-bad { background: var(--vl-bad-bg); }
+.vlq-meter.is-bad > span { background: var(--vl-bad); }
+.vlq-meter.is-thin { height: 5px; margin-top: 0.3rem; }
+.vlq-usage { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.45rem; max-width: 520px; }
+.vlq-usage .lbl { width: 4.5rem; font-size: 0.75rem; color: var(--vl-text-2); }
+
+/* ---- NCR disposition lines & cost list ---- */
+.vlq-lines, .vlq-cost-list { list-style: none; margin: 0.75rem 0 0; padding: 0; }
+.vlq-lines li { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--vl-border); font-size: 0.82rem; }
+.vlq-lines li:last-child { border-bottom: 0; }
+.vlq-cost-list li { padding: 0.35rem 0; }
+
+/* Full-bleed list inside a rail card body */
+.vlq-bleed { margin: -0.25rem calc(-1 * var(--bs-card-spacer-x, 1.15rem)) -0.5rem; }
+
+/* ---- Lab investigation path (LAB-002 / INV-044) ---- */
+.vlq-result { min-width: 180px; padding-right: 1.25rem; border-right: 1px dashed var(--vl-border); }
+.vlq-result-value { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.vlq-result-value.is-invalid { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--vl-text-3); }
+.vlq-path-note { display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.82rem; color: var(--vl-text); }
+.vlq-path-note > .bi { color: var(--vl-info); margin-top: 0.1rem; }
+.vlq-path-note.is-ok > .bi { color: var(--vl-ok); }
+.vlq-path-note.is-warn > .bi { color: var(--vl-warn); }
+.vlq-path { display: flex; flex-wrap: wrap; gap: 0.35rem; list-style: none; margin: 0.65rem 0 0; padding: 0; counter-reset: vlqstep; }
+.vlq-path li { counter-increment: vlqstep; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.18rem 0.6rem 0.18rem 0.3rem; border-radius: 999px; font-size: 0.74rem; font-weight: 580; color: var(--vl-text-2); background: var(--vl-surface-3); border: 1px solid var(--vl-border); }
+.vlq-path li::before { content: counter(vlqstep); display: grid; place-items: center; width: 1.1rem; height: 1.1rem; border-radius: 50%; font-size: 0.65rem; background: var(--vl-surface); color: var(--vl-text-3); }
+.vlq-path li.is-done { color: var(--vl-ok); background: var(--vl-ok-bg); border-color: var(--vl-ok-border); }
+.vlq-path li.is-done::before { content: "✓"; color: var(--vl-ok); }
+.vlq-path li.is-current { color: var(--vl-info); background: var(--vl-info-bg); border-color: var(--vl-info-border); }
+.vlq-path li.is-current::before { color: var(--vl-info); }
+@media (max-width: 575.98px) { .vlq-result { border-right: 0; padding-right: 0; } }
+
+/* ---- Compact tables in rail cards ---- */
+.vlq-mini-table { font-size: 0.8rem; --bs-table-bg: transparent; }
+.vlq-mini-table th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--vl-text-3); font-weight: 650; }
+.vlq-mini-table td, .vlq-mini-table th { padding: 0.35rem 0.25rem; border-color: var(--vl-border); }
+.vlq-mini-table tr.is-over td { background: var(--vl-warn-bg); }
+
+/* ---- Complaint trends (CMP-010): single-series bars, one hue, value at the tip ---- */
+.vlq-barlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+.vlq-barlist li { display: grid; grid-template-columns: minmax(90px, 38%) 1fr 2.5rem; align-items: center; gap: 0.75rem; }
+.vlq-barlist-label { font-size: 0.8rem; color: var(--vl-text); }
+.vlq-barlist-track { position: relative; height: 12px; }
+.vlq-barlist-bar { position: absolute; left: 0; top: 0; bottom: 0; background: var(--vl-info); border-radius: 0 4px 4px 0; }
+.vlq-barlist li:hover .vlq-barlist-bar { filter: brightness(1.08); }
+.vlq-barlist-value { font-size: 0.8rem; font-weight: 620; color: var(--vl-text-2); }
+
+.vlq-columns { display: grid; grid-template-columns: 2rem 1fr; gap: 0.5rem; height: 220px; }
+.vlq-columns-axis { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; font-size: 0.7rem; color: var(--vl-text-3); padding-bottom: 1.4rem; font-variant-numeric: tabular-nums; }
+.vlq-columns-axis span { transform: translateY(-0.4em); }
+.vlq-columns-axis span:last-child { transform: translateY(0.4em); }
+.vlq-columns-plot { display: flex; align-items: stretch; gap: 2px; border-bottom: 1px solid var(--vl-border-strong);
+    background: linear-gradient(to bottom, var(--vl-border) 1px, transparent 1px) 0 0 / 100% 50% repeat-y; padding-top: 0; margin-bottom: 1.4rem; }
+.vlq-col { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; min-width: 0; position: relative; }
+.vlq-col-bar-wrap { position: relative; flex: 1 1 auto; width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.vlq-col-bar { display: block; width: min(24px, 70%); background: var(--vl-info); border-radius: 4px 4px 0 0; }
+.vlq-col:hover .vlq-col-bar { filter: brightness(1.08); }
+.vlq-col-value { position: absolute; left: 50%; transform: translateX(-50%); font-size: 0.72rem; font-weight: 650; color: var(--vl-text); }
+.vlq-col-label { position: absolute; bottom: -1.3rem; font-size: 0.66rem; color: var(--vl-text-3); white-space: nowrap; }
+@media (max-width: 767.98px) { .vlq-col:nth-child(even) .vlq-col-label { visibility: hidden; } }

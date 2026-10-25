@@ -1,0 +1,122 @@
+@page "/quality/complaint-trends"
+@model Vellum.Areas.Quality.Pages.ComplaintTrendsModel
+@{
+    ViewData["Title"] = "Complaint trends";
+    ViewData["ActiveApp"] = "complaints";
+    var maxMonth = Math.Max(1, Model.Monthly.Count == 0 ? 1 : Model.Monthly.Max(b => b.Count));
+    var peakIndex = Model.Monthly.FindIndex(b => b.Count == maxMonth && b.Count > 0);
+    var tickTop = maxMonth <= 4 ? 4 : (int)Math.Ceiling(maxMonth / 2.0) * 2;
+
+    void Bars(string title, string icon, string subtitle, List<Vellum.Areas.Quality.Pages.TrendBar> bars)
+    {
+        var max = Math.Max(1, bars.Count == 0 ? 1 : bars.Max(b => b.Count));
+        <div class="card h-100">
+            <div class="card-header">
+                <h2 class="card-title-sm"><i class="bi @icon"></i>@title</h2>
+                <span class="ms-auto small text-body-tertiary">@subtitle</span>
+            </div>
+            <div class="card-body">
+                @if (bars.Count == 0)
+                {
+                    <div class="small text-body-tertiary">No complaints in this period.</div>
+                }
+                else
+                {
+                    <ul class="vlq-barlist" aria-label="@title">
+                        @foreach (var b in bars)
+                        {
+                            var pct = (int)Math.Round(b.Count * 100.0 / max);
+                            <li title="@b.Label: @b.Count complaint@(b.Count == 1 ? "" : "s")">
+                                <a class="vlq-barlist-label text-truncate" href="@b.Href">@b.Label</a>
+                                <span class="vlq-barlist-track"><span class="vlq-barlist-bar" style="width:@Math.Max(2, pct)%"></span></span>
+                                <span class="vlq-barlist-value tabular">@b.Count</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    }
+}
+@section Crumbs {
+    <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
+    <a href="/apps/complaints">Complaint Handling</a><i class="bi bi-chevron-right sep"></i>
+    <span class="current">Trends</span>
+}
+
+<div class="vl-page-head">
+    <div>
+        <h1 class="vl-page-title">Complaint trends</h1>
+        <p class="vl-page-sub">Complaints by product, failure mode, lot and site, dated by awareness date. Signals flag @Vellum.Areas.Quality.Pages.ComplaintTrendsModel.SignalThreshold or more complaints with the same lot or failure mode within @Vellum.Areas.Quality.Pages.ComplaintTrendsModel.SignalWindowDays days (CMP-010).</p>
+    </div>
+    <div class="btn-group ms-auto" role="group" aria-label="Period">
+        @foreach (var r in Vellum.Areas.Quality.Pages.ComplaintTrendsModel.Ranges)
+        {
+            <a class="btn btn-sm @(r == Model.Months ? "btn-ink active" : "btn-light")" href="/quality/complaint-trends?months=@r" aria-current="@(r == Model.Months ? "page" : null)">@r months</a>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="/apps/complaints?view=all"><div class="vl-stat-icon tone-info"><i class="bi bi-chat-left-dots"></i></div><div class="vl-stat-value">@Model.Total</div><div class="vl-stat-label">Complaints in @Model.Months months</div></a></div>
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="/apps/complaints?view=open_by_assignee"><div class="vl-stat-icon tone-warn"><i class="bi bi-hourglass-split"></i></div><div class="vl-stat-value">@Model.Open</div><div class="vl-stat-label">Still open</div></a></div>
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="/apps/complaints?view=reportable"><div class="vl-stat-icon tone-bad"><i class="bi bi-send-exclamation"></i></div><div class="vl-stat-value">@Model.Reportable</div><div class="vl-stat-label">Reportable to FDA</div></a></div>
+    <div class="col-6 col-lg-3"><a class="vl-stat" href="/apps/complaints?view=patient"><div class="vl-stat-icon tone-violet"><i class="bi bi-heart-pulse"></i></div><div class="vl-stat-value">@Model.PatientInvolved</div><div class="vl-stat-label">With patient involvement</div></a></div>
+</div>
+
+@if (Model.Signals.Count > 0)
+{
+    <div class="vl-banner vl-banner-warn" role="status">
+        <i class="bi bi-activity"></i>
+        <div>
+            <div class="ttl">Possible signals in the last @Vellum.Areas.Quality.Pages.ComplaintTrendsModel.SignalWindowDays days</div>
+            <ul>
+                @foreach (var s in Model.Signals)
+                {
+                    <li><a href="@s.Href">@s.Kind @s.Label</a>: @s.Count complaints</li>
+                }
+            </ul>
+        </div>
+    </div>
+}
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-bar-chart"></i>Complaints per month</h2>
+        <span class="ms-auto small text-body-tertiary">By awareness date</span>
+    </div>
+    <div class="card-body">
+        <div class="vlq-columns" role="img" aria-label="Complaints per month, @Model.Monthly.FirstOrDefault()?.Label to @Model.Monthly.LastOrDefault()?.Label. Peak @maxMonth.">
+            <div class="vlq-columns-axis" aria-hidden="true"><span>@tickTop</span><span>@(tickTop / 2)</span><span>0</span></div>
+            <div class="vlq-columns-plot">
+                @for (var i = 0; i < Model.Monthly.Count; i++)
+                {
+                    var b = Model.Monthly[i];
+                    var h = b.Count == 0 ? 0 : Math.Max(3, (int)Math.Round(b.Count * 100.0 / tickTop));
+                    var labelled = i == peakIndex || i == Model.Monthly.Count - 1;
+                    <div class="vlq-col" title="@b.Label: @b.Count complaint@(b.Count == 1 ? "" : "s")">
+                        <div class="vlq-col-bar-wrap">
+                            @if (labelled && b.Count > 0) { <span class="vlq-col-value tabular" style="bottom:calc(@h% + 4px)">@b.Count</span> }
+                            <span class="vlq-col-bar" style="height:@h%"></span>
+                        </div>
+                        <span class="vlq-col-label">@b.Label</span>
+                    </div>
+                }
+            </div>
+        </div>
+        <details class="mt-3">
+            <summary class="small text-body-secondary">Show as a table</summary>
+            <table class="table table-sm vlq-mini-table mt-2">
+                <thead><tr><th scope="col">Month</th><th scope="col" class="text-end">Complaints</th></tr></thead>
+                <tbody>@foreach (var b in Model.Monthly) { <tr><td>@b.Label</td><td class="text-end tabular">@b.Count</td></tr> }</tbody>
+            </table>
+        </details>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">@{ Bars("By product", "bi-box", "Top 8", Model.ByProduct); }</div>
+    <div class="col-lg-6">@{ Bars("By failure mode", "bi-bug", "All modes", Model.ByFailureMode); }</div>
+    <div class="col-lg-6">@{ Bars("By lot", "bi-upc", "Top 8", Model.ByLot); }</div>
+    <div class="col-lg-6">@{ Bars("By site where reported", "bi-geo-alt", "All sites", Model.BySite); }</div>
+</div>

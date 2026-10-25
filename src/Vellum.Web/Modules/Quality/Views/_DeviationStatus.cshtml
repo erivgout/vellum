@@ -1,0 +1,40 @@
+@model Vellum.Modules.Quality.DeviationStatusModel
+@{
+    var m = Model;
+    string Left(int? d) => d switch { null => "no end date", < 0 => "end date passed", 0 => "ends today", 1 => "1 day left", _ => $"{d} days left" };
+}
+@if (m.PhaseKey == "active")
+{
+    var urgent = m.DaysLeft is <= 7 || m.QtyPercent is >= 90 || m.LotPercent is >= 90;
+    <div class="vl-banner @(urgent ? "vl-banner-warn" : "vl-banner-ok")" role="status">
+        <i class="bi bi-sign-turn-right-fill"></i>
+        <div class="flex-grow-1 min-w-0">
+            <div class="ttl">Active deviation: part @m.PartNumber · @m.Defect</div>
+            <div class="small">In force @m.From?.ToString("dd MMM yyyy") to @m.To?.ToString("dd MMM yyyy") (@Left(m.DaysLeft)). It closes automatically when the end date passes or a limit is used up (DEV-002), and its owner is notified.</div>
+            @if (m.QtyPercent is { } qp)
+            {
+                <div class="vlq-usage"><span class="lbl">Quantity</span><div class="vlq-meter @(qp >= 90 ? "is-warn" : "")" role="meter" aria-label="Quantity used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@qp"><span style="width:@qp%"></span></div><span class="tabular small">@((m.UsedQty ?? 0).ToString("0.##")) / @m.MaxQty?.ToString("0.##")</span></div>
+            }
+            @if (m.LotPercent is { } lp)
+            {
+                <div class="vlq-usage"><span class="lbl">Lots</span><div class="vlq-meter @(lp >= 90 ? "is-warn" : "")" role="meter" aria-label="Lots used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@lp"><span style="width:@lp%"></span></div><span class="tabular small">@((m.UsedLots ?? 0).ToString("0")) / @m.MaxLots?.ToString("0")</span></div>
+            }
+        </div>
+    </div>
+}
+else if (m.PhaseKey is "closed" or "expired")
+{
+    <div class="vl-banner vl-banner-info" role="status">
+        <i class="bi bi-flag-fill"></i>
+        <div><div class="ttl">No longer active@(m.ClosureReason != null ? $": {m.ClosureReason}" : "")</div>
+            <div class="small">Closed @m.ClosedOn?.ToString("dd MMM yyyy"). Part @m.PartNumber no longer shows the active-deviation warning (DEV-003).</div></div>
+    </div>
+}
+else if (m.PhaseKey is "review" or "initial_approval" or "final_approval")
+{
+    <div class="vl-banner vl-banner-violet" role="status">
+        <i class="bi bi-hourglass-split"></i>
+        <div><div class="ttl">Not active yet</div>
+            <div class="small">Once approved, this deviation is active for part @(m.PartNumber ?? "–") / @(m.Defect ?? "–") from @m.From?.ToString("dd MMM yyyy") to @m.To?.ToString("dd MMM yyyy"). Only one deviation can be active per part number and defect code (INV-118).</div></div>
+    </div>
+}

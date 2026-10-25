@@ -1,0 +1,23 @@
+@model Vellum.Modules.Quality.SimilarComplaintsModel
+@if (Model.Signal)
+{
+    <div class="vl-banner vl-banner-warn py-2 small"><i class="bi bi-activity"></i><div><strong>Possible signal.</strong> @(Model.Items.Count + 1) complaints share this lot or failure mode in 12 months. Consider a trend review or CAPA (CMP-010).</div></div>
+}
+<ul class="vl-list vlq-bleed">
+    @foreach (var c in Model.Items.Take(8))
+    {
+        <li>
+            <a class="vl-list-item py-2" href="/records/@c.Id">
+                <span class="main">
+                    <span class="line1"><span class="num">@c.Number</span><span class="ttl small">@c.Title</span></span>
+                    <span class="line2 d-block">@c.Match · @c.Created.ToString("dd MMM yyyy")</span>
+                </span>
+                <span class="aside">@Ui.Phase(c.PhaseName, c.PhaseType)</span>
+            </a>
+        </li>
+    }
+</ul>
+@if (Model.Items.Count > 8)
+{
+    <div class="small text-body-secondary mt-2">And @(Model.Items.Count - 8) more. <a href="/quality/complaint-trends">See complaint trends</a>.</div>
+}

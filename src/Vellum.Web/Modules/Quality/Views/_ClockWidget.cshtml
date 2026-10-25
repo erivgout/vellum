@@ -1,0 +1,24 @@
+@model List<Vellum.Modules.Quality.ClockWidgetItem>
+@{
+    var today = BusinessCalendar.Today;
+}
+<div class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title-sm"><i class="bi bi-alarm"></i>Regulatory reporting clocks</h2>
+        <a class="ms-auto small" href="/apps/complaints?view=approaching">All</a>
+    </div>
+    <div class="vl-list">
+        @foreach (var i in Model)
+        {
+            var left = i.Due.DayNumber - today.DayNumber;
+            <a class="vl-list-item" href="/records/@i.Id">
+                <span class="vlq-clock-dot @(left < 0 ? "is-missed" : left <= Vellum.Modules.Quality.ReportingClock.DueSoonDays ? "is-soon" : "is-ok")" aria-hidden="true"><i class="bi @(left < 0 ? "bi-exclamation-octagon-fill" : "bi-hourglass-split")"></i></span>
+                <span class="main">
+                    <span class="line1"><span class="num">@i.Number</span><span class="ttl">@i.Title</span></span>
+                    <span class="line2 d-block">@(i.Rule ?? "Report") · due @i.Due.ToString("dd MMM")</span>
+                </span>
+                <span class="aside"><span class="vlq-countdown small fw-semibold" data-vlq-deadline="@i.Due.ToString("yyyy-MM-dd")">@(left < 0 ? $"Overdue {-left}d" : left == 0 ? "Due today" : $"{left}d left")</span></span>
+            </a>
+        }
+    </div>
+</div>

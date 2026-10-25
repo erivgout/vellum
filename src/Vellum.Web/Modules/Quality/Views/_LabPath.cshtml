@@ -1,0 +1,43 @@
+@model Vellum.Modules.Quality.LabPathModel
+@{
+    var m = Model;
+    var steps = m.LabError == true
+        ? new[] { ("lab_investigation", "Lab investigation"), ("final_approval", "Final approval"), ("closed", "Closed") }
+        : new[] { ("lab_investigation", "Lab investigation"), ("lab_approval", "Approval"), ("full_investigation", "Full investigation"), ("final_approval", "Final approval"), ("closed", "Closed") };
+    var currentIndex = Array.FindIndex(steps, s => s.Item1 == m.PhaseKey);
+}
+<div class="vlq-lab card mb-3">
+    <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <div class="vlq-result">
+                <div class="vl-meta-label">Reported result</div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="vlq-result-value @(m.Invalidated ? "is-invalid" : "")">@(m.Result ?? "–")</span>
+                    @Ui.Keyword(m.ResultType)
+                </div>
+                <div class="small text-body-secondary">Specification @(m.Spec ?? "–")</div>
+            </div>
+            <div class="flex-grow-1 min-w-0">
+                @if (m.LabError == true)
+                {
+                    <div class="vlq-path-note is-ok"><i class="bi bi-check-circle-fill"></i><span><strong>Assignable lab error</strong>@(m.ErrorType != null ? $" ({m.ErrorType})" : ""). @(m.Invalidated ? "The original result is invalidated" : "Choose the lab error type to invalidate the original result") (LAB-003).</span></div>
+                }
+                else if (m.LabError == false)
+                {
+                    <div class="vlq-path-note is-warn"><i class="bi bi-exclamation-triangle-fill"></i><span><strong>No lab error found.</strong> The original result stands; a full manufacturing investigation is required before closure (INV-044).</span></div>
+                }
+                else
+                {
+                    <div class="vlq-path-note"><i class="bi bi-info-circle-fill"></i><span><strong>Phase I.</strong> Look for an assignable laboratory error first. Original results can be invalidated only if one is identified and recorded (LAB-003).</span></div>
+                }
+                <ol class="vlq-path" aria-label="Investigation path">
+                    @for (var i = 0; i < steps.Length; i++)
+                    {
+                        var state = currentIndex < 0 ? (m.PhaseKey == "closed" ? "done" : "upcoming") : i < currentIndex ? "done" : i == currentIndex ? "current" : "upcoming";
+                        <li class="is-@state" aria-current="@(state == "current" ? "step" : null)">@steps[i].Item2</li>
+                    }
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>

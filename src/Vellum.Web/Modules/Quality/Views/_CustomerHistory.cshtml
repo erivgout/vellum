@@ -1,0 +1,26 @@
+@model List<Vellum.Modules.Quality.CustomerHistoryItem>
+@if (Model.Count == 0)
+{
+    <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-clock-history"></i></div><h3>No feedback yet</h3><p>Feedback, complaints and returns for this customer appear here automatically. Use <em>Create › New feedback</em> to add one.</p></div></div>
+}
+else
+{
+    <p class="small text-body-secondary">Every feedback record, complaint and return that names this customer, including closed and voided ones (CFB-001).</p>
+    <div class="vl-table-wrap"><div class="vl-table-scroll">
+        <table class="table vl-table">
+            <thead><tr><th scope="col">Number</th><th scope="col">Title</th><th scope="col">Type</th><th scope="col">Phase</th><th scope="col">Created</th></tr></thead>
+            <tbody>
+                @foreach (var i in Model)
+                {
+                    <tr data-href="/records/@i.Id">
+                        <td class="col-number"><a href="/records/@i.Id">@i.Number</a></td>
+                        <td class="col-title"><span class="t">@i.Title</span></td>
+                        <td class="text-nowrap"><span class="vl-person"><span class="vl-app-tile xs" style="--app:@i.AppColor"><i class="bi @i.FormIcon"></i></span>@i.FormName</span></td>
+                        <td>@Ui.Phase(i.PhaseName, i.PhaseType, i.Due)</td>
+                        <td class="text-nowrap text-body-secondary">@i.Created.ToString("dd MMM yyyy")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div></div>
+}
