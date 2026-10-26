@@ -14,7 +14,7 @@
             new { kind = "action", label = "Go to My work", sub = "Assignments across all applications", href = "/work", icon = "bi-inbox", color = "#57524c" },
             new { kind = "action", label = "Search everything", sub = "Full-text, security-trimmed search", href = "/search", icon = "bi-search", color = "#57524c" },
             new { kind = "action", label = "All applications", sub = "Browse every application you can access", href = "/apps", icon = "bi-grid", color = "#57524c" },
-        })
+        }.Where(a => a.href != "/search" || Shell.Settings.GlobalSearchEnabled))
         .Concat(Shell.ExtraNav.Select(n => new { kind = "action", label = n.Label, sub = n.Section, href = n.Href, icon = n.Icon, color = "#57524c" }));
     bool IsActive(string href, string? prefix = null) => path == href || (href != "/" && path.StartsWith((prefix ?? href).ToLowerInvariant()));
     var toast = TempData["Toast"] as string;
@@ -65,7 +65,10 @@
                     <a class="vl-side-link @(path == "/" ? "active" : "")" href="/"><i class="bi bi-house"></i><span class="vl-side-text">Home</span></a>
                     <a class="vl-side-link @(IsActive("/work") ? "active" : "")" href="/work"><i class="bi bi-inbox"></i><span class="vl-side-text">My work</span>
                         @if (Shell.MyOpenAssignments > 0) { <span class="vl-side-badge hot">@Shell.MyOpenAssignments</span> }</a>
-                    <a class="vl-side-link @(IsActive("/search") ? "active" : "")" href="/search"><i class="bi bi-search"></i><span class="vl-side-text">Search</span></a>
+                    @if (Shell.Settings.GlobalSearchEnabled)
+                    {
+                        <a class="vl-side-link @(IsActive("/search") ? "active" : "")" href="/search"><i class="bi bi-search"></i><span class="vl-side-text">Search</span></a>
+                    }
                     <a class="vl-side-link @(IsActive("/apps") && activeApp == null ? "active" : "")" href="/apps"><i class="bi bi-grid"></i><span class="vl-side-text">All applications</span></a>
 
                     @if (Shell.Favorites.Count > 0)

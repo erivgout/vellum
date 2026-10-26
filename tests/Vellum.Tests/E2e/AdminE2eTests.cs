@@ -67,6 +67,20 @@ public class AdminE2eTests(VellumFixture fx)
             using (var anon = new Browser(fx)) (await anon.GoAsync("/login")).ExpectText(message);
             (await admin.GoAsync($"/admin/audit?q={tag}")).ExpectText("System preference changed").ExpectText("Login message");
 
+            // Turning global search off takes it away everywhere (PLT-1501), and turning it back on restores it.
+            using var jlee = await fx.SignedInAsync("jlee");
+            var draft = await jlee.CreateAsync("document", f => f.Pick("f.doc_type", "procedure").Set("f.title", $"Searchable {tag}"));
+            Assert.Contains((await jlee.GoAsync($"/search?q={tag}")).SearchHits(), h => h.Contains(draft.Number()));
+            var off = await (await admin.GoAsync("/admin/settings")).Form("form[data-adm-settings]").Set("Input.GlobalSearchEnabled", "false").SubmitAsync();
+            Assert.Equal("Saved 1 change to system preferences.", off.Toast);
+            var noSearch = await jlee.GoAsync($"/search?q={tag}");
+            noSearch.ExpectText("Global search is turned off");
+            Assert.Empty(noSearch.SearchHits());
+            Assert.Null(noSearch.Q("a.vl-side-link[href='/search']"));
+            Assert.DoesNotContain(tag, await (await jlee.RawGetAsync($"/api/search/quick?q={tag}")).Content.ReadAsStringAsync());
+            await (await admin.GoAsync("/admin/settings")).Form("form[data-adm-settings]").Set("Input.GlobalSearchEnabled", "true").SubmitAsync();
+            Assert.Contains((await jlee.GoAsync($"/search?q={tag}")).SearchHits(), h => h.Contains(draft.Number()));
+
             // The lockout threshold is compliance-sensitive. In regulated mode it can only be made stricter (SAF-010)…
             Assert.True(original.RegulatedMode, "The test tenant runs in regulated mode.");
             var looser = await (await admin.GoAsync("/admin/settings")).Form("form[data-adm-settings]").Set("Input.LockoutThreshold", 10)
