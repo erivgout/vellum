@@ -55,7 +55,7 @@ public sealed class AssignmentService(VellumDbContext db, ConfigCache cfg, Curre
     private async Task<List<UserInfo>> AuthorsAsync(Record r, PhaseDefinition phase)
     {
         var first = await db.PhaseEntries.AsNoTracking().Where(e => e.RecordId == r.Id && e.PhaseId == phase.Id).OrderBy(e => e.Id).Select(e => (long?)e.Id).FirstOrDefaultAsync();
-        var ids = first == null ? [] : await db.Assignments.AsNoTracking().Where(a => a.PhaseEntryId == first).OrderBy(a => a.Order).Select(a => a.UserId).ToListAsync();
+        var ids = first == null ? [] : await db.Assignments.AsNoTracking().Where(a => a.PhaseEntryId == first && a.Status != AssignmentStatus.Cancelled).OrderBy(a => a.Order).Select(a => a.UserId).ToListAsync();
         var authors = ids.Distinct().Select(dir.Get).OfType<UserInfo>().Where(u => u.Assignable).ToList();
         return authors.Count > 0 ? authors : dir.Get(r.CreatedById) is { Assignable: true } creator ? [creator] : [];
     }
