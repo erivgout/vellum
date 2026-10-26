@@ -90,6 +90,8 @@ public sealed class Scheduler(IServiceScopeFactory scopes, ILogger<Scheduler> lo
         try
         {
             var result = await job.RunAsync(ctx, ct);
+            // Jobs share this DbContext and may clear its change tracker, which detaches the run: load it again.
+            run = await db.TaskRuns.FirstAsync(r => r.Id == run.Id, CancellationToken.None);
             run.Outcome = "Succeeded";
             run.RecordsAffected = result.RecordsAffected;
             if (result.Summary != null) ctx.Log(result.Summary);
