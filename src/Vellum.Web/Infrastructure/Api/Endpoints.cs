@@ -174,11 +174,12 @@ public static class Endpoints
     /// <summary>PLT-1007: audit trail export in human- and machine-readable form (exports are themselves audited).</summary>
     public static void MapExports(this WebApplication app)
     {
-        app.MapGet("/records/{id:guid}/audit.{format}", async (Guid id, string format, VellumDbContext db, AccessService access, AuditService audit) =>
+        app.MapGet("/records/{id:guid}/audit.{format}", async (Guid id, string format, VellumDbContext db, AccessService access, AuditService audit, ConfigCache cfg) =>
         {
             if (!await access.CanReadAsync(id)) return Results.NotFound();
             var rec = await db.Records.AsNoTracking().FirstAsync(r => r.Id == id);
             var entries = await db.Audit.AsNoTracking().Where(a => a.RecordId == id).OrderBy(a => a.Seq).ToListAsync();
+            if (!access.CanSeeSensitive(rec.AppId)) AuditService.MaskSensitive(entries, cfg.Current.FormsById[rec.FormId]); // SEC-520
             audit.Record(id, "Audit trail exported", $"Exported {entries.Count} entries as {format.ToUpperInvariant()}");
             await db.SaveChangesAsync();
             var name = $"{rec.Number}-audit-trail.{format}";
