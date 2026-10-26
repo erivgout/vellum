@@ -54,7 +54,7 @@ public class PdfSharePointE2eTests(VellumFixture fx)
         AssertPdf(file, bytes);
         await (await c.As("nflores")).GoAsync(draftViewer, HttpStatusCode.NotFound); // a draft isn't for readers (DOC-080)
 
-        await c.ToAwaitingReleaseAsync(url);
+        await c.ToAwaitingReleaseAsync(url, submitted: true);
         var effective = await c.ReleaseAsync(url);
         var effectiveViewer = ViewerUrl(effective);
 

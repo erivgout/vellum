@@ -30,12 +30,13 @@ public sealed class Cast(VellumFixture fx) : IDisposable
 public static class DocumentSteps
 {
     /// <summary>
-    /// Draft → Awaiting Release with every signature, each person on their own page: the author submits, Document Control
-    /// checks the format, the owner approves, both reviewers sign and the owner approves for release.
+    /// Draft → Awaiting Release with every signature, each person on their own page: the author submits (unless
+    /// <paramref name="submitted"/>), Document Control checks the format, the owner approves, both reviewers sign and
+    /// the owner approves for release.
     /// </summary>
-    public static async Task<Page> ToAwaitingReleaseAsync(this Cast c, string url, string author = "jlee")
+    public static async Task<Page> ToAwaitingReleaseAsync(this Cast c, string url, string author = "jlee", bool submitted = false)
     {
-        await (await c.Open(author, url)).RouteOkAsync("Submit to Document Control");
+        if (!submitted) await (await c.Open(author, url)).RouteOkAsync("Submit to Document Control");
         await (await c.Open("pshah", url)).RouteOkAsync("Format checked: send for initial approval");
         await (await c.Open("sortiz", url)).RouteOkAsync("Approve: send to reviewers");
         await (await c.Open("dokafor", url)).RouteOkAsync("Reviewed");

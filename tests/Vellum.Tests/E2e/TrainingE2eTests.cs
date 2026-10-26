@@ -143,21 +143,23 @@ public class TrainingE2eTests(VellumFixture fx)
     public async Task A_coordinator_runs_a_course_from_the_training_application()
     {
         using var c = new Cast(fx);
-        var name = $"Forklift refresher {E2e.Tag()}";
+        var tag = E2e.Tag();
+        var name = $"Forklift refresher {tag}";
 
         // Only coordinators and course owners maintain courses.
         var jlee = await c.As("jlee");
         var notAllowed = await (await jlee.NewAsync("course")).RecordForm().Set("f.course_name", name).Pick("f.course_type", "online").SubmitAsync();
         Assert.Contains(notAllowed.Errors, e => e.Contains("TRN-003"));
 
-        // An applicability rule needs at least one field (INV-106).
+        // A blank applicability rule is dropped, never saved as "everyone" (INV-106): the course applies to nobody yet.
         var kpatel = await c.As("kpatel");
         var form = await kpatel.NewAsync("course");
-        var empty = form.AddRow("applicability");
-        var refused = await form.RecordForm().Set("f.course_name", name).Pick("f.course_type", "online")
-            .Set($"r.applicability.{empty}.job_title", "").Set($"r.applicability.{empty}.__id", "").SubmitAsync();
-        // An all-blank row is dropped as an untouched template row, so it's either refused or ignored, never saved as "everyone".
-        if (refused.Url.AbsolutePath.StartsWith("/records/new")) Assert.Contains(refused.Errors, e => e.Contains("INV-106"));
+        var blank = form.AddRow("applicability");
+        var unscoped = await form.RecordForm().Set("f.course_name", $"Unscoped course {tag}").Pick("f.course_type", "online")
+            .Set($"r.applicability.{blank}.job_title", "  ").SubmitAsync();
+        Assert.StartsWith("CRS-", unscoped.Number());
+        var nobody = await unscoped.ActionAsync("assign_employees");
+        Assert.Contains(nobody.ActionErrors("assign_employees"), e => e.Contains("Nobody to assign"));
 
         form = await kpatel.NewAsync("course");
         var row = form.AddRow("applicability");
@@ -171,7 +173,7 @@ public class TrainingE2eTests(VellumFixture fx)
         Assert.Equal("2 assignments created.", assigned.Toast);
         var again = await (await kpatel.GoAsync(courseUrl)).ActionAsync("assign_employees");
         Assert.StartsWith("0 assignments created. 2 skipped", again.Toast);
-        Assert.Contains("INV-109", again.Toast);
+        Assert.Contains($"{c.Name("nflores")}: already has a pending assignment", again.Toast); // INV-109
 
         var pending = await kpatel.GoAsync($"/apps/training?view=pending_by_course&q={Uri.EscapeDataString(name)}");
         Assert.Equal(2, pending.RowsWith(name).Count);
