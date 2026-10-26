@@ -65,9 +65,24 @@ public sealed class UiContext(VellumDbContext db, CurrentUser me, AccessService 
 
     public int MyOpenAssignments => Suites.SelectMany(s => s.Apps).Sum(a => a.OpenAssignments);
 
-    public List<Favorite> Favorites => _favorites ??= me.IsAuthenticated
-        ? db.Favorites.AsNoTracking().Where(f => f.UserId == me.Id).OrderBy(f => f.Kind).ThenBy(f => f.Label).ToList()
-        : [];
+    public List<Favorite> Favorites => _favorites ??= LoadFavorites();
+
+    /// <summary>The user's favorites that they can still open: a starred record or app they've lost access to drops out (INV-081).</summary>
+    private List<Favorite> LoadFavorites()
+    {
+        if (!me.IsAuthenticated) return [];
+        var favs = db.Favorites.AsNoTracking().Where(f => f.UserId == me.Id).OrderBy(f => f.Kind).ThenBy(f => f.Label).ToList();
+        var ids = favs.Where(f => f.Kind == "record").Select(f => Guid.TryParse(f.RefKey, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList();
+        var readable = ids.Count == 0 ? [] : access.Readable().Where(r => ids.Contains(r.Id)).Select(r => r.Id).ToHashSet();
+        bool CanOpenApp(string key) => Config.AppsByKey.TryGetValue(key, out var a) && access.CanOpenApp(a.Id);
+        return favs.Where(f => f.Kind switch
+        {
+            "record" => Guid.TryParse(f.RefKey, out var g) && readable.Contains(g),
+            "app" => CanOpenApp(f.RefKey),
+            "view" => !f.RefKey.StartsWith("/apps/") || CanOpenApp(f.RefKey[6..].Split('?', '/')[0]),
+            _ => true,
+        }).ToList();
+    }
 
     public bool IsFavorite(string kind, string key) => Favorites.Any(f => f.Kind == kind && f.RefKey == key);
 

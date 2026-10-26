@@ -13,6 +13,28 @@ public class RecordPageE2eTests(VellumFixture fx)
         Assert.Contains("created from their parent record", page.Toast);
     }
 
+    [Fact] // INV-081: favorites never show a record or application the person can't open (for example after losing access)
+    public async Task Favorites_drop_records_and_apps_the_person_can_no_longer_open()
+    {
+        var tag = E2e.Tag();
+        // An application with no default access: only the administrator who built it can open it.
+        using var admin = await fx.SignedInAsync("admin");
+        var key = await DesignerE2eTests.PublishedAppAsync(admin, "Restricted favorites", access: null);
+        var record = await admin.CreateAsync(key, f => f.Set("f.title", $"Favorite trimming {tag}"));
+
+        // Stars saved while nflores could still open them (for example before an access change).
+        using var nflores = await fx.SignedInAsync("nflores");
+        var home = await nflores.GoAsync("/");
+        Assert.Equal(System.Net.HttpStatusCode.OK, (await nflores.PostJsonAsync("/api/favorites/toggle", new { kind = "record", refKey = record.RecordId.ToString(), label = $"{record.Number()} · Favorite trimming {tag}" })).Status);
+        Assert.Equal(System.Net.HttpStatusCode.OK, (await nflores.PostJsonAsync("/api/favorites/toggle", new { kind = "app", refKey = key, label = $"Restricted app {tag}" })).Status);
+        Assert.Equal(System.Net.HttpStatusCode.OK, (await nflores.PostJsonAsync("/api/favorites/toggle", new { kind = "app", refKey = "documents", label = $"Documents {tag}" })).Status);
+
+        home = await nflores.GoAsync("/");
+        var favorites = home.All(".vl-side-link .vl-side-text").Select(e => e.TextContent).ToList();
+        Assert.Contains($"Documents {tag}", favorites);
+        Assert.DoesNotContain(favorites, f => f.Contains($"Favorite trimming {tag}") || f.Contains($"Restricted app {tag}"));
+    }
+
     [Fact]
     public async Task A_parent_record_offers_its_activities_under_New_activity()
     {
