@@ -231,8 +231,13 @@ public class InsightsViewsE2eTests(VellumFixture fx)
         var ncrBefore = int.Parse(app.Kpi("Open").Value, NumberStyles.AllowThousands, CultureInfo.InvariantCulture);
 
         var numbers = new List<string>();
+        var startPhase = "";
         foreach (var sev in new[] { "major", "major", "critical" })
-            numbers.Add((await NcrAsync(jlee, $"{tag} short shot", sev, $"PN-{tag}")).Number());
+        {
+            var ncr = await NcrAsync(jlee, $"{tag} short shot", sev, $"PN-{tag}");
+            numbers.Add(ncr.Number());
+            startPhase = ncr.Phase();
+        }
 
         // Cached numbers (RPT-704) update on refresh.
         home = await jlee.GoAsync("/insights?refresh=true");
@@ -252,9 +257,10 @@ public class InsightsViewsE2eTests(VellumFixture fx)
         var csv = DesignerSteps.Csv(await jlee.DownloadAsync(drill.Link("Export").GetAttribute("href")!));
         Assert.All(numbers, n => Assert.Contains(csv, r => r[0] == n));
 
-        var draftRow = app.ReportRow("Open by phase", "Draft");
-        var inDraft = await jlee.GoAsync(draftRow.First(c => c.Href != null).Href!);
-        Assert.All(numbers, n => Assert.Contains(n, inDraft.Numbers()));
+        var phaseRow = app.ReportRow("Open by phase", startPhase);
+        var inPhase = await jlee.GoAsync(phaseRow.First(c => c.Href != null).Href!);
+        Assert.All(numbers, n => Assert.Contains(n, inPhase.Numbers()));
+        inPhase.ExpectText($"Phase: {startPhase}");
 
         // The Pareto bar for Critical lists the critical NCR and not the major ones.
         var critical = app.ReportRow("Pareto by severity", "Critical");
