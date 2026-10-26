@@ -112,7 +112,9 @@ public sealed class ChangeBehavior : RecordBehavior
         if (!main.Has("verification_required")) ctx.Set("verification_required", tpl.Bool("verification_required") ?? true);
         if (!main.Has("verification_instructions") && tpl.Text("verification_instructions") is { } vi) ctx.Set("verification_instructions", vi);
         if (!main.Has("reg_impact") && tpl.KeywordKey("default_reg_impact") is { } ri) ctx.Set("reg_impact", ri);
-        if (!main.Has("filing") && tpl.KeywordKey("default_filing") is { } fi) ctx.Set("filing", fi);
+        // CHG-050: the template's filing is only a default when it fits the regulatory impact, which the author may have chosen.
+        if (!main.Has("filing") && tpl.KeywordKey("default_filing") is { } fi && ChangeRules.FilingMismatch(ctx.KeywordKey("reg_impact"), fi) == null)
+            ctx.Set("filing", fi);
 
         var approvals = ctx.Proposed.RowsOf("approvals");
         if (approvals.Count == 0)

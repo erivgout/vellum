@@ -73,7 +73,9 @@ public static class RecordSteps
     {
         var result = await page.RouteAsync(option, password, comment, assignees, fill);
         var errors = result.RouteErrors().Concat(result.Errors).ToList();
-        if (result.Toast == null || errors.Count > 0)
+        // A routed record redirects with a toast; a refused route redisplays the page. Status panels (a material hold,
+        // a critical event) use red banners too, so they don't count as errors on their own.
+        if (result.Toast == null)
             throw new Xunit.Sdk.XunitException($"Routing '{option}' from {page.Phase()} failed: {string.Join(" | ", errors)}\n{result.Excerpt()}");
         return result;
     }
@@ -103,19 +105,6 @@ public static class RecordSteps
     /// <summary>Why an action shown greyed out in the Actions menu can't be used (by its label), or null when it isn't greyed out.</summary>
     public static string? DisabledAction(this Page page, string label) =>
         page.All(".dropdown-item.disabled").FirstOrDefault(e => Page.Squash(e.TextContent).StartsWith(label, StringComparison.OrdinalIgnoreCase))?.GetAttribute("title");
-
-    /// <summary>
-    /// Add a subform row as "Add row" does: the next free index, an empty row id and the given values (keyword values are
-    /// option values, see <see cref="RowOption"/>).
-    /// </summary>
-    public static FormFill AddRow(this FormFill form, string section, params (string Field, string? Value)[] values)
-    {
-        var i = 0;
-        while (form.Values($"r.{section}.{i}.__id").Count > 0) i++;
-        form.Set($"r.{section}.{i}.__id", "");
-        foreach (var (field, value) in values) form.Set($"r.{section}.{i}.{field}", value);
-        return form;
-    }
 
     /// <summary>The option value of a keyword (by key) in a subform column, read from the row template the browser clones.</summary>
     public static string RowOption(this Page page, string section, string field, string key)

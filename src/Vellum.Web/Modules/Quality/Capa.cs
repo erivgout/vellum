@@ -598,7 +598,7 @@ public sealed class CapaBehavior : RecordBehavior
 
     public override Task OnCreatedAsync(RecordContext ctx) => PriorityDue.ApplyAsync(ctx, ctx.Snapshot.Phase, "priority");
 
-    public override Task ValidateRouteAsync(RoutingContext ctx)
+    public override async Task ValidateRouteAsync(RoutingContext ctx)
     {
         // CAPA-002: closing without action needs a justification (kept in the audit trail).
         if (ctx.To.Key == "closed_no_action" && string.IsNullOrWhiteSpace(ctx.Snapshot.Text("closure_justification")))
@@ -606,10 +606,12 @@ public sealed class CapaBehavior : RecordBehavior
         // INV-042: a CAPA that isn't effective never closes.
         if (ctx.To.Key == "closed" && ctx.Snapshot.KeywordKey("effectiveness_result") != "effective")
             ctx.Error("A CAPA can only close when the effectiveness check result is Effective.");
+        // INV-043: action items raised during the effectiveness check must be closed too.
+        if (ctx.To.Key == "closed" && await QualityLinks.OpenActionItemsAsync(ctx) is { Count: > 0 } open)
+            ctx.Error($"Complete the open action items before closing the CAPA: {string.Join(", ", open)} (INV-043).");
         // SAF-044: implementer and effectiveness verifier must differ.
         if (ctx.To.Key == "effectiveness_check" && ctx.Snapshot.UserId("effectiveness_verifier") is { } v && v == ctx.Snapshot.UserId("owner"))
             ctx.Error("The effectiveness verifier must be someone other than the CAPA owner (segregation of duties).");
-        return Task.CompletedTask;
     }
 
     /// <summary>CAPA-003 / QE-002: planned actions become Action Items (in Open) when the CAPA enters Implementation.</summary>

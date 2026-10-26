@@ -157,7 +157,8 @@ public static class FieldCodec
     /// <summary>Value for an HTML input control.</summary>
     public static string InputValue(FieldDefinition f, Val v, TimeZoneInfo tz) => f.Type switch
     {
-        FieldType.Number or FieldType.Currency => v.Number?.ToString(CultureInfo.InvariantCulture) ?? "",
+        // G29 drops the trailing zeros of the stored decimal(38,10), so 7 shows as 7, not 7.0000000000.
+        FieldType.Number or FieldType.Currency => v.Number?.ToString("G29", CultureInfo.InvariantCulture) ?? "",
         FieldType.Date => v.Date?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "",
         FieldType.DateTime => v.Date is { } dt ? TimeZoneInfo.ConvertTimeFromUtc(System.DateTime.SpecifyKind(dt, DateTimeKind.Utc), tz).ToString("yyyy-MM-ddTHH:mm", CultureInfo.InvariantCulture) : "",
         FieldType.Keyword or FieldType.KeywordMulti or FieldType.User or FieldType.UserMulti => v.RefId?.ToString(CultureInfo.InvariantCulture) ?? "",

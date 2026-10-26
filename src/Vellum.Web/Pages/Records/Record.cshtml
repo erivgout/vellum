@@ -112,12 +112,13 @@
     }
 </div>
 
-@if (vm.Errors.Count > 0)
+@* Route errors show in the Send dialog; when the record has moved on and there's no dialog to show, they show here. *@
+@if (vm.Errors.Count > 0 || (vm.RouteErrors.Count > 0 && (vm.Routes.Count == 0 || vm.Override)))
 {
     <div class="vl-banner vl-banner-bad" role="alert">
         <i class="bi bi-exclamation-octagon"></i>
         <div>
-            <div class="ttl">@(vm.RouteErrors.Count > 0 || vm.Errors.Any() ? "Please fix the following" : "")</div>
+            <div class="ttl">@(vm.Errors.Count > 0 ? "Please fix the following" : "The record wasn't routed")</div>
             <ul>
                 @foreach (var e in vm.Errors)
                 {

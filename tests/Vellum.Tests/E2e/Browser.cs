@@ -351,6 +351,37 @@ public sealed class FormFill
         return Set(name, values.ToArray());
     }
 
+    /// <summary>
+    /// Add a subform row the way the "Add row" button does: the next row index, an empty row id and the given values.
+    /// Select and radio values are chosen from the section's row template by data-key, value or label; anything else
+    /// (people pickers, links, text) is posted as given.
+    /// </summary>
+    public FormFill AddRow(string section, params (string Field, string? Value)[] values)
+    {
+        var prefix = $"r.{section}.";
+        var template = _page.Doc.QuerySelectorAll("template[data-row-template]").OfType<IHtmlTemplateElement>()
+            .FirstOrDefault(t => t.Content.QuerySelector($"[name='{prefix}__INDEX__.__id']") != null)
+            ?? throw new Xunit.Sdk.XunitException($"The form has no editable subform '{section}' on {_page.Path}.");
+        var index = _fields.Select(f => f.Key).Where(k => k.StartsWith(prefix, StringComparison.Ordinal))
+            .Select(k => int.TryParse(k[prefix.Length..].Split('.')[0], out var i) ? i : -1).DefaultIfEmpty(-1).Max() + 1;
+        _fields.Add(new($"{prefix}{index}.__id", ""));
+        foreach (var (field, value) in values)
+        {
+            if (value == null) continue;
+            var controls = template.Content.QuerySelectorAll($"[name='{prefix}__INDEX__.{field}']").ToList();
+            var posted = value;
+            if (controls.FirstOrDefault() is IHtmlSelectElement sel)
+                posted = (sel.QuerySelectorAll("option").FirstOrDefault(o => o.GetAttribute("data-key") == value || o.GetAttribute("value") == value)
+                    ?? sel.QuerySelectorAll("option").FirstOrDefault(o => Page.Squash(o.TextContent).Equals(value, StringComparison.OrdinalIgnoreCase)))
+                    ?.GetAttribute("value") ?? throw new Xunit.Sdk.XunitException($"Row field '{field}' has no choice '{value}'.");
+            else if (controls.Count > 0 && controls.All(c => c.GetAttribute("type") is "radio" or "checkbox"))
+                posted = controls.FirstOrDefault(c => c.GetAttribute("data-key") == value || c.GetAttribute("value") == value)?.GetAttribute("value")
+                    ?? throw new Xunit.Sdk.XunitException($"Row field '{field}' has no choice '{value}'.");
+            _fields.Add(new($"{prefix}{index}.{field}", posted));
+        }
+        return this;
+    }
+
     /// <summary>Attach a file to a file input (by input name).</summary>
     public FormFill Attach(string name, string fileName, byte[] content, string contentType = "application/octet-stream")
     {
