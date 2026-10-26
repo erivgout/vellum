@@ -30,7 +30,18 @@ public class NewModel(ConfigCache cfg, AccessService access, RecordService recor
         var viaParent = parent != null && (await access.ActingAssignmentAsync(parent.Id) != null || access.RoleFor(parent.AppId) >= AppRole.Manager);
         if (!access.CanCreate(form) && !viaParent) return (null, null, Forbid());
         if (form.IsActivity && parent == null) return (null, null, BadRequest("Activities are created from their parent record."));
+        // Only where the parent's Create menu offers it: an open parent whose phase allows this activity (PLT-640, INV-043).
+        if (parent != null && !ActivityAllowed(form, parent))
+            return (null, null, BadRequest($"A {form.Name} can't be added to this record in its current phase."));
         return (form, parent, null);
+    }
+
+    private bool ActivityAllowed(FormDefinition form, Record parent)
+    {
+        var phase = cfg.Current.Phase(parent.PhaseId);
+        return form.IsActivity && phase is { Type: PhaseType.Normal } && !parent.IsArchived &&
+            (phase.ActivityForms.Count == 0 || phase.ActivityForms.Contains(form.Key)) &&
+            cfg.Current.ActivityFormsFor(cfg.Current.FormsById[parent.FormId]).Any(f => f.Id == form.Id);
     }
 
     public async Task<IActionResult> OnGetAsync()
