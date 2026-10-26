@@ -88,8 +88,9 @@ public sealed partial class Page(Browser browser, Uri url, HttpStatusCode status
     public IHtmlDocument Doc => doc ?? throw new Xunit.Sdk.XunitException($"{Url} is not an HTML page.");
     public string Path => Url.PathAndQuery;
 
-    /// <summary>Visible text of the main content, whitespace collapsed.</summary>
-    public string Text => Squash((Doc.QuerySelector("main") ?? Doc.Body)?.TextContent ?? "");
+    /// <summary>Visible text of the main content, whitespace collapsed (JSON islands, scripts and styles aren't text a person sees).</summary>
+    public string Text => Squash(string.Concat(((INode?)Doc.QuerySelector("main") ?? Doc.Body)?.Descendants<IText>()
+        .Where(t => !t.Ancestors<IElement>().Any(a => a.LocalName is "script" or "style" or "template")).Select(t => t.Data) ?? []));
 
     /// <summary>The toast queued by the last post (TempData), if any.</summary>
     public string? Toast => Doc.QuerySelector("[data-toast]")?.GetAttribute("data-toast") is { } t ? t : Doc.QuerySelector(".vl-toast-msg, .toast-body")?.TextContent.Trim();

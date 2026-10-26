@@ -59,8 +59,12 @@ public class EhsAssetsE2eTests(VellumFixture fx)
         Assert.Equal("USD 240.00", inv.FieldText("total_cost"));
 
         // The reporter can read the incident but not the injured person's details (SEC-520).
+        // Nor in the record's audit trail or its export, while EHS sees the full trail.
         var asReporter = await nflores.GoAsync(url);
         asReporter.ExpectNoText(injured).ExpectText("Restricted");
+        var reporterTrail = await (await nflores.RawGetAsync(url + "/audit.csv")).Content.ReadAsStringAsync();
+        Assert.DoesNotContain(injured, reporterTrail);
+        Assert.Contains(injured, await (await mchen.RawGetAsync(url + "/audit.csv")).Content.ReadAsStringAsync());
 
         // It's on the OSHA log at once, with the name for EHS only, and counted in the rates (EHS-110, RPT-702).
         var year = BusinessCalendar.Today.Year;
@@ -108,8 +112,13 @@ public class EhsAssetsE2eTests(VellumFixture fx)
         var tag = E2e.Tag();
 
         // The quick-report page needs a sign-in (there is no kiosk mode): anonymity is about what's stored, not who can post.
+        // A signed-out visitor following a link (a poster QR code, an email) is sent to sign in and back (SEC-106).
         using var visitor = new Browser(fx);
-        Assert.StartsWith("/login", (await visitor.GoAsync("/ehs/near-miss")).Url.AbsolutePath);
+        var login = await visitor.GoAsync("/ehs/near-miss");
+        Assert.StartsWith("/login", login.Url.AbsolutePath);
+        Assert.Contains("ReturnUrl=%2Fehs%2Fnear-miss", login.Path, StringComparison.OrdinalIgnoreCase);
+        foreach (var other in new[] { "/ehs/osha", "/risk/heatmap", "/documents/reviews" })
+            Assert.StartsWith("/login", (await visitor.GoAsync(other)).Url.AbsolutePath);
 
         using var nflores = await fx.SignedInAsync("nflores");
         var page = await nflores.GoAsync("/ehs/near-miss");
