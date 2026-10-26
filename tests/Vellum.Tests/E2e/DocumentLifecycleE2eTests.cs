@@ -446,6 +446,30 @@ public class DocumentLifecycleE2eTests(VellumFixture fx)
         Assert.Empty(readerDrafts.RowsWith(wi.Number()));
     }
 
+    [Fact] // INV-081, DOC-080: a link never reveals a draft to someone who can't open it
+    public async Task A_link_to_a_draft_does_not_reveal_the_draft_to_readers()
+    {
+        using var c = new Cast(fx);
+        var tag = E2e.Tag();
+        var jlee = await c.As("jlee");
+        var hidden = await DocumentE2eTests.NewSopAsync(fx, jlee, $"Unreleased recall plan {tag}");
+        var doc = await jlee.CreateAsync("document", f => f
+            .Pick("f.doc_type", "procedure").Set("f.title", $"Public SOP {tag}").Set("f.owner", fx.Uid("sortiz").ToString())
+            .Set("f.reviewers", fx.Uids("dokafor", "tbrooks")).Pick("f.department", "operations").Set("f.revision_reason", "New.")
+            .Pick("f.training_required", "no").Set("f.training_justification", "None.").Set("f.related_documents", hidden.RecordId.ToString())
+            .Attach("file.primary_file", "public.pdf", E2e.Pdf(), "application/pdf"));
+        await c.ToAwaitingReleaseAsync(doc.Path);
+        await c.ReleaseAsync(doc.Path);
+
+        // The author still sees the link; a production operator sees that a related record exists, but not which.
+        Assert.Contains($"Unreleased recall plan {tag}", (await c.Open("jlee", doc.Path)).One("[data-ro-field='related_documents']").TextContent);
+        var reader = await c.Open("nflores", doc.Path);
+        var related = Page.Squash(reader.One("[data-ro-field='related_documents']").TextContent);
+        Assert.Equal("Restricted record", related);
+        Assert.DoesNotContain(hidden.Number(), related);
+        Assert.Null(reader.Q($"a[href='{hidden.Path}']"));
+    }
+
     [Fact] // DOC-080: a draft is visible only to the people involved
     public async Task A_draft_is_hidden_from_readers_until_it_is_released()
     {
