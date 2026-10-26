@@ -28,7 +28,8 @@ public class TemplateModel(AlertStore store, AlertEngine engine, VellumDbContext
         T = t;
         Create = AlertCreateCatalog.Normalize(AlertCreateConfig.Parse(t.CreateJson));
         Match = JsonSerializer.Deserialize<List<string>>(t.MatchColumnsJson) ?? [];
-        Extra = JsonSerializer.Deserialize<List<string>>(t.ReportColumnsJson) ?? [];
+        // Number and title always lead the report, so they aren't listed again (the engine skips them too).
+        Extra = (JsonSerializer.Deserialize<List<string>>(t.ReportColumnsJson) ?? []).Where(k => k is not ("number" or "title")).ToList();
         To = AlertRecipients.Parse(t.RecipientsJson);
         Cc = AlertRecipients.Parse(t.CcJson);
         Reports = await store.VisibleReportsAsync(t.Id);

@@ -165,7 +165,7 @@ public sealed class InsightsQueries(VellumDbContext db, AccessService access, Co
         }
         if (f.Assignee is { } uid)
             q = q.Where(r => db.Assignments.Any(a => a.RecordId == r.Id && a.UserId == uid && a.Status == AssignmentStatus.Active));
-        if (f.Field != null) q = FieldEquals(q, f.Field, f.Value);
+        if (f.Field != null) q = FieldEquals(q, f.Field, f.Value, FormsOf(f));
         if (f.AgeMin is { } amin) { var cut = DateTime.UtcNow.AddDays(-amin); q = q.Where(r => r.CreatedAt <= cut); }
         if (f.AgeMax is { } amax) { var cut = DateTime.UtcNow.AddDays(-(amax + 1)); q = q.Where(r => r.CreatedAt > cut); }
 
@@ -198,17 +198,29 @@ public sealed class InsightsQueries(VellumDbContext db, AccessService access, Co
         return q;
     }
 
-    /// <summary>Records whose (top-level) field equals a value. Keyword values are keys; "_none" matches blank.</summary>
-    public IQueryable<Record> FieldEquals(IQueryable<Record> q, string fieldKey, string? value)
+    /// <summary>The forms a drill-through filter covers: its form, its application's forms, or every form.</summary>
+    private IEnumerable<FormDefinition> FormsOf(RecordFilter f) =>
+        f.Form != null && Config.FormsByKey.TryGetValue(f.Form, out var form) ? [form]
+        : f.App != null && Config.AppsByKey.TryGetValue(f.App, out var app) ? app.Forms
+        : Config.FormsById.Values;
+
+    /// <summary>
+    /// Records whose (top-level) field equals a value. Keyword values are keys; "_none" matches blank. Forms of different
+    /// applications can use the same design name with different keyword lists, so the field is looked up in
+    /// <paramref name="forms"/> and a keyword key matches in any of their lists (RPT-403).
+    /// </summary>
+    public IQueryable<Record> FieldEquals(IQueryable<Record> q, string fieldKey, string? value, IEnumerable<FormDefinition>? forms = null)
     {
         if (value is null or "_none")
             return q.Where(r => !db.RecordValues.Any(v => v.RecordId == r.Id && v.RowId == null && v.FieldKey == fieldKey));
-        var field = Config.FormsById.Values.SelectMany(f => f.Fields).FirstOrDefault(x => x.Key == fieldKey);
+        var fields = (forms ?? Config.FormsById.Values).SelectMany(f => f.Fields).Where(x => x.Key == fieldKey).ToList();
+        var field = fields.FirstOrDefault();
         IQueryable<RecordValue> m = db.RecordValues.Where(v => v.RowId == null && v.FieldKey == fieldKey);
         switch (field?.Type)
         {
             case FieldType.Keyword or FieldType.KeywordMulti:
-                var ids = Config.KeywordsById.Values.Where(k => k.Key == value && (field.KeywordList == null || Config.KeywordListsById[k.ListId].Key == field.KeywordList)).Select(k => k.Id).ToList();
+                var lists = fields.Where(x => x.Type is FieldType.Keyword or FieldType.KeywordMulti).Select(x => x.KeywordList).ToHashSet();
+                var ids = Config.KeywordsById.Values.Where(k => k.Key == value && (lists.Contains(null) || lists.Contains(Config.KeywordListsById[k.ListId].Key))).Select(k => k.Id).ToList();
                 m = m.Where(v => v.RefId != null && ids.Contains(v.RefId.Value));
                 break;
             case FieldType.YesNo:
@@ -233,14 +245,16 @@ public sealed class InsightsQueries(VellumDbContext db, AccessService access, Co
         if (f.App != null) chips.Add(Config.AppsByKey.TryGetValue(f.App, out var a) ? a.Name : f.App);
         if (f.Form != null) chips.Add(Config.FormsByKey.TryGetValue(f.Form, out var fm) ? fm.Name : f.Form);
         chips.Add(f.Status switch { "overdue" => "Overdue", "ontrack" => "Open, not overdue", "completed" => "Completed", "closed" => "Closed", "voided" => "Voided", "all" => "Any status", _ => "Open" });
-        if (f.Phase != null) chips.Add((f.On == "exited" ? "Left phase: " : "Phase: ") + (Config.PhasesById.Values.FirstOrDefault(p => p.Key == f.Phase)?.Name ?? f.Phase));
+        var forms = FormsOf(f).ToList();
+        if (f.Phase != null)
+            chips.Add((f.On == "exited" ? "Left phase: " : "Phase: ") + (forms.SelectMany(x => x.Workflows).SelectMany(w => w.Phases).FirstOrDefault(p => p.Key == f.Phase)?.Name ?? f.Phase));
         if (f.Assignee is { } u) chips.Add("Assigned to " + dir.Name(u));
         if (f.Field != null)
         {
-            var field = Config.FormsById.Values.SelectMany(x => x.Fields).FirstOrDefault(x => x.Key == f.Field);
+            var field = forms.SelectMany(x => x.Fields).FirstOrDefault(x => x.Key == f.Field);
             var label = field?.Label ?? f.Field;
             var value = f.Value is null or "_none" ? "(blank)"
-                : field?.Type is FieldType.Keyword or FieldType.KeywordMulti ? Config.KeywordsById.Values.FirstOrDefault(k => k.Key == f.Value)?.Label ?? f.Value
+                : field?.Type is FieldType.Keyword or FieldType.KeywordMulti ? (field.KeywordList is { } list ? Config.Keyword(list, f.Value)?.Label : null) ?? f.Value
                 : field?.Type is FieldType.User or FieldType.UserMulti && int.TryParse(f.Value, out var uid) ? dir.Name(uid)
                 : field?.Type == FieldType.YesNo ? (f.Value == "yes" ? "Yes" : "No") : f.Value;
             chips.Add($"{label}: {value}");

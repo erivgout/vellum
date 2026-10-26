@@ -168,10 +168,14 @@ public static class DesignerSteps
         return (Page.Squash(tile.QuerySelector(".vl-stat-value")!.TextContent), tile.GetAttribute("href")!);
     }
 
-    /// <summary>A row of a chart's report table (the accessible table under every chart): its cells and their links.</summary>
-    public static List<(string Text, string? Href)> ReportRow(this Page page, string chartTitle, string category)
+    /// <summary>
+    /// A row of a chart's report table (the accessible table under every chart): its cells and their links. The chart is the
+    /// card with that title, or the page's only chart when <paramref name="chartTitle"/> is null.
+    /// </summary>
+    public static List<(string Text, string? Href)> ReportRow(this Page page, string? chartTitle, string category)
     {
-        var card = page.All("section.card").FirstOrDefault(c => Page.Squash(c.QuerySelector("h2")?.TextContent ?? "").Contains(chartTitle))
+        var card = (chartTitle == null ? page.All("section.card").FirstOrDefault(c => c.QuerySelector("table.ins-report") != null)
+                : page.All("section.card").FirstOrDefault(c => Page.Squash(c.QuerySelector("h2")?.TextContent ?? "").Contains(chartTitle)))
             ?? throw new Xunit.Sdk.XunitException($"No chart '{chartTitle}' on {page.Path}.");
         var row = card.QuerySelectorAll("table.ins-report tbody tr").FirstOrDefault(r => Page.Squash(r.QuerySelector("th")!.TextContent) == category)
             ?? throw new Xunit.Sdk.XunitException($"Chart '{chartTitle}' has no row '{category}'. Rows: {string.Join(", ", card.QuerySelectorAll("table.ins-report tbody th").Select(t => Page.Squash(t.TextContent)))}");

@@ -14,13 +14,16 @@ namespace Vellum.Tests.E2e;
 [Collection("vellum")]
 public class DesignerE2eTests(VellumFixture fx)
 {
-    /// <summary>A new application (DSN-001) everyone can author in, published once. Its form and workflow share the app's key.</summary>
-    internal static async Task<string> PublishedAppAsync(Browser admin, string name)
+    /// <summary>
+    /// A new application (DSN-001), published once, with the given default access (null keeps None: only its creator can
+    /// read it). Its form and workflow share the app's key.
+    /// </summary>
+    internal static async Task<string> PublishedAppAsync(Browser admin, string name, string? access = "Author")
     {
         var key = "e2e" + E2e.Tag().ToLowerInvariant();
         var app = await admin.NewAppAsync($"{name} {key[3..]}", key);
         app.ExpectText("This application isn't published yet");
-        await admin.SetDefaultAccessAsync(key, "Author");
+        if (access != null) await admin.SetDefaultAccessAsync(key, access);
         await admin.PublishAsync(key, "First version");
         return key;
     }
@@ -114,6 +117,33 @@ public class DesignerE2eTests(VellumFixture fx)
         Assert.Equal("Title", designer.Island("dz-form-data")["form"]!.AsObject().Field("title")["label"]!.GetValue<string>());
         using var jlee = await fx.SignedInAsync("jlee");
         (await jlee.NewAsync(key)).ExpectText("Title").ExpectNoText("Headline");
+    }
+
+    [Fact] // DSN-1203: an earlier version is restored into the draft and published as a new version.
+    public async Task An_earlier_version_can_be_restored_and_republished()
+    {
+        using var admin = await fx.SignedInAsync("admin");
+        var key = await PublishedAppAsync(admin, "Fixture Loans");
+        var first = int.Parse((await admin.GoAsync($"/designer/versions?app={key}")).One("tbody tr .dz-ver").TextContent.TrimStart('v'), CultureInfo.InvariantCulture);
+        await admin.SaveFormAsync(key, key, form => form.Field("title")["label"] = "Headline");
+        await admin.PublishAsync(key, "Rename the title");
+        using var jlee = await fx.SignedInAsync("jlee");
+        (await jlee.NewAsync(key)).ExpectText("Headline");
+
+        var history = await admin.GoAsync($"/designer/versions?app={key}");
+        var restore = $"button[form=dz-restore][value='{first}']";
+        Assert.NotNull(history.Q(restore));
+        var restored = await history.Form("#dz-restore").SubmitAsync(restore);
+        Assert.Equal($"/designer/apps/{key}/publish", restored.Url.AbsolutePath);
+        Assert.StartsWith($"Version {first} is loaded into the draft", restored.Toast);
+        restored.ExpectText("Headline").ExpectText("Title");
+        (await jlee.NewAsync(key)).ExpectText("Headline"); // still a draft
+
+        var published = await admin.PublishAsync(key, $"Back to version {first}");
+        Assert.True(int.Parse(published.Url.Query.Split("v=")[1], CultureInfo.InvariantCulture) > first + 1);
+        (await jlee.NewAsync(key)).ExpectText("Title").ExpectNoText("Headline");
+        var rec = await jlee.CreateAsync(key, f => f.Set("f.title", "After the restore"));
+        Assert.Equal("Draft", rec.Phase());
     }
 
     [Fact] // DSN-1201, SAF-070, INV-135, DSN-612: errors block publishing; nothing reaches users.
