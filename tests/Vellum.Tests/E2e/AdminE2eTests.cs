@@ -249,6 +249,8 @@ public class AdminE2eTests(VellumFixture fx)
         Assert.Equal("ok", run.ToastKind());
         Assert.StartsWith("Outbound email delivery succeeded. Delivered", run.Toast);
         run.ExpectText("Manual");
+        // Each run delivers the oldest batch; other tests may have left more mail queued than one batch holds.
+        await SupplierSteps.DeliverMailAsync(fx);
 
         (await admin.GoAsync($"/admin/email-log?q={number}&status=Delivered")).ExpectText($"{number} assigned to you");
         var pickup = Path.Combine(Path.GetTempPath(), fx.Database, "mail");

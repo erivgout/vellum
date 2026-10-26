@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Vellum.Engine.Records;
 
 namespace Vellum.Tests.E2e;
@@ -84,13 +86,26 @@ public static partial class SupplierSteps
         return username;
     }
 
-    /// <summary>An administrator runs outbound email delivery (Administration › Scheduled tasks › Run now).</summary>
+    /// <summary>
+    /// An administrator runs outbound email delivery (Administration › Scheduled tasks › Run now) until the outbox is empty.
+    /// Each run delivers the oldest batch, as the every-minute schedule would, and other tests leave mail queued too.
+    /// </summary>
     public static async Task DeliverMailAsync(VellumFixture fx)
     {
         using var admin = await fx.SignedInAsync("admin");
-        var task = await admin.GoAsync("/admin/tasks/outbox-dispatch");
-        var ran = await task.Form("form[action*='handler=Run']").SubmitAsync();
-        Assert.True(ran.Toast?.Contains("succeeded") == true, $"Running email delivery didn't succeed: {ran.Toast}");
+        for (var runs = 0; runs < 20 && await PendingMailAsync(fx) > 0; runs++)
+        {
+            var task = await admin.GoAsync("/admin/tasks/outbox-dispatch");
+            var ran = await task.Form("form[action*='handler=Run']").SubmitAsync();
+            Assert.True(ran.Toast?.Contains("succeeded") == true, $"Running email delivery didn't succeed: {ran.Toast}");
+        }
+        Assert.Equal(0, await PendingMailAsync(fx));
+    }
+
+    private static async Task<int> PendingMailAsync(VellumFixture fx)
+    {
+        using var scope = fx.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<Vellum.Data.VellumDbContext>().Outbox.CountAsync(o => o.ProcessedAt == null && o.Attempts < 10);
     }
 
     /// <summary>Deliver the queued email and return the newest message to <paramref name="to"/> whose subject contains the text.</summary>

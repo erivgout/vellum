@@ -1,5 +1,5 @@
-# Signs in and crawls every page reachable from the user's landing page, reporting any response that isn't HTTP 200
-# or that contains a server error marker. For a supplier portal user (landing on /portal) it also checks that every
+# Signs in and crawls every page reachable from the user's landing page, reporting any response that isn't HTTP 200,
+# contains a server error marker, or shows raw Razor or escaped markup as text. For a supplier portal user (landing on /portal) it also checks that every
 # internal URL is refused with 403 and that the crawl never leaves /portal.
 # Usage: ./scripts/smoke-test.ps1 [-BaseUrl http://localhost:5048] [-User admin] [-Max 1500]
 param(
@@ -61,6 +61,8 @@ while ($queue.Count -gt 0 -and $count -lt $Max) {
         $html = $r.Content
         if ($portal -and -not $path.StartsWith("/portal")) { $failures += "LEAK $path (a portal user reached a page outside /portal)" }
         if ($html -match 'Something went wrong|An unhandled exception|Error 500') { $failures += "ERRORPAGE $path" }
+        # Razor printed as text (for example "open@if (...)", which Razor reads as an email address) or escaped markup.
+        if ($html -match '@(if|foreach|switch|Model|Html)\b|@\(|&lt;/?(span|div|strong|i class)[\s&]') { $failures += "RAW RAZOR/MARKUP $path near: $($Matches[0])" }
         foreach ($m in [regex]::Matches($html, 'href="(/[^"#]*)"')) {
             $href = [System.Net.WebUtility]::HtmlDecode($m.Groups[1].Value)
             if ($href -match $skip) { continue }

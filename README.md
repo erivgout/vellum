@@ -65,6 +65,7 @@ Optional: LibreOffice on the server for Office-to-PDF conversion. See [deploymen
 
 ```powershell
 dotnet test                        # integration tests against a throw-away SQL Server database
+dotnet test --filter "FullyQualifiedName~E2e"   # only the end-to-end scenarios that drive the web pages
 ./scripts/reset-db.ps1             # drop the dev database so the next start reseeds it
 ./scripts/smoke-test.ps1           # sign in and crawl every page, reporting any errors
 ```

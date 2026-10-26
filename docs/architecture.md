@@ -41,7 +41,15 @@ src/Vellum.Web
   wwwroot/css/site.css   Design system. Module CSS goes in wwwroot/css/modules/*.css (auto-included)
   wwwroot/js/site.js     Client behaviour. Module JS goes in wwwroot/js/modules/*.js (auto-included)
 tests/Vellum.Tests   xUnit integration tests (VellumFixture boots the real app on a temp SQL Server DB)
+  E2e/               End-to-end scenarios through the web pages: Browser (cookies, antiforgery, forms, uploads),
+                     RecordSteps (create, save, Send dialog with e-signature, actions) and per-area *Steps helpers
 ```
+
+End-to-end tests drive the same pages, handlers and model binding people use, without a real browser. Every page
+they load is checked for server errors, raw Razor printed as text and escaped markup. When a page's script builds a
+form value (people pickers, subform rows, the Send dialog), the steps post what the script would post.
+`RazorTemplateTests` also scans every template for text written straight against a Razor transition (`open@if`),
+which Razor reads as an email address and prints literally.
 
 ## Core concepts
 
