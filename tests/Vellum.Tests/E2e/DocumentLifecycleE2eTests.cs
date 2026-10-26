@@ -19,6 +19,11 @@ public class DocumentLifecycleE2eTests(VellumFixture fx)
         var urlA = revA.Path;
         var number = revA.Number();
 
+        // Another document refers to revision A.
+        var referring = await (await c.As("jlee")).CreateAsync("document", f => f
+            .Pick("f.doc_type", "work_instruction").Set("f.title", $"Refers to {title}").Set("f.owner", fx.Uid("sortiz").ToString())
+            .Set("f.reviewers", fx.Uids("dokafor", "tbrooks")).Set("f.related_documents", revA.RecordId.ToString()));
+
         // The owner raises a change request from the effective revision's Revision control menu.
         var sortizA = await c.Open("sortiz", urlA);
         Assert.Contains("request_change", sortizA.Actions());
@@ -112,6 +117,11 @@ public class DocumentLifecycleE2eTests(VellumFixture fx)
         var old = await nflores.GoAsync(urlA);
         Assert.Equal(urlB, old.Banner("Superseded").Href);
         (await nflores.GoAsync(urlB)).ExpectText(title);
+
+        // Links to revision A now lead to the current revision (DOC-054).
+        var link = (await c.Open("tbrooks", referring.Path)).One("[data-ro-field='related_documents'] a[href]");
+        Assert.Equal(urlB, link.GetAttribute("href"));
+        Assert.Contains($"{number} rev B", link.TextContent);
     }
 
     [Fact] // DOC-031: the minor-change shortcut needs the flag, a comment and an approved document
@@ -140,7 +150,7 @@ public class DocumentLifecycleE2eTests(VellumFixture fx)
         Assert.Contains(noComment.RouteErrors(), e => e.Contains("comment"));
 
         b = await (await c.Open("jlee", urlB)).RouteOkAsync("Minor change: send to release", comment: "Typo fix in step 4.");
-        Assert.Equal("Awaiting Release", b.Phase());
+        Assert.Equal("Awaiting Release", b.Phase()); // the author still reads their revision once it leaves Draft (DOC-080)
         b = await c.ReleaseAsync(urlB);
 
         // Only the release was signed on B; the flag is in the audit trail (DOC-031).
@@ -174,6 +184,29 @@ public class DocumentLifecycleE2eTests(VellumFixture fx)
         Assert.NotNull(jlee.Q("[data-save-button]"));
         (await c.Open("jlee", "/work")).ExpectText(draft.Number());
         Assert.Equal("Document Control Review", (await jlee.RouteOkAsync("Submit to Document Control")).Phase());
+    }
+
+    [Fact] // DOC-030 (Draft is the author's), DOC-091/093: a returned revision goes back to the author it was assigned to
+    public async Task Returning_a_new_revision_gives_it_back_to_its_author_not_the_requester()
+    {
+        using var c = new Cast(fx);
+        var revA = await c.EffectiveSopAsync(fx, $"Returned revision {E2e.Tag()}");
+        // Document Control requests the change (so it is revision B's creator, DOC-093); jlee is assigned to write it.
+        var cr = await (await c.Open("pshah", revA.Path)).ActionAsync("request_change", f => f
+            .Set("a.summary", "Update the flow chart").Set("a.reason", "New packaging line.").Set("a.assign_to", fx.Uid("jlee").ToString()));
+        await (await c.Open("sortiz", cr.Path)).RouteOkAsync("Accept: create new revision");
+        var urlB = (await c.Open("jlee", revA.Path)).Banner("Revision B in progress").Href!;
+        var b = await (await c.Open("jlee", urlB)).SaveAsync(f => f.Pick("f.training_required", "no").Set("f.training_justification", "Diagram only."));
+        await b.RouteOkAsync("Submit to Document Control");
+
+        var returned = await (await c.Open("pshah", urlB)).RouteOkAsync("Return to author", comment: "The flow chart is missing step 3.");
+        Assert.Equal("Draft", returned.Phase());
+        Assert.Contains(c.Name("jlee"), returned.One(".vl-current").TextContent);
+        Assert.DoesNotContain(c.Name("pshah"), returned.One(".vl-current").TextContent);
+        Assert.Empty((await c.Open("pshah", urlB)).RouteOptions());
+        var jlee = await c.Open("jlee", urlB);
+        Assert.Contains("Submit to Document Control", jlee.RouteOptions());
+        (await c.Open("jlee", "/work")).ExpectText(revA.Number());
     }
 
     [Fact] // DOC-034, INV-031
@@ -247,7 +280,7 @@ public class DocumentLifecycleE2eTests(VellumFixture fx)
         var again = await staleReview.RouteAsync("Reviewed");
         Assert.Contains(again.Errors, e => e.Contains("Someone else changed this record") || e.Contains("current assignee"));
         Assert.Equal("Review", again.Phase());
-        Assert.Contains("Reviewed", (await c.Open("tbrooks", url)).RouteOptions().Single());
+        Assert.Contains((await c.Open("tbrooks", url)).RouteOptions(), o => o.StartsWith("Reviewed"));
     }
 
     [Fact] // SAF-044: reviewers must be independent of the author

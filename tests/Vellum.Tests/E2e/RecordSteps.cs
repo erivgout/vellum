@@ -69,6 +69,8 @@ public static class RecordSteps
     {
         var result = await page.RouteAsync(option, password, comment, assignees, fill);
         var errors = result.RouteErrors().Concat(result.Errors).ToList();
+        if (result.Status != System.Net.HttpStatusCode.OK)
+            throw new Xunit.Sdk.XunitException($"Routing '{option}' from {page.Phase()} landed on HTTP {(int)result.Status} ({result.Path}).\n{result.Excerpt()}");
         if (result.Toast == null || errors.Count > 0)
             throw new Xunit.Sdk.XunitException($"Routing '{option}' from {page.Phase()} failed: {string.Join(" | ", errors)}\n{result.Excerpt()}");
         return result;
