@@ -57,7 +57,14 @@
                         {
                             // DOC-054: a link to a superseded revision opens the current effective revision.
                             var to = Model.Vm.LinkTargets.GetValueOrDefault(v.RefGuid!.Value, v.RefGuid.Value);
-                            <a href="/records/@to" class="d-inline-flex align-items-center gap-1"><i class="bi bi-link-45deg"></i>@(Model.Vm.LinkLabels.TryGetValue(to, out var ll) ? ll : "Linked record")</a>
+                            if (Model.Vm.LinkLabels.TryGetValue(to, out var ll))
+                            {
+                                <a href="/records/@to" class="d-inline-flex align-items-center gap-1"><i class="bi bi-link-45deg"></i>@ll</a>
+                            }
+                            else
+                            {
+                                <span class="d-inline-flex align-items-center gap-1 text-body-tertiary"><i class="bi bi-lock"></i>Restricted record</span>
+                            }
                         }
                     </span>
                 }

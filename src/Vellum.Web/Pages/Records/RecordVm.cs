@@ -144,7 +144,11 @@ public sealed class RecordVmBuilder(
         var data = posted ?? snap.Data;
         var allValues = data.Main.Keys.SelectMany(k => data.Main[k]).Concat(data.Rows.Values.SelectMany(rows => rows.SelectMany(x => x.Values.Keys.SelectMany(k => x.Values[k]))));
         var targets = await records.EffectiveRevisionsAsync(allValues);
-        var labels = await records.LinkLabelsAsync(allValues.Concat(targets.Values.Select(id => new Val(RefGuid: id))));
+        var allLabels = await records.LinkLabelsAsync(allValues.Concat(targets.Values.Select(id => new Val(RefGuid: id))));
+        // INV-081: linked records the viewer can't open get no label (number and title would reveal them).
+        var labelIds = allLabels.Keys.ToList();
+        var readableLinks = (await access.Readable().Where(x => labelIds.Contains(x.Id)).Select(x => x.Id).ToListAsync()).ToHashSet();
+        var labels = allLabels.Where(kv => readableLinks.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
 
         return new RecordVm
         {
