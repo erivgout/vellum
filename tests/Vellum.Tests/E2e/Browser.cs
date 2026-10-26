@@ -96,11 +96,11 @@ public sealed partial class Page(Browser browser, Uri url, HttpStatusCode status
     public string? Toast => Doc.QuerySelector("[data-toast]")?.GetAttribute("data-toast") is { } t ? t : Doc.QuerySelector(".vl-toast-msg, .toast-body")?.TextContent.Trim();
 
     /// <summary>Text of the first error banner or validation summary on the page.</summary>
-    public string? Alert => Doc.QuerySelectorAll(".vl-banner-bad, .alert-danger, .vl-error-summary, .invalid-feedback, .text-danger[role=alert], [role=alert]")
+    public string? Alert => Doc.QuerySelectorAll(".vl-banner-bad:not([role=status]), .alert-danger, .vl-error-summary, .invalid-feedback, .text-danger[role=alert], [role=alert]")
         .Select(e => Squash(e.TextContent)).FirstOrDefault(t => t.Length > 0);
 
-    /// <summary>All validation and error messages shown on the page.</summary>
-    public IReadOnlyList<string> Errors => Doc.QuerySelectorAll(".vl-banner-bad li, .invalid-feedback, .vl-error-summary li, .field-validation-error, .vl-banner-bad .ttl")
+    /// <summary>All validation and error messages shown on the page (status banners, such as an unacceptable-risk notice, aren't errors).</summary>
+    public IReadOnlyList<string> Errors => Doc.QuerySelectorAll(".vl-banner-bad:not([role=status]) li, .invalid-feedback, .vl-error-summary li, .field-validation-error, .vl-banner-bad:not([role=status]) .ttl")
         .Select(e => Squash(e.TextContent)).Where(t => t.Length > 0).Distinct().ToList();
 
     /// <summary>The record id when this is a record page.</summary>
