@@ -117,7 +117,7 @@ public sealed class RecordVmBuilder(
         var activityForms = new List<FormDefinition>();
         if (phase is { Type: PhaseType.Normal } && !r.IsArchived)
         {
-            var allowed = snap.Config.ActivityFormsFor(snap.Form).Where(f => phase.ActivityForms.Count == 0 || phase.ActivityForms.Contains(f.Key));
+            var allowed = snap.Config.ActivityFormsFor(snap.Form, phase);
             var acting = await access.ActingAssignmentAsync(r.Id);
             if (acting != null || isManager)
                 activityForms = allowed.Where(f => access.RoleFor(f.AppId, f.Key) >= AppRole.Reader).ToList();

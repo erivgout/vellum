@@ -244,7 +244,7 @@ else if (u.Status == UserStatus.Inactive)
                             @if (current) { <span class="vl-kw vl-kw-success">This session</span> }
                             else
                             {
-                                <form method="post" asp-page-handler="EndSession" asp-route-id="@u.Id" class="m-0"><input type="hidden" name="sessionId" value="@s.Session.Id" /><button class="btn btn-sm btn-light" data-confirm="End this session?">End</button></form>
+                                <form method="post" asp-page-handler="EndSession" asp-route-id="@u.Id" class="m-0"><input type="hidden" name="sessionId" value="@Vellum.Infrastructure.Auth.SessionService.Handle(s.Session.Id)" /><button class="btn btn-sm btn-light" data-confirm="End this session?">End</button></form>
                             }
                         </div>
                     }

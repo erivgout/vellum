@@ -88,7 +88,7 @@
                             var me = s.UserId == Shell.Me.Id;
                             var client = AdminText.Client(s.UserAgent);
                             <tr class="@(r.Idle ? "adm-row-muted" : "")">
-                                <td class="col-check">@if (!mine) { <input class="form-check-input adm-sess" type="checkbox" name="ids" value="@s.Id" aria-label="Select session of @(r.User?.DisplayName)" /> }</td>
+                                <td class="col-check">@if (!mine) { <input class="form-check-input adm-sess" type="checkbox" name="ids" value="@Vellum.Infrastructure.Auth.SessionService.Handle(s.Id)" aria-label="Select session of @(r.User?.DisplayName)" /> }</td>
                                 <td>@if (r.User != null) { <a class="adm-person" href="/admin/users/@r.User.Id">@Ui.Avatar(r.User, "sm")<span class="fw-medium">@r.User.DisplayName</span></a> } else { <span class="text-body-tertiary">Unknown user</span> }</td>
                                 <td class="text-nowrap">@Ui.Time(s.CreatedAt, tz)</td>
                                 <td class="text-nowrap">@Ui.Time(s.LastSeenAt, tz)@if (r.Idle) { <span class="d-block x-small text-body-tertiary">Idle, ends on next request</span> }</td>

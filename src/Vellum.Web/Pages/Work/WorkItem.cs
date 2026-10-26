@@ -26,7 +26,11 @@ public sealed class WorkService(VellumDbContext db, CurrentUser me, AccessServic
         var rows = await db.Assignments.AsNoTracking().Include(a => a.Record)
             .Where(a => ids.Contains(a.UserId) && a.Status == AssignmentStatus.Active && a.Record.PhaseType == PhaseType.Normal && !a.Record.IsArchived)
             .ToListAsync();
+        // PLT-1302, INV-081: a delegate only covers work their own access lets them open; the rest isn't even listed.
+        var delegated = rows.Where(a => a.UserId != me.Id).Select(a => a.RecordId).Distinct().ToList();
+        var readable = delegated.Count == 0 ? [] : await access.Readable().Where(r => delegated.Contains(r.Id)).Select(r => r.Id).ToListAsync();
         return rows
+            .Where(a => a.UserId == me.Id || readable.Contains(a.RecordId))
             .Where(a => cfg.Current.FormsById.ContainsKey(a.Record.FormId))
             .GroupBy(a => a.RecordId).Select(g => g.OrderBy(a => a.UserId == me.Id ? 0 : 1).First())
             .Select(a => new WorkItem(a.Record, cfg.Current.FormsById[a.Record.FormId], cfg.Current.Phase(a.Record.PhaseId), a.UserId, a.UserId != me.Id, a.AssignedAt))

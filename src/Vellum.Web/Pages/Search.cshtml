@@ -22,6 +22,12 @@
     </div>
 </div>
 
+@if (!Shell.Settings.GlobalSearchEnabled)
+{
+    <div class="card"><div class="vl-empty"><div class="vl-empty-icon"><i class="bi bi-search"></i></div><h3>Global search is turned off</h3><p>Your administrator has turned off search across applications (PLT-1501). Open an application to search its views.</p><a class="btn btn-light" href="/apps"><i class="bi bi-grid"></i>All applications</a></div></div>
+}
+else
+{
 <form method="get" action="/search" class="mb-4" role="search">
     <div class="vl-search-input">
         <i class="bi bi-search"></i>
@@ -29,8 +35,9 @@
     </div>
     @if (appKey.Length > 0) { <input type="hidden" name="app" value="@appKey" /> }
 </form>
+}
 
-@if (!string.IsNullOrWhiteSpace(q))
+@if (Shell.Settings.GlobalSearchEnabled && !string.IsNullOrWhiteSpace(q))
 {
     <div class="row g-4">
         <div class="col-lg-3">

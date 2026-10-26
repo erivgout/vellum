@@ -434,11 +434,15 @@ public sealed class UserAdminService(
         return list.Select(s => new SessionRow(s, dir.Get(s.UserId), s.LastSeenAt < idleCut)).ToList();
     }
 
-    public async Task<AdminResult> EndSessionsAsync(IReadOnlyList<string> ids)
+    /// <summary>End sessions picked by their <see cref="SessionService.Handle"/> (pages never carry the IDs, SEC-402).</summary>
+    public async Task<AdminResult> EndSessionsAsync(IReadOnlyList<string> handles)
     {
         if (!me.IsAdmin) return AdminResult.Fail(AdminResult.NotAdmin);
-        var targets = await db.Sessions.Where(s => ids.Contains(s.Id) && s.RevokedAt == null && s.Id != me.SessionId).ToListAsync();
-        if (targets.Count == 0) return AdminResult.Fail(ids.Contains(me.SessionId ?? "") ? "You can't end your own current session here. Sign out instead." : "Select at least one session.");
+        var now = DateTime.UtcNow;
+        var targets = (await db.Sessions.Where(s => s.RevokedAt == null && s.AbsoluteExpiresAt > now && s.Id != me.SessionId).ToListAsync())
+            .Where(s => handles.Contains(SessionService.Handle(s.Id))).ToList();
+        if (targets.Count == 0)
+            return AdminResult.Fail(me.SessionId != null && handles.Contains(SessionService.Handle(me.SessionId)) ? "You can't end your own current session here. Sign out instead." : "Select at least one session.");
         foreach (var s in targets)
         {
             s.RevokedAt = DateTime.UtcNow;

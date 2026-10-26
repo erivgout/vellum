@@ -20,6 +20,8 @@ public sealed class SearchService(VellumDbContext db, AccessService access, Conf
     {
         text = text.Trim();
         if (text.Length < 2) return [];
+        // PLT-1501: global search is switchable per tenant.
+        if (!await db.Settings.AsNoTracking().Select(s => s.GlobalSearchEnabled).FirstAsync()) return [];
         var config = cfg.Current;
         var q = access.Readable();
         if (!includeArchive) q = q.Where(r => !r.IsArchived);

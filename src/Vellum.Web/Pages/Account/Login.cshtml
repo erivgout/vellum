@@ -32,9 +32,15 @@
                 <img src="~/img/icon.svg" width="30" height="30" alt="" style="border-radius:8px" /><span class="fw-bold fs-5">Vellum</span>
             </div>
             <div class="small fw-semibold text-body-tertiary text-uppercase" style="letter-spacing:.08em">@Model.Settings.OrganizationName</div>
-            <h1 class="mt-1 mb-1">@(Model.Step == "mfa" ? "Two-step verification" : Model.Step == "password" ? "Welcome back" : "Sign in")</h1>
+            <h1 class="mt-1 mb-1">@(Model.Step switch { "mfa" => "Two-step verification", "enroll" => "Set up two-step verification", "password" => "Welcome back", _ => "Sign in" })</h1>
             <p class="text-body-secondary mb-4">
-                @(Model.Step == "mfa" ? "Enter the 6-digit code from your authenticator app." : Model.Step == "password" ? "Enter your password to continue." : "Use your work username to continue.")
+                @(Model.Step switch
+                {
+                    "mfa" => "Enter the 6-digit code from your authenticator app.",
+                    "enroll" => "Your organization requires a code from an authenticator app at sign-in. Set it up now to continue.",
+                    "password" => "Enter your password to continue.",
+                    _ => "Use your work username to continue.",
+                })
             </p>
 
             @if (Model.Settings.EnvironmentType != EnvironmentType.Production)
@@ -81,7 +87,24 @@
                     <p class="small text-body-tertiary mt-3 mb-0">Forgot your password? Ask your administrator to reset it. Repeated failed attempts lock the account.</p>
                 </form>
             }
-            else
+            else if (Model.Step == "enroll" && Model.EnrollSecret is { } secret)
+            {
+                <form method="post" asp-page-handler="Enroll" novalidate>
+                    <input type="hidden" asp-for="ReturnUrl" />
+                    <input type="hidden" name="Username" value="@Model.Username" />
+                    <input type="hidden" name="Ticket" value="@Model.Ticket" />
+                    <ol class="small ps-3 mb-2">
+                        <li>Open your authenticator app (Microsoft Authenticator, Google Authenticator, 1Password…).</li>
+                        <li>Add an account with this setup key:</li>
+                    </ol>
+                    <div class="p-3 rounded-3 border bg-surface text-center mb-2"><code class="fs-5 tabular" style="letter-spacing:.12em" data-setup-key>@(string.Join(" ", secret.Chunk(4).Select(c => new string(c))))</code></div>
+                    <div class="x-small text-body-tertiary mb-3 text-break">@Model.OtpUri(secret)</div>
+                    <label class="form-label" for="code">Then enter the 6-digit code it shows</label>
+                    <input class="form-control mb-3 text-center tabular" style="font-size:1.4rem;letter-spacing:.4em" id="code" name="Code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" autofocus required />
+                    <button class="btn btn-primary btn-lg w-100"><i class="bi bi-shield-check"></i><span>Turn on and continue</span></button>
+                </form>
+            }
+            else if (Model.Step == "mfa")
             {
                 <form method="post" asp-page-handler="Mfa" novalidate>
                     <input type="hidden" asp-for="ReturnUrl" />
@@ -92,7 +115,7 @@
                 </form>
             }
 
-            @if (Model.ShowDemo && Model.Step != "mfa")
+            @if (Model.ShowDemo && Model.Step is not ("mfa" or "enroll"))
             {
                 <div class="vl-divider my-4"></div>
                 <div class="small fw-semibold mb-2 d-flex align-items-center gap-2"><i class="bi bi-people text-body-tertiary"></i>Demo accounts <span class="text-body-tertiary fw-normal">· password <code>@Vellum.Packaging.DemoContext.Password</code></span></div>

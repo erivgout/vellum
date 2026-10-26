@@ -226,7 +226,14 @@ public static class Endpoints
 
         app.MapPost("/logout", async (SessionService sessions, IAntiforgery af, HttpContext http, VellumDbContext db, CurrentUser me) =>
         {
-            await af.ValidateRequestAsync(http);
+            try { await af.ValidateRequestAsync(http); }
+            catch (AntiforgeryValidationException) when (!me.IsAuthenticated)
+            {
+                // A page left open after the session ended (idle timeout, revoked) carries a token for the old identity.
+                // There's nothing left to sign out, so just go to the sign-in page.
+                await sessions.EndAsync();
+                return Results.Redirect("/login?signedout=1");
+            }
             if (me.IsAuthenticated)
                 db.SecurityEvents.Add(new SecurityEvent { At = DateTime.UtcNow, Kind = "Logout", Success = true, UserId = me.Id, Username = me.Info?.Username, Ip = me.Ip });
             await db.SaveChangesAsync();
