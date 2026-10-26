@@ -125,7 +125,10 @@ public sealed partial class Page(Browser browser, Uri url, HttpStatusCode status
     public string? Alert => Doc.QuerySelectorAll(".vl-banner-bad:not([role=status]), .alert-danger, .vl-error-summary, .invalid-feedback, .text-danger[role=alert], [role=alert]")
         .Select(e => Squash(e.TextContent)).FirstOrDefault(t => t.Length > 0);
 
-    /// <summary>All validation and error messages shown on the page (status banners, such as an unacceptable-risk notice, aren't errors).</summary>
+    /// <summary>
+    /// All validation and error messages shown on the page. Red status banners (role="status", such as a record's
+    /// "Voided" state or an unacceptable-risk notice) describe the record, not an error, and are left out.
+    /// </summary>
     public IReadOnlyList<string> Errors => Doc.QuerySelectorAll(".vl-banner-bad:not([role=status]) li, .invalid-feedback, .vl-error-summary li, .field-validation-error, .vl-banner-bad:not([role=status]) .ttl")
         .Select(e => Squash(e.TextContent)).Where(t => t.Length > 0).Distinct().ToList();
 
@@ -156,6 +159,21 @@ public sealed partial class Page(Browser browser, Uri url, HttpStatusCode status
         var el = One(elementCss);
         var form = el.GetAttribute("form") is { } id ? Doc.GetElementById(id) as IHtmlFormElement : el.Closest("form") as IHtmlFormElement;
         return new FormFill(this, form ?? throw new Xunit.Sdk.XunitException($"'{elementCss}' is not inside a form on {Path}."));
+    }
+
+    /// <summary>
+    /// Add a subform row the way the "Add row" button does: the section's row template is copied into the table with a
+    /// fresh index. Returns the index, so the row's fields are "r.{section}.{index}.{fieldKey}". Fill forms after adding rows.
+    /// </summary>
+    public int AddRow(string section)
+    {
+        var sf = One($"[data-subform='{section}']");
+        var tpl = sf.QuerySelector("template[data-row-template]") as IHtmlTemplateElement
+            ?? throw new Xunit.Sdk.XunitException($"Subform '{section}' on {Path} can't get new rows here.");
+        var index = 900000 + sf.QuerySelectorAll("tbody tr[data-row]").Length;
+        var html = string.Concat(tpl.Content.ChildNodes.OfType<IElement>().Select(e => e.OuterHtml)).Replace("__INDEX__", index.ToString());
+        sf.QuerySelector("tbody")!.Insert(AdjacentPosition.BeforeEnd, html);
+        return index;
     }
 
     public string AntiforgeryToken => Doc.QuerySelector("input[name=__RequestVerificationToken]")?.GetAttribute("value")

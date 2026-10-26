@@ -55,7 +55,16 @@
                     <span class="d-flex flex-column gap-1">
                         @foreach (var v in vals)
                         {
-                            <a href="/records/@v.RefGuid" class="d-inline-flex align-items-center gap-1"><i class="bi bi-link-45deg"></i>@(Model.Vm.LinkLabels.TryGetValue(v.RefGuid!.Value, out var ll) ? ll : "Linked record")</a>
+                            // DOC-054: a link to a superseded revision opens the current effective revision.
+                            var to = Model.Vm.LinkTargets.GetValueOrDefault(v.RefGuid!.Value, v.RefGuid.Value);
+                            if (Model.Vm.LinkLabels.TryGetValue(to, out var ll))
+                            {
+                                <a href="/records/@to" class="d-inline-flex align-items-center gap-1"><i class="bi bi-link-45deg"></i>@ll</a>
+                            }
+                            else
+                            {
+                                <span class="d-inline-flex align-items-center gap-1 text-body-tertiary"><i class="bi bi-lock"></i>Restricted record</span>
+                            }
                         }
                     </span>
                 }

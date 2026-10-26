@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Vellum.Data;
 using Vellum.Domain;
 using Vellum.Engine.Records;
@@ -12,7 +13,7 @@ public sealed class AssignmentService(VellumDbContext db, ConfigCache cfg, Curre
     /// Candidate assignees for entering <paramref name="phase"/>: who may be picked, who is preselected, and whether
     /// the router may change the choice. Inactive users are never candidates (INV-073); candidates can read the record (INV-080).
     /// </summary>
-    public Task<(IReadOnlyList<UserInfo> Candidates, IReadOnlyList<int> Defaults, bool Editable)> CandidatesAsync(RecordSnapshot snap, PhaseDefinition phase)
+    public async Task<(IReadOnlyList<UserInfo> Candidates, IReadOnlyList<int> Defaults, bool Editable)> CandidatesAsync(RecordSnapshot snap, PhaseDefinition phase)
     {
         IReadOnlyList<UserInfo> FromField() => phase.AssigneeField is { } f
             ? snap.Data.Main.Refs(f).Select(dir.Get).OfType<UserInfo>().Where(u => u.Assignable).ToList()
@@ -34,16 +35,29 @@ public sealed class AssignmentService(VellumDbContext db, ConfigCache cfg, Curre
                     : (members, (FromField().Where(u => members.Any(m => m.Id == u.Id)).Select(u => u.Id).ToList() is { Count: > 0 } picked ? picked : members.Select(u => u.Id).ToList()), true);
                 break;
             case AssignmentMode.Creator:
-                var creator = dir.Get(snap.Record.CreatedById);
-                result = creator is { Assignable: true }
-                    ? ([creator], [creator.Id], false)
+                var authors = await AuthorsAsync(snap.Record, phase);
+                result = authors.Count > 0
+                    ? (authors, authors.Select(u => u.Id).ToList(), false)
                     : (Readers(snap.Form), [], true);
                 break;
             default:
                 result = (Readers(snap.Form), FromField().Select(u => u.Id).ToList(), true);
                 break;
         }
-        return Task.FromResult(result);
+        return result;
+    }
+
+    /// <summary>
+    /// The record's authors for a creator-assigned phase: whoever it was first assigned to in that phase, usually the creator.
+    /// A record created on someone's behalf goes back to them, not to its creator (a new document revision is created by the
+    /// change requester and assigned to its authors, DOC-091/093).
+    /// </summary>
+    private async Task<List<UserInfo>> AuthorsAsync(Record r, PhaseDefinition phase)
+    {
+        var first = await db.PhaseEntries.AsNoTracking().Where(e => e.RecordId == r.Id && e.PhaseId == phase.Id).OrderBy(e => e.Id).Select(e => (long?)e.Id).FirstOrDefaultAsync();
+        var ids = first == null ? [] : await db.Assignments.AsNoTracking().Where(a => a.PhaseEntryId == first && a.Status != AssignmentStatus.Cancelled).OrderBy(a => a.Order).Select(a => a.UserId).ToListAsync();
+        var authors = ids.Distinct().Select(dir.Get).OfType<UserInfo>().Where(u => u.Assignable).ToList();
+        return authors.Count > 0 ? authors : dir.Get(r.CreatedById) is { Assignable: true } creator ? [creator] : [];
     }
 
     private List<UserInfo> Readers(FormDefinition form) =>

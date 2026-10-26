@@ -16,6 +16,9 @@
     var watermark = r.IsArchived ? "SUPERSEDED" : vm.Form.RevisionControlled && !r.IsEffective && r.PhaseType == PhaseType.Normal ? "DRAFT" : null;
     var mode = vm.Override ? "override" : null;
     var errorFields = vm.Errors.Where(e => e.FieldKey != null).ToList();
+    // Route errors normally show in the Send dialog; when it isn't rendered (no routes are left for this person, for example
+    // after someone else moved the record on), they show at the top of the page instead of being lost.
+    var routeErrorsOnPage = vm.RouteErrors.Count > 0 && (vm.Routes.Count == 0 || vm.Override);
 }
 @section Crumbs {
     <a href="/apps">Applications</a><i class="bi bi-chevron-right sep"></i>
@@ -113,7 +116,7 @@
 </div>
 
 @* Route errors show in the Send dialog; when the record has moved on and there's no dialog to show, they show here. *@
-@if (vm.Errors.Count > 0 || (vm.RouteErrors.Count > 0 && (vm.Routes.Count == 0 || vm.Override)))
+@if (vm.Errors.Count > 0 || routeErrorsOnPage)
 {
     <div class="vl-banner vl-banner-bad" role="alert">
         <i class="bi bi-exclamation-octagon"></i>

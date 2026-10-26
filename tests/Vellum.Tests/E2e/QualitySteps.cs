@@ -47,10 +47,6 @@ public static class QualitySteps
         return result;
     }
 
-    /// <summary>Errors shown in a behavior action's dialog after it failed.</summary>
-    public static IReadOnlyList<string> ActionErrors(this Page page, string actionKey) =>
-        page.All($"#action-{actionKey} .vl-banner-bad li").Select(e => Page.Squash(e.TextContent)).ToList();
-
     /// <summary>Run a behavior action and require success: a toast and no errors in its dialog.</summary>
     public static async Task<Page> ActionOkAsync(this Page page, string actionKey, Action<FormFill>? fill = null, string? password = null, string? comment = null)
     {

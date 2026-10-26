@@ -73,6 +73,8 @@ public static class RecordSteps
     {
         var result = await page.RouteAsync(option, password, comment, assignees, fill);
         var errors = result.RouteErrors().Concat(result.Errors).ToList();
+        if (result.Status != System.Net.HttpStatusCode.OK)
+            throw new Xunit.Sdk.XunitException($"Routing '{option}' from {page.Phase()} landed on HTTP {(int)result.Status} ({result.Path}).\n{result.Excerpt()}");
         // A routed record redirects with a toast; a refused route redisplays the page. Status panels (a material hold,
         // a critical event) use red banners too, so they don't count as errors on their own.
         if (result.Toast == null)
@@ -97,6 +99,10 @@ public static class RecordSteps
         fill?.Invoke(form);
         return form.SubmitAsync();
     }
+
+    /// <summary>Errors shown in a behavior action's dialog after a refused action.</summary>
+    public static IReadOnlyList<string> ActionErrors(this Page page, string actionKey) =>
+        page.All($"#action-{actionKey} .vl-banner-bad li").Select(e => Page.Squash(e.TextContent)).ToList();
 
     /// <summary>Actions offered in the record's Actions menu (keys).</summary>
     public static IReadOnlyList<string> Actions(this Page page) =>

@@ -115,9 +115,10 @@ public sealed class DocumentBehavior : RecordBehavior
                 ctx.Error("Record the training decision: is training required for this revision? (DOC-033, DOC-060)");
             if (decision == false && string.IsNullOrWhiteSpace(snap.Text("training_justification")))
                 ctx.Error("Explain why no training is needed for this revision. The justification is mandatory when training isn't required (DOC-060).");
-            // SAF-044: author ≠ approver.
-            if (snap.UserIds("reviewers").Contains(snap.Record.CreatedById))
-                ctx.Error($"Reviewers must be independent of the author: remove {ctx.Directory.Name(snap.Record.CreatedById)} from Reviewers (SAF-044).");
+            // SAF-044: author ≠ approver. A new revision's authors are the people it was assigned to write it (DOC-091), not only its creator.
+            var authors = (await svc.CurrentAssigneesAsync(snap.Record.Id)).Append(snap.Record.CreatedById).ToHashSet();
+            foreach (var id in snap.UserIds("reviewers").Where(authors.Contains))
+                ctx.Error($"Reviewers must be independent of the author: remove {ctx.Directory.Name(id)} from Reviewers (SAF-044).");
             if (ctx.To.Key == DocKeys.AwaitingRelease)
             {
                 // DOC-031: the minor-change shortcut needs the flag, and only applies to revisions of an approved document.

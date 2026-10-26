@@ -639,6 +639,24 @@ public sealed class RecordService(
             .ToDictionaryAsync(r => r.Id, r => r.Number + (r.Revision != null ? $" rev {r.Revision}" : "") + " " + r.Title);
     }
 
+    /// <summary>
+    /// DOC-054: linked revisions that have been superseded resolve to their family's current effective revision
+    /// (old id → effective id). Links to anything else, including obsolete documents, stay as they are.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, Guid>> EffectiveRevisionsAsync(IEnumerable<Val> values)
+    {
+        var ids = values.Where(v => v.RefGuid != null).Select(v => v.RefGuid!.Value).Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<Guid, Guid>();
+        var old = await db.Records.AsNoTracking().Where(r => ids.Contains(r.Id) && r.FamilyId != null && r.IsArchived && !r.IsEffective)
+            .Select(r => new { r.Id, r.FamilyId }).ToListAsync();
+        if (old.Count == 0) return new Dictionary<Guid, Guid>();
+        var families = old.Select(r => r.FamilyId).Distinct().ToList();
+        var effective = await db.Records.AsNoTracking().Where(r => families.Contains(r.FamilyId) && r.IsEffective)
+            .Select(r => new { r.Id, r.FamilyId }).ToListAsync();
+        return old.Where(r => effective.Any(e => e.FamilyId == r.FamilyId) && effective.First(e => e.FamilyId == r.FamilyId).Id != r.Id)
+            .ToDictionary(r => r.Id, r => effective.First(e => e.FamilyId == r.FamilyId).Id);
+    }
+
     public async Task<Attachment> AddAttachmentAsync(Record r, string fieldKey, Guid? rowId, string fileName, string contentType, Stream content, int? onBehalfOf = null)
     {
         var (sha, size) = await files.SaveAsync(content);

@@ -238,7 +238,8 @@ public sealed class DocumentControlService(
 
         var snap = await records.LoadRequiredAsync(rev.Id);
         await training.CarryForwardAsync(source.Record.Id, snap);
-        await SyncDraftReadersAsync(snap, extraReaders);
+        // DOC-080: the authors keep reading their revision after it leaves Draft (its creator is the requester, DOC-093).
+        await SyncDraftReadersAsync(snap, assignees.Concat(extraReaders ?? []));
         await db.SaveChangesAsync();
         return rev;
     }
@@ -377,6 +378,12 @@ public sealed class DocumentControlService(
 
     public Task<PhaseEntry?> CurrentEntryAsync(Guid id) =>
         db.PhaseEntries.AsNoTracking().Where(e => e.RecordId == id && e.ExitedAt == null).OrderByDescending(e => e.Id).FirstOrDefaultAsync();
+
+    /// <summary>Everyone assigned in the current phase entry (in Draft: the authors).</summary>
+    public async Task<List<int>> CurrentAssigneesAsync(Guid id) =>
+        await CurrentEntryAsync(id) is { } entry
+            ? await db.Assignments.AsNoTracking().Where(a => a.PhaseEntryId == entry.Id && a.Status != AssignmentStatus.Cancelled).Select(a => a.UserId).Distinct().ToListAsync()
+            : [];
 
     /// <summary>DOC-050/051: later of (entry into Awaiting Release + delay) and the target effective date.</summary>
     public async Task<DateOnly?> PlannedEffectiveAsync(RecordSnapshot snap)
