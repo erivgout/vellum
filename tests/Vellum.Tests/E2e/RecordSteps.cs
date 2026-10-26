@@ -17,11 +17,15 @@ public static class RecordSteps
     public static FormFill RecordForm(this Page page) => page.Form("#record-form").Disable("[data-route-panel]");
 
     /// <summary>Fill and create a record; fails with the page's messages unless it lands on the new record.</summary>
-    public static async Task<Page> CreateAsync(this Browser b, string formKey, Action<FormFill> fill, Guid? parent = null)
+    public static Task<Page> CreateAsync(this Browser b, string formKey, Action<FormFill> fill, Guid? parent = null) =>
+        b.CreateAsync(formKey, (_, form) => fill(form), parent);
+
+    /// <summary>Fill and create a record, with the blank form page at hand (for example to look up subform keyword options).</summary>
+    public static async Task<Page> CreateAsync(this Browser b, string formKey, Action<Page, FormFill> fill, Guid? parent = null)
     {
         var page = await b.NewAsync(formKey, parent);
         var form = page.RecordForm();
-        fill(form);
+        fill(page, form);
         var result = await form.SubmitAsync();
         if (!result.Url.AbsolutePath.StartsWith("/records/") || result.Url.AbsolutePath.StartsWith("/records/new"))
             throw new Xunit.Sdk.XunitException($"Creating a {formKey} record failed on {result.Path}: {string.Join(" | ", result.Errors)}\n{result.Excerpt()}");
@@ -96,6 +100,32 @@ public static class RecordSteps
     public static IReadOnlyList<string> Actions(this Page page) =>
         page.All("[data-bs-target^='#action-']").Select(e => e.GetAttribute("data-bs-target")![8..]).ToList();
 
+    /// <summary>Why an action shown greyed out in the Actions menu can't be used (by its label), or null when it isn't greyed out.</summary>
+    public static string? DisabledAction(this Page page, string label) =>
+        page.All(".dropdown-item.disabled").FirstOrDefault(e => Page.Squash(e.TextContent).StartsWith(label, StringComparison.OrdinalIgnoreCase))?.GetAttribute("title");
+
+    /// <summary>
+    /// Add a subform row as "Add row" does: the next free index, an empty row id and the given values (keyword values are
+    /// option values, see <see cref="RowOption"/>).
+    /// </summary>
+    public static FormFill AddRow(this FormFill form, string section, params (string Field, string? Value)[] values)
+    {
+        var i = 0;
+        while (form.Values($"r.{section}.{i}.__id").Count > 0) i++;
+        form.Set($"r.{section}.{i}.__id", "");
+        foreach (var (field, value) in values) form.Set($"r.{section}.{i}.{field}", value);
+        return form;
+    }
+
+    /// <summary>The option value of a keyword (by key) in a subform column, read from the row template the browser clones.</summary>
+    public static string RowOption(this Page page, string section, string field, string key)
+    {
+        var template = page.All($"[data-subform='{section}'] template").OfType<AngleSharp.Html.Dom.IHtmlTemplateElement>().FirstOrDefault()
+            ?? throw new Xunit.Sdk.XunitException($"Subform '{section}' isn't editable on {page.Path}.");
+        return template.Content.QuerySelector($"[name='r.{section}.__INDEX__.{field}'] option[data-key='{key}']")?.GetAttribute("value")
+            ?? throw new Xunit.Sdk.XunitException($"Subform '{section}' has no option '{key}' for {field}.");
+    }
+
     public static Task<Page> CommentAsync(this Page page, string text) =>
         page.Form($"form[action$='handler=Comment']").Set("text", text).SubmitAsync();
 
@@ -110,6 +140,11 @@ public static class RecordSteps
     /// <summary>The read-only display value of a field (by field key).</summary>
     public static string FieldText(this Page page, string fieldKey) =>
         Page.Squash(page.Q($"[data-ro-field='{fieldKey}']")?.TextContent ?? page.Q($"[name='f.{fieldKey}']")?.GetAttribute("value") ?? "");
+
+    /// <summary>A subform cell as shown (read-only text, or the input's value), by section, row index and field key.</summary>
+    public static string RowText(this Page page, string section, int index, string fieldKey) =>
+        Page.Squash(page.Q($"#fld-{section}-{index}-{fieldKey}:not(input):not(select):not(textarea)")?.TextContent
+            ?? page.Q($"[name='r.{section}.{index}.{fieldKey}']")?.GetAttribute("value") ?? "");
 
     /// <summary>The value of an editable field input (by field key).</summary>
     public static string? FieldValue(this Page page, string fieldKey) => page.Q($"[name='f.{fieldKey}']") switch

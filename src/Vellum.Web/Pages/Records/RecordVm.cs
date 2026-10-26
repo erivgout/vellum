@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Vellum.Data;
 using Vellum.Domain;
 using Vellum.Engine;
+using Vellum.Engine.Audit;
 using Vellum.Engine.Behaviors;
 using Vellum.Engine.Records;
 using Vellum.Engine.Security;
@@ -142,6 +143,8 @@ public sealed class RecordVmBuilder(
         var data = posted ?? snap.Data;
         var allValues = data.Main.Keys.SelectMany(k => data.Main[k]).Concat(data.Rows.Values.SelectMany(rows => rows.SelectMany(x => x.Values.Keys.SelectMany(k => x.Values[k]))));
         var labels = await records.LinkLabelsAsync(allValues);
+        var auditTrail = await db.Audit.AsNoTracking().Where(a => a.RecordId == r.Id).OrderByDescending(a => a.Seq).Take(500).ToListAsync();
+        if (!access.CanSeeSensitive(r.AppId)) AuditService.MaskSensitive(auditTrail, snap.Form); // SEC-520
 
         return new RecordVm
         {
@@ -175,7 +178,7 @@ public sealed class RecordVmBuilder(
             Signatures = await db.Signatures.AsNoTracking().Where(s => s.RecordId == r.Id).OrderBy(s => s.SignedAt).ToListAsync(),
             CurrentHash = records.ComputeHash(snap),
             Comments = await db.Comments.AsNoTracking().Include(c => c.User).Where(c => c.RecordId == r.Id).OrderByDescending(c => c.At).Take(200).ToListAsync(),
-            Audit = await db.Audit.AsNoTracking().Where(a => a.RecordId == r.Id).OrderByDescending(a => a.Seq).Take(500).ToListAsync(),
+            Audit = auditTrail,
             Emails = await db.EmailLog.AsNoTracking().Where(e => e.RecordId == r.Id).OrderByDescending(e => e.At).Take(100).ToListAsync(),
             LinkLabels = labels,
             Tracker = BuildTracker(snap, entries),

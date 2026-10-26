@@ -10,6 +10,21 @@ namespace Vellum.Engine.Audit;
 /// </summary>
 public sealed class AuditService(VellumDbContext db, CurrentUser me, UserDirectory dir)
 {
+    /// <summary>
+    /// SEC-520: show the old and new values of sensitive fields as "Restricted" to someone who can't see those fields. Only the
+    /// loaded (untracked) entries are changed for display or export; the stored, hash-chained trail stays as it is.
+    /// </summary>
+    public static List<AuditEntry> MaskSensitive(List<AuditEntry> entries, FormDefinition form)
+    {
+        var keys = form.Fields.Where(f => f.Sensitive).SelectMany(f => new[] { f.Key, $"{f.SectionKey}.{f.Key}" }).ToHashSet();
+        foreach (var a in entries.Where(a => a.FieldKey != null && keys.Contains(a.FieldKey)))
+        {
+            if (!string.IsNullOrEmpty(a.OldValue)) a.OldValue = "Restricted";
+            if (!string.IsNullOrEmpty(a.NewValue)) a.NewValue = "Restricted";
+        }
+        return entries;
+    }
+
     public AuditEntry Record(Guid? recordId, string action, string? detail = null, string? reason = null,
         string? fieldKey = null, string? fieldLabel = null, string? oldValue = null, string? newValue = null,
         string? phaseName = null, int? recordVersion = null, int? onBehalfOfId = null)

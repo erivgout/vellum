@@ -76,6 +76,7 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddRazorPages(o =>
 {
     o.Conventions.AuthorizeFolder("/");
+    o.Conventions.Add(new AreaSignInConvention());
     o.Conventions.AllowAnonymousToPage("/Account/Login");
     o.Conventions.AllowAnonymousToPage("/Error");
     o.Conventions.AuthorizeAreaFolder("Admin", "/", "Admin");

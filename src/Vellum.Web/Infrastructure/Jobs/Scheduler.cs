@@ -122,6 +122,8 @@ public sealed class Scheduler(IServiceScopeFactory scopes, ILogger<Scheduler> lo
         task.LastOutcome = run.Outcome;
         task.NextRunAt = DateTime.UtcNow.AddMinutes(Math.Max(1, task.IntervalMinutes));
         task.LeaseUntil = null;
+        // The lease was taken with ExecuteUpdate, which the tracked entity doesn't see: always write the release (INV-121).
+        db.Entry(task).Property(t => t.LeaseUntil).IsModified = true;
         if (missed > 0)
             db.SecurityEvents.Add(new SecurityEvent { At = DateTime.UtcNow, Kind = "Missed task runs caught up", Success = true, Detail = $"{job.Name}: {missed} missed run(s)" });
         await db.SaveChangesAsync(CancellationToken.None);
