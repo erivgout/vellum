@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
@@ -39,6 +41,23 @@ public sealed class Browser : IDisposable
     /// <summary>Raw GET without following redirects or checking the status (for downloads, APIs and access probes).</summary>
     public Task<HttpResponseMessage> RawGetAsync(string url) => _http.GetAsync(url);
 
+    /// <summary>
+    /// POST a JSON body the way site.js's <c>vl.api</c> does: Accept and Content-Type JSON, and the antiforgery token of the
+    /// current page in X-CSRF-TOKEN. Redirects aren't followed. The body is parsed when the response is JSON.
+    /// </summary>
+    public async Task<JsonReply> PostJsonAsync(string url, object body)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(body, options: JsonOpts) };
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        req.Headers.Add("X-CSRF-TOKEN", Page.AntiforgeryToken);
+        var res = await _http.SendAsync(req);
+        var text = await res.Content.ReadAsStringAsync();
+        var json = res.Content.Headers.ContentType?.MediaType?.Contains("json") == true && text.Length > 0 ? JsonDocument.Parse(text).RootElement.Clone() : default;
+        return new JsonReply(res.StatusCode, json, text);
+    }
+
+    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
     /// <summary>Identifier-first sign-in through /login. Lands on the user's home page (or /portal for supplier contacts).</summary>
     public async Task<Page> SignInAsync(string username, string password = TestHelpers.Password)
     {
@@ -77,6 +96,9 @@ public sealed class Browser : IDisposable
 
     public void Dispose() => _http.Dispose();
 }
+
+/// <summary>The answer to a JSON post: status, parsed body (default when it isn't JSON) and the raw text.</summary>
+public sealed record JsonReply(HttpStatusCode Status, JsonElement Json, string Text);
 
 /// <summary>A loaded page: status, URL, raw HTML and its DOM.</summary>
 public sealed partial class Page(Browser browser, Uri url, HttpStatusCode status, string html, IHtmlDocument? doc)
