@@ -231,6 +231,63 @@ public class ComplaintAerE2eTests(VellumFixture fx)
         Assert.Equal("Closed", (await complaint.RouteOkAsync("Close complaint")).Phase());
     }
 
+    [Fact] // CMP-003, CMP-004, CMP-009, SAF-022, INV-113
+    public async Task An_eu_vigilance_clock_stops_only_when_regulatory_affairs_records_the_submission_with_a_valid_signature()
+    {
+        var tag = E2e.Tag();
+        using var jlee = await fx.SignedInAsync("jlee");
+        var complaint = await jlee.CreateAsync("complaint", f => f
+            .Set("f.subject", $"Particulate in ST-40 fluid path {tag}").Pick("f.category", "packaging").Set("f.owner", fx.Uid("jlee").ToString())
+            .Set("f.awareness_date", Day(-2)).Pick("f.site_reported", "galway").Set("f.description", "Black particles inside sealed pouches of lot 24-127.")
+            .Set("f.product", "ST-40 sterile tubing set").Set("f.lot_number", $"EU-{tag}").Pick("f.failure_mode", "contamination")
+            .Pick("f.patient_involved", "no").Pick("f.eu_market", "yes"));
+        var url = complaint.Path;
+        complaint = await complaint.RouteOkAsync("Start investigation");
+
+        // CMP-003: a device on the EU market gets the vigilance tree as well; both must be completed (INV-046).
+        var mdrTree = Assert.Single(complaint.Activities(), a => a.Number.StartsWith("MDR-"));
+        var vigTree = Assert.Single(complaint.Activities(), a => a.Number.StartsWith("VIG-"));
+        var mdr = await (await jlee.GoAsync(mdrTree.Href)).RouteOkAsync("Send for regulatory approval", fill: f => f
+            .Pick("f.q_death", "no").Pick("f.q_serious_injury", "no").Pick("f.q_malfunction", "no").Set("f.mdr_rationale", "No malfunction of the device itself."));
+        var vig = await (await jlee.GoAsync(vigTree.Href)).SaveOkAsync(f => f
+            .Pick("f.q_incident", "yes").Pick("f.q_causal", "yes").Pick("f.q_serious", "yes").Pick("f.vig_severity", "other_serious")
+            .Set("f.vig_rationale", "Particulate could have led to a serious deterioration in health."));
+        Assert.Equal("Yes", vig.FieldText("vig_reportable"));
+        Assert.Equal("15", vig.FieldText("vig_days"));
+        vig = await vig.RouteOkAsync("Send for regulatory approval");
+        using var rnovak = await fx.SignedInAsync("rnovak");
+        Assert.Equal("Completed", (await (await rnovak.GoAsync(mdrTree.Href)).RouteOkAsync("Approve decision")).Phase());
+        Assert.Equal("Completed", (await (await rnovak.GoAsync(vigTree.Href)).RouteOkAsync("Approve decision")).Phase());
+
+        // CMP-009: 15 calendar days from awareness for an EU serious incident; no FDA report.
+        complaint = await rnovak.GoAsync(url);
+        Assert.Equal("Not reportable", complaint.FieldText("mdr_decision"));
+        Assert.Equal("Reportable: 15 days", complaint.FieldText("vigilance_decision"));
+        complaint.ExpectText("EU MDR serious incident (Art. 87(3))").ExpectText($"Due {BusinessCalendar.Today.AddDays(13):ddd dd MMM yyyy}").ExpectText("13d left");
+
+        // SAF-022: the complaint can't be approved for closure before the report is filed.
+        complaint = await (await jlee.GoAsync(url)).SaveOkAsync(f => f
+            .Set("f.investigation_summary", "Particles are pouch-seal debris from sealer SB-2.").Pick("f.conclusion", "confirmed")
+            .Pick("f.capa_required", "no").Set("f.capa_justification", "Covered by the sealer CAPA.").Pick("f.ncr_required", "no")
+            .Set("f.ncr_justification", "Lot already quarantined under its NCR.").Set("f.response_text", "Lot recalled; replacement shipped.").Set("f.response_sent_on", Today));
+        complaint = await complaint.RouteOkAsync("Send to review", assignees: [fx.Uid("sortiz")]);
+        using var sortiz = await fx.SignedInAsync("sortiz");
+        var unreported = await (await sortiz.GoAsync(url)).RouteAsync("Approve: awaiting closure");
+        Assert.Contains(unreported.RouteErrors(), e => e.Contains("hasn't been submitted") && e.Contains("SAF-022"));
+
+        // The submission is recorded with an e-signature: a wrong password records nothing.
+        complaint = await rnovak.GoAsync(url);
+        var wrong = await complaint.ActionAsync("cmp-submit", f => f.Pick("a.agency", "EU").Set("a.reference", $"MIR-IE-{tag}"), password: "not-my-password");
+        Assert.Contains(wrong.ActionErrors("cmp-submit"), e => e.Contains("password isn't right"));
+        Assert.Equal("Clock running", (await rnovak.GoAsync(url)).FieldText("clock_status"));
+        complaint = await (await rnovak.GoAsync(url)).ActionOkAsync("cmp-submit", f => f.Pick("a.agency", "EU").Set("a.reference", $"MIR-IE-{tag}"),
+            password: TestHelpers.Password);
+        Assert.Equal("EU submission recorded.", complaint.Toast);
+        Assert.Equal("Submitted", complaint.FieldText("clock_status"));
+        Assert.Contains($"MIR-IE-{tag}", complaint.FieldText("report_reference"));
+        Assert.Equal("Awaiting Closure", (await (await sortiz.GoAsync(url)).RouteOkAsync("Approve: awaiting closure")).Phase());
+    }
+
     [Fact] // CMP-010, CMP-012, PLT-1103
     public async Task Complaint_trends_and_views_find_a_repeat_lot_and_export_it()
     {
