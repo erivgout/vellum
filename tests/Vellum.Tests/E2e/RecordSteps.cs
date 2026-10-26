@@ -69,7 +69,9 @@ public static class RecordSteps
     {
         var result = await page.RouteAsync(option, password, comment, assignees, fill);
         var errors = result.RouteErrors().Concat(result.Errors).ToList();
-        if (result.Toast == null || errors.Count > 0)
+        // A routed record redirects with a toast; a refused route redisplays the page. Status panels (a material hold,
+        // a critical event) use red banners too, so they don't count as errors on their own.
+        if (result.Toast == null)
             throw new Xunit.Sdk.XunitException($"Routing '{option}' from {page.Phase()} failed: {string.Join(" | ", errors)}\n{result.Excerpt()}");
         return result;
     }

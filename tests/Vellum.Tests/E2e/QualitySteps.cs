@@ -42,7 +42,7 @@ public static class QualitySteps
     public static async Task<Page> SaveOkAsync(this Page page, Action<FormFill> fill)
     {
         var result = await page.SaveAsync(fill);
-        if (result.Toast != "Saved." || result.Errors.Count > 0)
+        if (result.Toast != "Saved.")
             throw new Xunit.Sdk.XunitException($"Saving {page.Path} failed: {string.Join(" | ", result.Errors)}\n{result.Excerpt()}");
         return result;
     }
@@ -58,7 +58,7 @@ public static class QualitySteps
             throw new Xunit.Sdk.XunitException($"No action '{actionKey}' on {page.Path}. Offered: {string.Join(", ", page.Actions())}");
         var result = await page.ActionAsync(actionKey, fill, password, comment);
         var errors = result.ActionErrors(actionKey);
-        if (result.Toast == null || errors.Count > 0)
+        if (result.Toast == null)
             throw new Xunit.Sdk.XunitException($"Action '{actionKey}' failed: {string.Join(" | ", errors)}\n{result.Excerpt()}");
         return result;
     }

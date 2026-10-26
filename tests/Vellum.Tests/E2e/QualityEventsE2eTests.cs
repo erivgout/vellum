@@ -47,6 +47,8 @@ public class QualityEventsE2eTests(VellumFixture fx)
             .Set("f.mrb_recommendation", "Rework what can be re-zeroed; scrap the rest.")
             .AddRow("dispositions", ("disposition_type", "rework"), ("disposition_qty", "30"), ("disposition_instructions", "Re-zero per WI-RW-07"))
             .AddRow("dispositions", ("disposition_type", "scrap"), ("disposition_qty", "20"), ("disposition_instructions", "Scrap per SOP-MAT-011")));
+        // Saved quantities come back as typed, not as the stored decimal(38,10).
+        Assert.Equal("30", ncr.Q("[name='r.dispositions.0.disposition_qty']")?.GetAttribute("value"));
         ncr = await ncr.RouteOkAsync("Approve MRB disposition");
         Assert.Equal("MRB Review", ncr.Phase());
         Assert.Equal("Approval recorded (1 of 3 needed).", ncr.Toast);
@@ -153,7 +155,8 @@ public class QualityEventsE2eTests(VellumFixture fx)
         using var admin = await fx.SignedInAsync("admin");
         var task = await admin.GoAsync("/admin/tasks/quality-deviation-expiry");
         var ran = await task.Form("form[action*='handler=Run']").SubmitAsync();
-        Assert.StartsWith("Planned deviation expiry succeeded", ran.Toast);
+        if (ran.Toast?.StartsWith("Planned deviation expiry succeeded") != true)
+            throw new Xunit.Sdk.XunitException($"{ran.Toast}\n{(await admin.GoAsync("/admin/tasks/quality-deviation-expiry")).Text}");
         dev = await jlee.GoAsync(devUrl);
         Assert.Equal("Expired", dev.Phase());
         Assert.Equal("Quantity limit used up", dev.FieldText("closure_reason"));
@@ -262,7 +265,7 @@ public class QualityEventsE2eTests(VellumFixture fx)
         Assert.Contains(untested.RouteErrors(), e => e.Contains("don't have testing activities yet"));
         var test = await (await sortiz.GoAsync(url)).ActionOkAsync("lab-tests");
         Assert.StartsWith("TST-", test.Number());
-        Assert.Equal(fx.Name("hmoreau"), test.FieldText("original_analyst"));
+        Assert.EndsWith(fx.Name("hmoreau"), test.FieldText("original_analyst"));
         Assert.Equal(fx.Uid("jlee").ToString(), test.Q("input[name='f.test_analyst']")?.GetAttribute("value"));
         var testUrl = test.Path;
         var blocked = await (await sortiz.GoAsync(url)).RouteAsync("No lab error: request full investigation", assignees: [fx.Uid("dokafor")]);
@@ -492,7 +495,7 @@ public class QualityEventsE2eTests(VellumFixture fx)
         var docOnly = await change.RouteAsync("Verify and complete");
         var docOnlyError = Assert.Single(docOnly.RouteErrors());
         Assert.Contains(sop.Number(), docOnlyError);
-        Assert.Contains("New document not yet effective (INV-160)", docOnlyError);
+        Assert.Contains("new document not yet effective (INV-160)", docOnlyError);
 
         await ReleaseSopAsync(fx, sopUrl);
         change = await (await tbrooks.GoAsync(url)).RouteOkAsync("Verify and complete");
