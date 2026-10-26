@@ -120,8 +120,12 @@ public static class Ui
     public static IHtmlContent Time(DateTime utc, TimeZoneInfo tz, bool relative = true)
     {
         var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), tz);
-        var abs = local.ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture) + " " + Abbrev(tz, local);
-        return new HtmlString($"<time datetime=\"{utc:O}\" title=\"{E(abs)} · {utc:yyyy-MM-dd HH:mm} UTC\">{E(relative ? Ago(utc) : abs)}</time>");
+        var when = local.ToString("dd MMM yyyy HH:mm", CultureInfo.InvariantCulture);
+        var zone = Abbrev(tz, local);
+        var abs = when + " " + zone;
+        // The zone stays in one piece when a narrow column wraps the time ("UTC-04:00", not "UTC-" / "04:00").
+        var text = relative ? E(Ago(utc)) : $"{E(when)} <span class=\"text-nowrap\">{E(zone)}</span>";
+        return new HtmlString($"<time datetime=\"{utc:O}\" title=\"{E(abs)} · {utc:yyyy-MM-dd HH:mm} UTC\">{text}</time>");
     }
 
     public static string Abbrev(TimeZoneInfo tz, DateTime local)

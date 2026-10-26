@@ -59,7 +59,8 @@ a.sp-fname:hover { color: var(--vl-brand); }
 .sp-secret { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; font-weight: 580; color: var(--vl-ok); }
 .sp-secret.missing { color: var(--vl-text-3); }
 .sp-attempts { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.25rem; font-size: 0.74rem; }
-.sp-attempts li { display: flex; gap: 0.5rem; align-items: baseline; }
+.sp-attempts li { display: flex; flex-wrap: wrap; gap: 0.1rem 0.5rem; align-items: baseline; }
+.sp-attempts li > .text-break { flex: 1 1 14rem; }
 .sp-attempts .bi-check-circle-fill { color: var(--vl-ok); }
 .sp-attempts .bi-x-circle-fill { color: var(--vl-bad); }
 .sp-err { max-width: 420px; }

@@ -38,7 +38,7 @@
   --vl-border-strong: #d4cec6;
   --vl-text: #1c1917;
   --vl-text-2: #57524c;
-  --vl-text-3: #9a938b;
+  --vl-text-3: #736c64; /* ≥ 4.5:1 on every light surface (WCAG AA) */
   --vl-ring: 0 0 0 3px rgba(var(--vl-brand-rgb), 0.18);
 
   --vl-side-bg: #1b1714;
@@ -107,7 +107,7 @@
   --vl-border-strong: #3b3531;
   --vl-text: #f2efec;
   --vl-text-2: #b0a8a0;
-  --vl-text-3: #7b736c;
+  --vl-text-3: #978f87; /* ≥ 4.5:1 on every dark surface, tinted rows included (WCAG AA) */
 
   --vl-side-bg: #0a0908;
   --vl-side-bg-2: #12100e;
@@ -155,6 +155,11 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 :focus-visible { outline: 2px solid rgba(var(--vl-brand-rgb), 0.55); outline-offset: 2px; }
 .text-body-secondary { color: var(--vl-text-2) !important; }
 .text-body-tertiary { color: var(--vl-text-3) !important; }
+/* Status text follows the theme's palette (Bootstrap's defaults are too faint on dark surfaces). */
+.text-danger { color: var(--vl-bad) !important; }
+.text-success { color: var(--vl-ok) !important; }
+.text-warning { color: var(--vl-warn) !important; }
+.text-info { color: var(--vl-info) !important; }
 .fw-medium { font-weight: 550 !important; }
 .fw-semibold { font-weight: 620 !important; }
 .small, small { font-size: 0.8125rem; }
@@ -176,12 +181,19 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   --bs-btn-focus-shadow-rgb: var(--vl-brand-rgb);
   box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 1px 2px rgba(159, 18, 57, 0.25);
 }
+/* The dark theme's brighter rose is for accents; filled buttons keep the deeper rose so white labels stay legible (4.7:1). */
+[data-bs-theme="dark"] .btn-primary {
+  --bs-btn-bg: #e11d48; --bs-btn-border-color: #e11d48;
+  --bs-btn-hover-bg: #be123c; --bs-btn-hover-border-color: #be123c;
+  --bs-btn-active-bg: #9f1239; --bs-btn-active-border-color: #9f1239;
+  --bs-btn-disabled-bg: #e11d48; --bs-btn-disabled-border-color: #e11d48;
+}
 .btn-dark, .btn-ink {
   --bs-btn-bg: #1c1917; --bs-btn-border-color: #1c1917; --bs-btn-color: #fff;
   --bs-btn-hover-bg: #2e2925; --bs-btn-hover-border-color: #2e2925; --bs-btn-hover-color: #fff;
   --bs-btn-active-bg: #000; --bs-btn-active-border-color: #000; --bs-btn-active-color: #fff;
 }
-[data-bs-theme="dark"] .btn-ink { --bs-btn-bg: #f2efec; --bs-btn-border-color: #f2efec; --bs-btn-color: #1c1917; --bs-btn-hover-bg: #fff; --bs-btn-hover-color: #000; --bs-btn-active-bg: #ddd; }
+[data-bs-theme="dark"] .btn-ink { --bs-btn-bg: #f2efec; --bs-btn-border-color: #f2efec; --bs-btn-color: #1c1917; --bs-btn-hover-bg: #fff; --bs-btn-hover-border-color: #fff; --bs-btn-hover-color: #000; --bs-btn-active-bg: #ddd; --bs-btn-active-border-color: #ddd; --bs-btn-active-color: #000; }
 .btn-light, .btn-outline-secondary, .btn-secondary-soft {
   --bs-btn-bg: var(--vl-surface); --bs-btn-border-color: var(--vl-border-strong); --bs-btn-color: var(--vl-text);
   --bs-btn-hover-bg: var(--vl-surface-3); --bs-btn-hover-border-color: var(--vl-border-strong); --bs-btn-hover-color: var(--vl-text);
@@ -198,6 +210,8 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   --bs-btn-bg: var(--vl-bad); --bs-btn-border-color: var(--vl-bad); --bs-btn-hover-bg: #a11c22; --bs-btn-hover-border-color: #a11c22;
   --bs-btn-active-bg: #861519; --bs-btn-active-border-color: #861519;
 }
+/* As with primary buttons: the dark theme's lighter red is for text and accents, filled buttons stay deep enough for white labels. */
+[data-bs-theme="dark"] .btn-danger { --bs-btn-bg: #dc2626; --bs-btn-border-color: #dc2626; --bs-btn-disabled-bg: #dc2626; --bs-btn-disabled-border-color: #dc2626; }
 .btn-outline-danger { --bs-btn-color: var(--vl-bad); --bs-btn-border-color: var(--vl-bad-border); --bs-btn-hover-bg: var(--vl-bad-bg); --bs-btn-hover-color: var(--vl-bad); --bs-btn-hover-border-color: var(--vl-bad); --bs-btn-active-bg: var(--vl-bad-bg); --bs-btn-active-color: var(--vl-bad); }
 .btn-success { --bs-btn-bg: var(--vl-ok); --bs-btn-border-color: var(--vl-ok); --bs-btn-hover-bg: #116b33; --bs-btn-hover-border-color: #116b33; }
 .btn-icon { --bs-btn-padding-x: 0.45rem; aspect-ratio: 1; }
@@ -393,6 +407,8 @@ textarea.form-control { min-height: 4.5rem; resize: vertical; line-height: 1.55;
 /* ---------- Tables / views ---------- */
 .vl-table-wrap { background: var(--vl-surface); border: 1px solid var(--vl-border); border-radius: var(--vl-radius); box-shadow: var(--vl-shadow); overflow: hidden; }
 .vl-table-scroll { overflow-x: auto; }
+/* Scrolling tables are the positioning context, so screen-reader labels and other absolute bits can't widen the page. */
+.vl-table-scroll, .table-responsive { position: relative; }
 .table { --bs-table-bg: transparent; --bs-table-color: var(--vl-text); --bs-table-border-color: var(--vl-border); --bs-table-hover-bg: var(--vl-surface-2); --bs-table-striped-bg: var(--vl-surface-2); margin-bottom: 0; font-size: 0.84rem; }
 .vl-table thead th { position: sticky; top: 0; z-index: 2; background: var(--vl-surface-2); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.055em; color: var(--vl-text-2); font-weight: 650; padding: 0.6rem 0.85rem; white-space: nowrap; border-bottom: 1px solid var(--vl-border); }
 .vl-table thead th a { color: inherit; display: inline-flex; align-items: center; gap: 0.25rem; }
@@ -400,12 +416,17 @@ textarea.form-control { min-height: 4.5rem; resize: vertical; line-height: 1.55;
 .vl-table thead th .bi { font-size: 0.7rem; }
 .vl-table tbody td { padding: 0.62rem 0.85rem; vertical-align: middle; border-bottom: 1px solid var(--vl-border); }
 .vl-table tbody tr:last-child td { border-bottom: 0; }
+/* Text columns in data tables keep a readable width; the table scrolls sideways instead of squeezing them. */
+.vl-col-text { min-width: 12rem; }
+.vl-col-wide { min-width: 16rem; }
 .vl-table tbody tr { transition: background .08s; }
 .vl-table tbody tr:hover { background: var(--vl-surface-2); }
 .vl-table tbody tr[data-href] { cursor: pointer; }
 .vl-table .col-number { white-space: nowrap; font-weight: 620; }
 .vl-table .col-number a { color: var(--vl-text); }
-.vl-table .col-title { min-width: 200px; max-width: 460px; }
+.vl-table .col-title { min-width: 15rem; max-width: 460px; }
+/* Codes in tables (numbers, lots, clauses) stay on one line. */
+.table td.mono { white-space: nowrap; }
 .vl-table .col-title .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .vl-table .col-check { width: 36px; }
 .vl-table .numeric { text-align: right; font-variant-numeric: tabular-nums; }
@@ -472,7 +493,7 @@ a.vl-list-item:hover, .vl-list-item.hover:hover { background: var(--vl-surface-2
 .vl-cal th { font-weight: 600; color: var(--vl-text-3); font-size: 0.68rem; text-transform: uppercase; padding: 0.2rem 0; }
 .vl-cal td { padding: 0; }
 .vl-cal .d { position: relative; display: grid; place-items: center; height: 32px; border-radius: 8px; color: var(--vl-text); font-variant-numeric: tabular-nums; font-weight: 520; }
-.vl-cal .d.out { color: var(--vl-text-3); opacity: .5; }
+.vl-cal .d.out { color: var(--vl-text-3); font-weight: 400; }
 .vl-cal .d.today { background: var(--vl-text); color: var(--vl-surface); font-weight: 700; }
 .vl-cal .d.has::after { content: ""; position: absolute; bottom: 4px; width: 5px; height: 5px; border-radius: 50%; background: var(--vl-info); }
 .vl-cal .d.has.overdue::after { background: var(--vl-bad); }
@@ -534,9 +555,9 @@ a.vl-list-item:hover, .vl-list-item.hover:hover { background: var(--vl-surface-2
 .vl-section > .card-header { background: transparent; }
 .vl-section-icon { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: var(--vl-surface-3); color: var(--vl-text-2); font-size: 0.85rem; flex: 0 0 26px; }
 .vl-section-desc { font-size: 0.78rem; color: var(--vl-text-3); margin: 0; }
-.vl-section-state { margin-left: auto; font-size: 0.72rem; color: var(--vl-text-3); display: inline-flex; align-items: center; gap: 0.3rem; }
+.vl-section-state { margin-left: auto; font-size: 0.72rem; color: var(--vl-text-3); display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap; flex-shrink: 0; }
 .vl-field { margin-bottom: 0.15rem; }
-.vl-field-ro .vl-value { min-height: 1.5rem; font-size: 0.875rem; color: var(--vl-text); word-break: break-word; line-height: 1.55; }
+.vl-field-ro .vl-value { min-height: 1.5rem; font-size: 0.875rem; color: var(--vl-text); overflow-wrap: break-word; line-height: 1.55; }
 .vl-pre { white-space: pre-wrap; }
 .vl-field-ro .vl-value.empty { color: var(--vl-text-3); }
 .vl-field-ro .form-label { color: var(--vl-text-2); font-weight: 540; font-size: 0.775rem; }
@@ -545,8 +566,10 @@ a.vl-list-item:hover, .vl-list-item.hover:hover { background: var(--vl-surface-2
 .vl-help { color: var(--vl-text-3); cursor: help; font-size: 0.8rem; }
 
 /* Subform */
-.vl-subform { border: 1px solid var(--vl-border); border-radius: 9px; overflow: hidden; }
-.vl-subform table { margin: 0; }
+/* position: relative keeps absolutely positioned bits (screen-reader labels) inside the scrolling table. */
+.vl-subform { position: relative; border: 1px solid var(--vl-border); border-radius: 9px; overflow: hidden; }
+.vl-subform table { margin: 0; width: max-content; min-width: 100%; }
+.vl-subform .vl-cell { max-width: 26rem; }
 .vl-subform thead th { background: var(--vl-surface-2); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--vl-text-2); font-weight: 650; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--vl-border); white-space: nowrap; }
 .vl-subform tbody td { padding: 0.45rem 0.6rem; vertical-align: top; border-bottom: 1px solid var(--vl-border); }
 .vl-subform tbody tr:last-child td { border-bottom: 0; }
@@ -554,7 +577,7 @@ a.vl-list-item:hover, .vl-list-item.hover:hover { background: var(--vl-surface-2
 .vl-subform .row-tools { width: 40px; text-align: right; }
 .vl-subform .form-control, .vl-subform .form-select { font-size: 0.82rem; padding: 0.32rem 0.5rem; }
 .vl-subform-empty { padding: 1rem; text-align: center; color: var(--vl-text-3); font-size: 0.82rem; }
-.vl-row-link { font-size: 0.72rem; }
+.vl-row-link { font-size: 0.72rem; white-space: nowrap; }
 
 /* People picker / record picker */
 .vl-picker { position: relative; }
@@ -599,8 +622,8 @@ a.vl-list-item:hover, .vl-list-item.hover:hover { background: var(--vl-surface-2
 .vl-current.today { border-left-color: var(--vl-warn); }
 .vl-current.done { border-left-color: var(--vl-ok); }
 .vl-kv { display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 1rem; font-size: 0.8rem; margin: 0; }
-.vl-kv dt { color: var(--vl-text-3); font-weight: 540; }
-.vl-kv dd { margin: 0; text-align: right; color: var(--vl-text); font-weight: 520; word-break: break-all; }
+.vl-kv dt { color: var(--vl-text-3); font-weight: 540; white-space: nowrap; }
+.vl-kv dd { margin: 0; text-align: right; color: var(--vl-text); font-weight: 520; overflow-wrap: anywhere; }
 
 /* Comments */
 .vl-comment { display: flex; gap: 0.65rem; padding: 0.7rem 0; border-bottom: 1px solid var(--vl-border); }
@@ -638,7 +661,7 @@ a.vl-list-item:hover, .vl-list-item.hover:hover { background: var(--vl-surface-2
 .vl-sig { display: flex; gap: 0.85rem; padding: 0.85rem 1rem; border: 1px solid var(--vl-border); border-radius: 10px; background: var(--vl-surface); }
 .vl-sig + .vl-sig { margin-top: 0.6rem; }
 .vl-sig-icon { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 10px; display: grid; place-items: center; font-size: 1.05rem; color: var(--vl-violet); background: var(--vl-violet-bg); }
-.vl-sig.superseded { opacity: .62; }
+.vl-sig.superseded { background: var(--vl-surface-2); border-style: dashed; color: var(--vl-text-2); }
 .vl-sig.superseded .vl-sig-icon { color: var(--vl-neutral); background: var(--vl-neutral-bg); }
 .vl-sig-name { font-weight: 640; font-size: 0.9rem; }
 .vl-sig-meaning { font-family: "Inter Variable", serif; font-style: italic; color: var(--vl-text); }

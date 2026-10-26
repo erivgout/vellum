@@ -7,10 +7,11 @@
 .vla-grid { display: grid; grid-template-columns: minmax(240px, 1.2fr) minmax(200px, 1fr) minmax(200px, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
 @media (max-width: 991.98px) { .vla-grid { grid-template-columns: 1fr; } }
 .vla-tile { padding: 0.75rem 0.9rem; border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); background: var(--vl-surface-2); min-width: 0; }
-.vla-number { margin: 0.35rem 0 0.25rem; font-size: 1.15rem; font-weight: 680; letter-spacing: -0.01em; color: var(--vl-text); word-break: break-all; }
+.vla-number { margin: 0.35rem 0 0.25rem; font-size: 1rem; font-weight: 680; letter-spacing: -0.02em; color: var(--vl-text); overflow-wrap: anywhere; }
 .vla-number.is-pending { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; font-family: inherit; color: var(--vl-text-2); }
 .vla-links { list-style: none; margin: 0.35rem 0 0; padding: 0; display: grid; gap: 0.3rem; font-size: 0.82rem; }
-.vla-links li { display: flex; align-items: center; gap: 0.4rem; }
+.vla-links li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.4rem; }
+.vla-links a { white-space: nowrap; }
 .vla-links .bi { color: var(--vl-text-3); }
 
 /* Submission progress: File → Sent → ACK1 → ACK2 → ACK3 → Final */

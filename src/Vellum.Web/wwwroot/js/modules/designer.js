@@ -649,9 +649,12 @@
       const head = `<div class="card-header"><span class="vl-section-icon"><i class="bi ${esc(s.icon || (s.isSubform ? "bi-table" : "bi-card-text"))}"></i></span><div class="min-w-0"><h3 class="card-title-sm">${esc(s.name)}</h3>${s.description ? `<p class="vl-section-desc">${esc(s.description)}</p>` : ""}</div>${editable ? "" : '<span class="vl-section-state"><i class="bi bi-lock"></i>Read-only</span>'}</div>`;
       if (s.isSubform) {
         const cols = s.fields.filter((x) => x.type !== "Prompt");
+        // Same minimum column widths as the record page (_Section.cshtml), so the preview wraps the way records will.
+        const cellMin = (x) => ({ YesNo: 6, Number: 6.5, Currency: 6.5, Date: 9, DateTime: 12, Keyword: 8, KeywordMulti: 10, User: 10, UserMulti: 12, Link: 12, Attachment: 12, Url: 12, TextArea: 16 })[x.type]
+          ?? ((x.width || 3) >= 6 ? 14 : (x.width || 3) >= 4 ? 10 : 7);
         return `<section class="card vl-section">${head}<div class="card-body"><div class="vl-subform"><div class="table-responsive"><table class="table align-middle">
-          <thead><tr><th class="row-num">#</th>${cols.map((x) => `<th style="width:${(x.width || 3) * 8}%">${esc(x.label)}${x.required && editable ? '<span class="text-danger"> *</span>' : ""}</th>`).join("")}${editable ? '<th class="row-tools"></th>' : ""}</tr></thead>
-          <tbody><tr><td class="row-num">1</td>${cols.map((x) => `<td>${editable && !x.readOnly ? pvControl(x, "pv-" + x._uid, true) : '<div class="vl-value empty">–</div>'}</td>`).join("")}${editable ? '<td class="row-tools"><button type="button" class="btn btn-sm btn-ghost btn-icon text-danger" tabindex="-1" aria-label="Remove row"><i class="bi bi-x-lg"></i></button></td>' : ""}</tr></tbody></table></div>
+          <thead><tr><th class="row-num">#</th>${cols.map((x) => `<th>${esc(x.label)}${x.required && editable ? '<span class="text-danger"> *</span>' : ""}</th>`).join("")}${editable ? '<th class="row-tools"></th>' : ""}</tr></thead>
+          <tbody><tr><td class="row-num">1</td>${cols.map((x) => `<td><div class="vl-cell" style="min-width:${cellMin(x)}rem">${editable && !x.readOnly ? pvControl(x, "pv-" + x._uid, true) : '<div class="vl-value empty">–</div>'}</div></td>`).join("")}${editable ? '<td class="row-tools"><button type="button" class="btn btn-sm btn-ghost btn-icon text-danger" tabindex="-1" aria-label="Remove row"><i class="bi bi-x-lg"></i></button></td>' : ""}</tr></tbody></table></div>
           ${editable ? `<div class="border-top p-2 bg-surface-2"><button type="button" class="btn btn-sm btn-light" tabindex="-1"><i class="bi bi-plus-lg"></i>Add ${esc(s.rowNoun || "row")}</button>${s.maxRows ? `<span class="vl-sr-hint ms-2">Up to ${s.maxRows}</span>` : ""}</div>` : ""}</div></div></section>`;
       }
       return `<section class="card vl-section">${head}<div class="card-body"><div class="row g-3">${s.fields.map((x) => {

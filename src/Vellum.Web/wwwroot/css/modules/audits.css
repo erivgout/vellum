@@ -51,10 +51,11 @@
 /* ---------------------------------------------------------------- audits */
 .vl-aud-grid { display: grid; grid-template-columns: minmax(150px, 0.8fr) minmax(0, 2fr) minmax(200px, 1fr); gap: 1.25rem; padding: 1rem 1.15rem; align-items: start; }
 @media (max-width: 991.98px) { .vl-aud-grid { grid-template-columns: 1fr; } }
-.vl-aud-counts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.5rem; }
+.vl-aud-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.6rem, 1fr)); gap: 0.5rem; }
 @media (max-width: 575.98px) { .vl-aud-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.vl-aud-count { border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); padding: 0.55rem 0.5rem 0.5rem; text-align: center; background: var(--vl-surface-2); opacity: 0.72; }
-.vl-aud-count.has { opacity: 1; background: var(--vl-surface); box-shadow: var(--vl-shadow-sm); }
+.vl-aud-count { border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); padding: 0.55rem 0.5rem 0.5rem; text-align: center; background: var(--vl-surface-2); border-style: dashed; }
+.vl-aud-count.has { border-style: solid; background: var(--vl-surface); box-shadow: var(--vl-shadow-sm); }
+.vl-aud-count:not(.has) .v { color: var(--vl-text-3); }
 .vl-aud-count .vl-stat-icon { width: 26px; height: 26px; border-radius: 7px; margin: 0 auto 0.35rem; font-size: 0.8rem; }
 .vl-aud-count .v { display: block; font-size: 1.25rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .vl-aud-count .l { display: block; font-size: 0.7rem; color: var(--vl-text-2); font-weight: 560; margin-top: 0.15rem; }
@@ -100,8 +101,9 @@
 .vl-ins-results .table td { vertical-align: middle; }
 
 .vl-ins-tally { display: flex; gap: 0.6rem; flex-wrap: wrap; }
-.vl-ins-tally .t { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.55rem 0.3rem 0.65rem; border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); background: var(--vl-surface-2); opacity: 0.7; }
-.vl-ins-tally .t.has { opacity: 1; background: var(--vl-surface); }
+.vl-ins-tally .t { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.55rem 0.3rem 0.65rem; border: 1px solid var(--vl-border); border-radius: var(--vl-radius-sm); background: var(--vl-surface-2); border-style: dashed; }
+.vl-ins-tally .t.has { border-style: solid; background: var(--vl-surface); }
+.vl-ins-tally .t:not(.has) .v { color: var(--vl-text-3); }
 .vl-ins-tally .v { font-weight: 700; font-size: 1.05rem; font-variant-numeric: tabular-nums; min-width: 1ch; }
 .vl-ins-flags { list-style: none; padding: 0; display: grid; gap: 0.3rem; }
 .vl-ins-flags li { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.82rem; padding: 0.4rem 0.65rem; border-radius: var(--vl-radius-sm); border: 1px solid; }

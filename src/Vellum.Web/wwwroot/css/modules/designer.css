@@ -37,7 +37,7 @@
 .dz-app-card .dz-app-counts .bi { color: var(--vl-text-3); margin-right: 0.25rem; }
 .dz-app-card .dz-open { color: var(--vl-brand-text); font-weight: 600; opacity: 0; transition: opacity .12s; }
 .dz-app-card:hover .dz-open, .dz-app-card:focus-visible .dz-open { opacity: 1; }
-.dz-app-card.is-locked { opacity: .7; box-shadow: none; }
+.dz-app-card.is-locked { background: var(--vl-surface-2); border-style: dashed; box-shadow: none; }
 .dz-app-card.is-locked:hover { transform: none; }
 
 .dz-comp .aside { gap: 0.35rem; }
@@ -183,7 +183,7 @@
 .dz-fld-top > .bi { color: var(--vl-text-3); font-size: 0.85rem; flex: 0 0 auto; }
 .dz-fld-label { font-weight: 600; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dz-fld-label .req { color: var(--vl-bad); margin-left: 0.15rem; }
-.dz-fld-meta { font-size: 0.68rem; color: var(--vl-text-3); margin-top: 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-fld-meta { font-size: 0.68rem; color: var(--vl-text-2); margin-top: 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dz-fld-badges { display: flex; gap: 0.25rem; margin-top: 0.25rem; color: var(--vl-text-3); font-size: 0.72rem; min-height: 0.9rem; }
 .dz-fld-badges .on { color: var(--vl-info); }
 .dz-fld-width { position: absolute; right: 4px; bottom: 4px; display: none; align-items: center; gap: 0.1rem; background: var(--vl-surface); border: 1px solid var(--vl-border); border-radius: 6px; font-size: 0.68rem; font-weight: 650; font-variant-numeric: tabular-nums; }

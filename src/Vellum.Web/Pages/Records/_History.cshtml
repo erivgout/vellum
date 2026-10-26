@@ -104,8 +104,8 @@
                                             <td class="text-nowrap">@Ui.Time(a.At, vm.Tz, relative: false)</td>
                                             <td class="text-nowrap">@a.UserName</td>
                                             <td class="text-nowrap text-body-secondary">@a.PhaseName</td>
-                                            <td class="text-body-secondary">@(a.OldValue ?? "–")</td>
-                                            <td>@(a.NewValue ?? "–")</td>
+                                            <td class="text-body-secondary vl-col-text">@(a.OldValue ?? "–")</td>
+                                            <td class="vl-col-text">@(a.NewValue ?? "–")</td>
                                             <td>@if (signed) { <i class="bi bi-pen text-body-tertiary" title="A signature exists on this or a later version"></i> }</td>
                                         </tr>
                                     }
@@ -133,7 +133,7 @@
                             <td class="text-nowrap">@if (e.ExitedAt is { } x) { @Ui.Time(x, vm.Tz, relative: false) if (onTime == "late") { <span class="vl-kw vl-kw-danger ms-1">Late</span> } else if (onTime == "early") { <span class="vl-kw vl-kw-success ms-1">On time</span> } } else { <span class="vl-chip vl-chip-open"><i class="bi bi-circle-fill vl-dot"></i>Current</span> }</td>
                             <td class="text-nowrap">@(e.ExitedById != null ? vm.Dir.Name(e.ExitedById) : "")</td>
                             <td class="text-nowrap text-body-secondary">@e.ExitAction</td>
-                            <td class="small">@e.Comment</td>
+                            <td class="small vl-col-text">@e.Comment</td>
                             <td class="text-body-tertiary">v@(e.ConfigVersion)</td>
                         </tr>
                     }
@@ -155,7 +155,7 @@
                     <tbody>
                         @foreach (var m in vm.Emails)
                         {
-                            <tr><td class="text-nowrap">@Ui.Time(m.At, vm.Tz, relative: false)</td><td>@m.To</td><td>@m.Subject<div class="x-small text-body-tertiary text-truncate-2">@m.Body</div></td><td>@Ui.KeywordBadge(m.Status, m.Status == "Delivered" ? "success" : m.Status == "Queued" ? "warning" : "danger")</td></tr>
+                            <tr><td class="text-nowrap">@Ui.Time(m.At, vm.Tz, relative: false)</td><td class="text-nowrap">@m.To</td><td class="vl-col-wide">@m.Subject<div class="x-small text-body-tertiary text-truncate-2">@m.Body</div></td><td>@Ui.KeywordBadge(m.Status, m.Status == "Delivered" ? "success" : m.Status == "Queued" ? "warning" : "danger")</td></tr>
                         }
                     </tbody>
                 </table>

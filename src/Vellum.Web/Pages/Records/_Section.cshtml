@@ -7,6 +7,20 @@
     var editable = state == SectionState.Editable;
     var fields = vm.Form.Fields.Where(f => f.SectionKey == s.Key).ToList();
     var sectionError = vm.Errors.FirstOrDefault(e => e.FieldKey == s.Key)?.Message;
+    // Subform columns get a readable minimum width for their type; the table scrolls sideways rather than squeezing
+    // values (codes, dates, tool IDs) onto one character per line.
+    static string CellMin(FieldDefinition f) => (f.Type switch
+    {
+        FieldType.YesNo => 6,
+        FieldType.Number or FieldType.Currency => 6.5,
+        FieldType.Date => 9,
+        FieldType.DateTime => 12,
+        FieldType.Keyword => 8,
+        FieldType.KeywordMulti or FieldType.User => 10,
+        FieldType.UserMulti or FieldType.Link or FieldType.Attachment or FieldType.Url => 12,
+        FieldType.TextArea => 16,
+        _ => f.Width >= 6 ? 14 : f.Width >= 4 ? 10 : 7,
+    }).ToString(System.Globalization.CultureInfo.InvariantCulture) + "rem";
 }
 <section class="card vl-section" id="sec-@s.Key" aria-labelledby="sec-@s.Key-title">
     <div class="card-header">
@@ -55,7 +69,7 @@
                                 <th class="row-num">#</th>
                                 @foreach (var f in cols)
                                 {
-                                    <th style="@(f.Width > 0 ? $"width:{f.Width * 8}%" : "")">@f.Label@if (f.Required && editable) { <span class="text-danger"> *</span> }</th>
+                                    <th>@f.Label@if (f.Required && editable) { <span class="text-danger"> *</span> }</th>
                                 }
                                 @if (editable) { <th class="row-tools"><span class="visually-hidden">Actions</span></th> }
                                 else if (rows.Any(r => r.CreatedRecordId != null)) { <th>Record</th> }
@@ -72,7 +86,7 @@
                                         var fe = editable && !f.ReadOnly;
                                         var rowCtx = new FieldCtx(vm, f, row.Values, "r." + s.Key + "." + i + "." + f.Key, "fld-" + s.Key + "-" + i + "-" + f.Key, fe, row.IsNew ? null : row.Id, Compact: true);
                                         <td class="@(fe ? "" : "vl-field-ro")">
-                                            <partial name="_Field" model="rowCtx" />
+                                            <div class="vl-cell" style="min-width:@CellMin(f)"><partial name="_Field" model="rowCtx" /></div>
                                         </td>
                                     }
                                     @if (editable)
@@ -110,7 +124,7 @@
                             {
                                 var tplCtx = new FieldCtx(vm, f, new ValueBag(), "r." + s.Key + ".__INDEX__." + f.Key, "fld-" + s.Key + "-__INDEX__-" + f.Key, !f.ReadOnly, null, Compact: true);
                                 <td>
-                                    <partial name="_Field" model="tplCtx" />
+                                    <div class="vl-cell" style="min-width:@CellMin(f)"><partial name="_Field" model="tplCtx" /></div>
                                 </td>
                             }
                             <td class="row-tools">

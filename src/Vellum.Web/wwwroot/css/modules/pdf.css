@@ -15,7 +15,7 @@ a.vl-pdf-chip:focus-visible { outline: 0; box-shadow: var(--vl-ring); }
 .vl-pdf-chip .spinner-border, .vl-pdf-spin { width: 0.7rem; height: 0.7rem; border-width: 0.12em; }
 
 /* ------------------------------------------------------------------ record card */
-.vl-pdf-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.vl-pdf-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }
 .vl-pdf-item { padding: 0.6rem 0.65rem; border: 1px solid var(--vl-border); border-radius: 9px; background: var(--vl-surface-2); }
 .vl-pdf-item .vl-kw { font-size: 0.7rem; }
 .vl-pdf-error { font-size: 0.75rem; color: var(--vl-bad); background: var(--vl-bad-bg); border: 1px solid var(--vl-bad-border); border-radius: 7px; padding: 0.35rem 0.5rem; }

@@ -56,10 +56,11 @@ a.adm-person:hover .fw-semibold, a.adm-person:hover .fw-medium { text-decoration
 .adm-status.off { color: var(--vl-text-3); }
 .adm-flag { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.72rem; font-weight: 650; color: var(--vl-text-3); margin-left: 0.25rem; }
 .adm-flag.warn { color: var(--vl-warn); }
-.adm-row-muted > td, .adm-row-muted > th, .vl-list-item.adm-row-muted { opacity: 0.62; }
-.adm-row-muted:hover > td { opacity: 0.9; }
+/* Inactive rows read as muted through color, not opacity, so their text stays legible. */
+.adm-row-muted > td, .adm-row-muted > th, .vl-list-item.adm-row-muted { color: var(--vl-text-2); background: var(--vl-surface-2); }
+.adm-row-muted:hover > td { color: var(--vl-text); }
 .adm-reason { max-width: 220px; }
-.adm-detail { max-width: 520px; word-break: break-word; }
+.adm-detail { min-width: 16rem; max-width: 520px; overflow-wrap: anywhere; }
 .adm-action { display: inline-flex; align-items: center; padding: 0.08rem 0.5rem; border-radius: 6px; font-size: 0.76rem; font-weight: 600; white-space: nowrap; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); }
 
 /* ---------- Forms ---------- */
@@ -137,8 +138,8 @@ a.adm-person:hover .fw-semibold, a.adm-person:hover .fw-medium { text-decoration
 .adm-cs .bi { font-size: 0.7rem; }
 .adm-cs-inline { cursor: default; vertical-align: 1px; }
 .adm-banner-preview {
-  display: flex; align-items: center; gap: 0.45rem; height: 26px; padding: 0 0.65rem; border-radius: 6px; font-size: 0.66rem; font-weight: 650;
-  letter-spacing: 0.04em; text-transform: uppercase; color: #5b3a00; overflow: hidden; white-space: nowrap;
+  display: flex; align-items: center; gap: 0.45rem; min-height: 26px; padding: 0.25rem 0.65rem; line-height: 1.35; border-radius: 6px; font-size: 0.66rem; font-weight: 650;
+  letter-spacing: 0.04em; text-transform: uppercase; color: #5b3a00;
   background: repeating-linear-gradient(-45deg, #fcd34d, #fcd34d 10px, #fbbf24 10px, #fbbf24 20px); border: 1px solid #d99a0b;
 }
 .adm-savebar { position: sticky; bottom: 0; z-index: 1010; margin: 0 -0.25rem; padding: 0.75rem 0.25rem 0.25rem; background: linear-gradient(to bottom, transparent, var(--vl-bg) 30%); }
@@ -172,7 +173,7 @@ a.adm-person:hover .fw-semibold, a.adm-person:hover .fw-medium { text-decoration
 .adm-cal .d.work { color: var(--vl-ok); background: var(--vl-ok-bg); font-weight: 680; box-shadow: inset 0 0 0 1px var(--vl-ok-border); }
 .adm-cal .d.today { background: var(--vl-text); color: var(--vl-surface); box-shadow: none; }
 .adm-date-chip { width: 42px; flex: 0 0 42px; border-radius: 9px; overflow: hidden; text-align: center; border: 1px solid var(--vl-border); background: var(--vl-surface); line-height: 1.1; }
-.adm-date-chip .m { display: block; font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.15rem 0; color: #fff; background: var(--vl-bad); }
+.adm-date-chip .m { display: block; font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.15rem 0; color: var(--vl-surface); background: var(--vl-bad); }
 .adm-date-chip.work .m { background: var(--vl-ok); }
 .adm-date-chip .n { display: block; font-size: 1rem; font-weight: 700; padding: 0.15rem 0 0.2rem; font-variant-numeric: tabular-nums; }
 
