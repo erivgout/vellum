@@ -133,8 +133,8 @@ public class EhsAssetsE2eTests(VellumFixture fx)
         Assert.Equal("Investigation", rec.Phase());
         rec.ExpectText("Anonymous report: waiting for EHS to accept it").ExpectNoText(Name("nflores"));
         Assert.Empty(rec.RecordForm().Values("f.reported_by"));
-        var history = await mchen.GoAsync(url + "/print");
-        history.ExpectNoText(Name("nflores"));
+        var print = await mchen.GoAsync(url + "/print");
+        print.ExpectText("by Anonymous reporter").ExpectNoText(Name("nflores"));
 
         // Nobody else can accept it, and it can't move on (or be returned to a reporter) until EHS does.
         Assert.Equal("Only the EHS team can accept an anonymous report.", (await nflores.GoAsync(url)).DisabledAction("Accept anonymous report"));

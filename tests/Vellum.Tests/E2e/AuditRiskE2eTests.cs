@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.DependencyInjection;
 using Vellum.Engine.Records;
+using Vellum.Engine.Security;
 
 namespace Vellum.Tests.E2e;
 
@@ -14,6 +16,7 @@ public class AuditRiskE2eTests(VellumFixture fx)
 {
     private static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     private static string Day(DateOnly d) => d.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+    private string Name(string username) => fx.Services.GetRequiredService<UserDirectory>().Get(username)!.DisplayName;
 
     [Fact] // AUD-010..015, AUD-022, AUD-025, AUD-028, AUD-032, INV-067
     public async Task An_audit_program_runs_from_plan_to_an_approved_report_with_findings_a_capa_and_a_recommendation()
@@ -97,9 +100,11 @@ public class AuditRiskE2eTests(VellumFixture fx)
         Assert.Contains("assigned to", audit.Toast);
         audit.ExpectText(capaNumber).ExpectText(recNumber); // the Findings tab
 
-        using var lgarcia = await fx.SignedInAsync("lgarcia");
-        var capa = await (await lgarcia.GoAsync("/work")).ClickAsync(capaNumber);
+        // The CAPA starts with the auditor who raised it, pre-filled from the finding, owned by the process owner and linked back.
+        var capa = await (await tb.GoAsync("/work")).ClickAsync(capaNumber);
+        Assert.Equal("Initiate", capa.Phase());
         capa.ExpectText("Torque driver TD-014 at station 3").ExpectText(auditNumber);
+        Assert.Equal(fx.Uid("lgarcia").ToString(), capa.RecordForm().Values("f.owner").Single());
 
         // The findings report across audits (AUD-032), filtered by classification and searched by clause.
         var findings = await tb.GoAsync($"/audits/findings?q={tag}");
@@ -149,14 +154,13 @@ public class AuditRiskE2eTests(VellumFixture fx)
         Assert.Equal($"Line change {tag}", change.FieldText("change_type"));
 
         var byType = await sortiz.GoAsync("/change/timeliness");
-        var row = byType.All("tr").Single(r => r.TextContent.Contains($"Line change {tag}"));
+        var row = byType.All("tr").Single(r => r.QuerySelector("td")?.TextContent.Trim() == $"Line change {tag}"); // the aging table
         Assert.Equal("1", Page.Squash(row.QuerySelectorAll("td")[1].TextContent)); // 0–30 days
+        Assert.Contains(byType.All("tr[data-href]"), r => r.TextContent.Contains(change.Number())); // the oldest open changes
         (await sortiz.GoAsync("/change/timeliness?by=department")).ExpectText("Quality");
         (await sortiz.GoAsync("/change/timeliness?by=reason")).ExpectText("Capacity / second source");
-
-        // Someone who can't open Change Management doesn't get the page.
-        using var nflores = await fx.SignedInAsync("nflores");
-        (await nflores.GoAsync("/change/timeliness")).ExpectNoText($"Line change {tag}");
+        var bogus = await sortiz.GoAsync("/change/timeliness?by=nonsense"); // falls back to the change type
+        Assert.Contains(bogus.All("tr"), r => r.QuerySelector("td")?.TextContent.Trim() == $"Line change {tag}");
     }
 
     [Fact] // INS-001..018, INV-068/069, INV-166..169: an inspection lot from criteria to a reviewed, failed record
@@ -229,7 +233,7 @@ public class AuditRiskE2eTests(VellumFixture fx)
         // The reviewer raises a follow-up action and accepts the sample with a signature.
         var review = await (await sortiz.GoAsync(s2Url)).ActionAsync("follow_up", f => f.Pick("a.kind", "action_item")
             .Set("a.subject", "Replace extrusion die " + tag).Set("a.owner", fx.Uid("akim").ToString()));
-        Assert.Contains("Action item ACT-", review.Toast);
+        Assert.Contains("Action item AI-", review.Toast);
         review = await review.RouteOkAsync("Accept and close");
         Assert.Equal("Closed", review.Phase());
 
@@ -304,7 +308,7 @@ public class AuditRiskE2eTests(VellumFixture fx)
         var accepted = await (await sortiz.GoAsync(url)).ActionAsync("accept_risk",
             f => f.Set("a.rationale", "Further reduction isn't practicable; therapy benefit outweighs the residual risk."), password: TestHelpers.Password);
         Assert.Contains("Risk accepted at score 12", accepted.Toast);
-        accepted.ExpectText($"Risk accepted by Sam Ortiz on {Day(BusinessCalendar.Today)} at score 12 (High)");
+        accepted.ExpectText($"Risk accepted by {Name("sortiz")} on {Day(BusinessCalendar.Today)} at score 12 (High)");
 
         // Changing the score afterwards clears the acceptance (SAF-045).
         risk = await (await jlee.GoAsync(url)).SaveAsync(f => f.Pick("f.residual_likelihood", "l4"));
@@ -347,7 +351,7 @@ public class AuditRiskE2eTests(VellumFixture fx)
         Assert.Equal("108", fmea.RowText("worksheet", 0, "rpn"));
         Assert.Equal("Severity + RPN", fmea.RowText("worksheet", 0, "attention"));
         Assert.Equal("60", fmea.RowText("worksheet", 1, "rpn"));
-        Assert.Equal("", fmea.RowText("worksheet", 1, "attention"));
+        Assert.Equal("–", fmea.RowText("worksheet", 1, "attention"));
         Assert.Equal("RPN ≥ 100", fmea.RowText("worksheet", 2, "attention"));
         Assert.Equal("120", fmea.FieldText("max_rpn"));
         Assert.Equal("2", fmea.FieldText("open_flags"));

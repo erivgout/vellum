@@ -211,7 +211,8 @@ public class SupplierPortalE2eTests(VellumFixture fx)
 
         // The certificate and a copy of the file are on the supplier profile now, and the portal shows it accepted.
         var profile = await cwu.GoAsync(supplierUrl);
-        profile.ExpectText(certNo).ExpectText("ISO13485-certificate.pdf");
+        Assert.Contains(certNo, profile.All("[name^='r.certifications.'][name$='.cert_number']").Select(e => e.GetAttribute("value")));
+        profile.ExpectText("ISO13485-certificate.pdf");
         Assert.Equal(expires.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture), profile.FieldText("next_cert_expiry"));
         (await greg.GoAsync(page.Path)).ExpectText("accepted your response");
     }
