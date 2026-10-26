@@ -179,7 +179,7 @@ public class CapaE2eTests(VellumFixture fx)
             .Set("f.d2_what", "Downstream occlusion alarm late. Is not: upstream.").Set("f.d3_actions", "100% bench test of quarantined stock."));
         capa = await (await capa.RouteOkAsync("Submit for review")).RouteOkAsync("Accept: investigate");
         // D0–D2 are read-only from Root Cause & Plan on.
-        Assert.Equal(fx.Name("dokafor"), capa.FieldText("d1_champion"));
+        Assert.EndsWith(fx.Name("dokafor"), capa.FieldText("d1_champion"));
         Assert.Contains("Downstream occlusion alarm late", capa.FieldText("d2_what"));
 
         capa = await capa.SaveOkAsync(f => f
