@@ -98,7 +98,7 @@ public class RecordsModel(InsightsQueries queries, ChartStore store, ChartEngine
         var ids = rows.Select(r => r.Id).ToList();
         var assigned = (await db.Assignments.AsNoTracking().Where(a => ids.Contains(a.RecordId) && a.Status == AssignmentStatus.Active).Select(a => new { a.RecordId, a.UserId }).ToListAsync())
             .GroupBy(a => a.RecordId).ToDictionary(g => g.Key, g => string.Join("; ", g.Select(a => dir.Name(a.UserId)).Distinct()));
-        static string C(string? s) => s == null ? "" : s.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? "\"" + s.Replace("\"", "\"\"") + "\"" : s;
+        static string C(string? s) => Vellum.Infrastructure.CsvCell.Of(s);
         var sb = new StringBuilder("Number,Title,Application,Type,Phase,Due,Assigned to,Created\r\n");
         var c = cfg.Current;
         foreach (var r in rows)

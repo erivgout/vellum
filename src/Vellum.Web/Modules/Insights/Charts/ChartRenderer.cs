@@ -179,7 +179,7 @@ public static partial class ChartRenderer
     /// <summary>The report table as CSV (RPT-403 export), same columns as <see cref="Table"/>.</summary>
     public static string Csv(ChartData d)
     {
-        static string C(string s) => s.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? "\"" + s.Replace("\"", "\"\"") + "\"" : s;
+        static string C(string s) => Vellum.Infrastructure.CsvCell.Of(s);
         static string V(double? v) => v is { } x ? x.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "";
         var sb = new StringBuilder();
         var multi = d.Series.Count > 1;

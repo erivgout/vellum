@@ -45,7 +45,7 @@ public class EmailLogModel(VellumDbContext db) : AdminPageModel
     public async Task<IActionResult> OnGetExportAsync()
     {
         var rows = await Query().Take(100_000).ToListAsync();
-        static string C(string? s) => s == null ? "" : "\"" + s.Replace("\"", "\"\"") + "\"";
+        static string C(string? s) => Vellum.Infrastructure.CsvCell.Of(s, quote: true);
         var sb = new StringBuilder("Id,Time (UTC),To,Subject,Record,Status,Body\r\n");
         foreach (var r in rows)
             sb.AppendJoin(',', r.E.Id, r.E.At.ToString("yyyy-MM-dd HH:mm:ss"), C(r.E.To), C(r.E.Subject), C(r.Number), C(r.E.Status), C(r.E.Body)).Append("\r\n");

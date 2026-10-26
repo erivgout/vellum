@@ -101,7 +101,7 @@
                     <a class="btn btn-sm btn-ghost" href="@Model.Link(view: Model.Current.Key)"><i class="bi bi-x"></i>Clear</a>
                 }
                 <span class="ms-auto"></span>
-                <a class="btn btn-sm btn-light" href="/apps/@app.Key/export.csv?view=@Model.Current.Key@(Model.Q != null ? "&q=" + Uri.EscapeDataString(Model.Q) : "")@string.Concat(Model.Filters.Select(kv => $"&f.{kv.Key}={Uri.EscapeDataString(kv.Value)}"))"><i class="bi bi-download"></i>Export</a>
+                <a class="btn btn-sm btn-light" href="/apps/@app.Key/export.csv?view=@Model.Current.Key@(Model.Q != null ? "&q=" + Uri.EscapeDataString(Model.Q) : "")@string.Concat(Model.Filters.Select(kv => $"&f.{kv.Key}={Uri.EscapeDataString(kv.Value)}"))@(Model.Sort != null ? "&sort=" + Uri.EscapeDataString(Model.Sort) : "")@(Model.Desc is { } dsc ? "&desc=" + (dsc ? "true" : "false") : "")"><i class="bi bi-download"></i>Export</a>
                 <button type="button" class="btn btn-sm btn-ghost btn-icon vl-star @(Shell.IsFavorite("view", Model.Link(view: Model.Current.Key)) ? "on" : "")" data-fav-kind="view" data-fav-key="@Model.Link(view: Model.Current.Key)" data-fav-label="@app.Name › @Model.Current.Name" title="Favorite this view" aria-label="Favorite this view"><i class="bi @(Shell.IsFavorite("view", Model.Link(view: Model.Current.Key)) ? "bi-star-fill" : "bi-star")"></i></button>
             </form>
 

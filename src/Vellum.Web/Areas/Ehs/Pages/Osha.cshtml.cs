@@ -77,12 +77,7 @@ public class OshaModel(EhsReports reports, AccessService access, ConfigCache cfg
         return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray(), "text/csv", name);
     }
 
-    private static string Csv(string s)
-    {
-        // Neutralize spreadsheet formulas and quote every cell.
-        if (s.Length > 0 && "=+-@".Contains(s[0])) s = "'" + s;
-        return "\"" + s.Replace("\"", "\"\"") + "\"";
-    }
+    private static string Csv(string s) => Vellum.Infrastructure.CsvCell.Of(s, quote: true);
 
     public string NameFor(IncidentCase c) => c.PrivacyCase ? "Privacy case" : CanSeeNames ? c.InjuredName ?? "(name not recorded)" : "Restricted";
 

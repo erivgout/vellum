@@ -12,13 +12,6 @@
     var total = groups.Sum(g => g.Total);
     string Q(string? app = null, int? d = null, bool? arch = null) =>
         $"/search?q={Uri.EscapeDataString(q)}" + ((app ?? appKey) is { Length: > 0 } a ? "&app=" + a : "") + ((d ?? days) is { } x && x > 0 ? "&days=" + x : "") + ((arch ?? archive) ? "&archive=1" : "");
-    string Mark(string? text)
-    {
-        if (string.IsNullOrEmpty(text)) return "";
-        var enc = System.Net.WebUtility.HtmlEncode(text);
-        var term = System.Net.WebUtility.HtmlEncode(q);
-        return term.Length < 2 ? enc : System.Text.RegularExpressions.Regex.Replace(enc, System.Text.RegularExpressions.Regex.Escape(term), m => $"<mark>{m.Value}</mark>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-    }
 }
 @section Crumbs { <span class="current">Search</span> }
 
@@ -75,8 +68,8 @@
                         {
                             <a class="vl-list-item" href="/records/@h.Id">
                                 <span class="main">
-                                    <span class="line1"><span class="num">@Html.Raw(Mark(h.Number))</span><span class="ttl">@Html.Raw(Mark(h.Title))</span></span>
-                                    @if (h.Snippet != null && !h.Title.Contains(q, StringComparison.OrdinalIgnoreCase)) { <span class="d-block small text-body-secondary mt-1 text-truncate-2">@Html.Raw(Mark(h.Snippet))</span> }
+                                    <span class="line1"><span class="num">@Ui.Highlight(h.Number, q)</span><span class="ttl">@Ui.Highlight(h.Title, q)</span></span>
+                                    @if (h.Snippet != null && !h.Title.Contains(q, StringComparison.OrdinalIgnoreCase)) { <span class="d-block small text-body-secondary mt-1 text-truncate-2">@Ui.Highlight(h.Snippet, q)</span> }
                                     <span class="line2 d-block">@cfg.FormsById[h.FormId].Name@(h.Revision != null ? $" · rev {h.Revision}" : "") · modified @Ui.Ago(h.ModifiedAt)</span>
                                 </span>
                                 <span class="aside">@Ui.Phase(cfg.Phase(h.PhaseId)?.Name, h.PhaseType, null, h.IsArchived, h.IsEffective)</span>

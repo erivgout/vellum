@@ -169,7 +169,7 @@ public static class Endpoints
 
     public sealed record FavoriteRequest(string Kind, string RefKey, string Label);
 
-    private static string Csv(string? s) => s == null ? "" : "\"" + s.Replace("\"", "\"\"") + "\"";
+    private static string Csv(string? s) => CsvCell.Of(s, quote: true);
 
     /// <summary>PLT-1007: audit trail export in human- and machine-readable form (exports are themselves audited).</summary>
     public static void MapExports(this WebApplication app)
@@ -198,14 +198,14 @@ public static class Endpoints
         }).RequireAuthorization();
 
         // PLT-1103: export a view (security-trimmed, audited as a global event).
-        app.MapGet("/apps/{key}/export.csv", async (string key, string? view, string? q, ConfigCache cfg, AccessService access, Engine.Views.ViewService views,
-            AuditService audit, VellumDbContext db, HttpContext http) =>
+        app.MapGet("/apps/{key}/export.csv", async (string key, string? view, string? q, string? sort, bool? desc, ConfigCache cfg, AccessService access,
+            Engine.Views.ViewService views, AuditService audit, VellumDbContext db, HttpContext http) =>
         {
             if (!cfg.Current.AppsByKey.TryGetValue(key, out var a) || !access.CanOpenApp(a.Id)) return Results.NotFound();
             var v = a.Views.FirstOrDefault(x => x.Key == view) ?? a.Views.FirstOrDefault(x => x.IsDefault) ?? a.Views.FirstOrDefault();
             if (v == null) return Results.NotFound();
             var filters = http.Request.Query.Where(kv => kv.Key.StartsWith("f.")).ToDictionary(kv => kv.Key[2..], kv => kv.Value.ToString());
-            var result = await views.ExportAsync(v, q, filters);
+            var result = await views.ExportAsync(v, q, filters, sort, desc);
             var sb = new System.Text.StringBuilder(string.Join(',', result.Columns.Select(c => Csv(c.Label))) + "\r\n");
             var dir = http.RequestServices.GetRequiredService<UserDirectory>();
             foreach (var row in result.Rows)

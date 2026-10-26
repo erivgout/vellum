@@ -48,7 +48,7 @@ public class SecurityLogModel(VellumDbContext db, AuditService audit) : AdminPag
     public async Task<IActionResult> OnGetExportAsync()
     {
         var rows = await Query().OrderByDescending(e => e.Id).Take(100_000).ToListAsync();
-        static string C(string? s) => s == null ? "" : "\"" + s.Replace("\"", "\"\"") + "\"";
+        static string C(string? s) => Vellum.Infrastructure.CsvCell.Of(s, quote: true);
         var sb = new StringBuilder("Id,Time (UTC),Kind,Outcome,User ID,Username,IP,Detail\r\n");
         foreach (var e in rows)
             sb.AppendJoin(',', e.Id, e.At.ToString("yyyy-MM-dd HH:mm:ss"), C(e.Kind), e.Success ? "Success" : "Failure", e.UserId, C(e.Username), C(e.Ip), C(e.Detail)).Append("\r\n");

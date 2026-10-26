@@ -185,9 +185,10 @@ public sealed class ViewService(VellumDbContext db, AccessService access, Config
     }
 
     /// <summary>All matching rows (export). Still security-trimmed.</summary>
-    public async Task<ViewOutput> ExportAsync(ViewDefinition v, string? search, Dictionary<string, string> filters)
+    public async Task<ViewOutput> ExportAsync(ViewDefinition v, string? search, Dictionary<string, string> filters, string? sort = null, bool? desc = null)
     {
-        var q = Sort(Query(v, search, filters), v, v.SortBy, v.SortDesc);
+        // The file lists rows in the order the person sorted the list by (PLT-1103).
+        var q = Sort(Query(v, search, filters), v, sort ?? v.SortBy, desc ?? v.SortDesc);
         var records = await q.Take(10000).AsNoTracking().ToListAsync();
         var cols = Columns(v);
         return new ViewOutput { Columns = cols, Rows = await BuildRowsAsync(records, cols), Total = records.Count, Page = 1, PageSize = records.Count };

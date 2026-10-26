@@ -14,6 +14,25 @@ public static class Ui
 
     public static IHtmlContent Icon(string bi, string? cls = null) => new HtmlString($"<i class=\"bi {E(bi)}{(cls != null ? " " + E(cls) : "")}\" aria-hidden=\"true\"></i>");
 
+    /// <summary>
+    /// Text with each occurrence of a search term wrapped in &lt;mark&gt;. It matches the raw text and encodes each piece,
+    /// so a term never lands inside an HTML entity ("amp" in R&amp;D).
+    /// </summary>
+    public static IHtmlContent Highlight(string? text, string? term)
+    {
+        if (string.IsNullOrEmpty(text)) return HtmlString.Empty;
+        term = term?.Trim();
+        if (term is not { Length: >= 2 }) return new HtmlString(E(text));
+        var sb = new System.Text.StringBuilder();
+        var at = 0;
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(text, System.Text.RegularExpressions.Regex.Escape(term), System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        {
+            sb.Append(E(text[at..m.Index])).Append("<mark>").Append(E(m.Value)).Append("</mark>");
+            at = m.Index + m.Length;
+        }
+        return new HtmlString(sb.Append(E(text[at..])).ToString());
+    }
+
     public static IHtmlContent Avatar(UserInfo? u, string size = "sm", bool showName = false)
     {
         if (u == null) return HtmlString.Empty;
