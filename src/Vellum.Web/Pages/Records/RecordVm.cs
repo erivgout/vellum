@@ -60,6 +60,8 @@ public sealed class RecordVm
     public List<AuditEntry> Audit { get; init; } = [];
     public List<EmailLogEntry> Emails { get; init; } = [];
     public IReadOnlyDictionary<Guid, string> LinkLabels { get; init; } = new Dictionary<Guid, string>();
+    /// <summary>DOC-054: superseded revisions a link field points at → the current effective revision shown instead.</summary>
+    public IReadOnlyDictionary<Guid, Guid> LinkTargets { get; init; } = new Dictionary<Guid, Guid>();
     public List<TrackerStep> Tracker { get; init; } = [];
     public List<int> FieldHistoryKeys { get; init; } = [];
 
@@ -141,7 +143,8 @@ public sealed class RecordVmBuilder(
 
         var data = posted ?? snap.Data;
         var allValues = data.Main.Keys.SelectMany(k => data.Main[k]).Concat(data.Rows.Values.SelectMany(rows => rows.SelectMany(x => x.Values.Keys.SelectMany(k => x.Values[k]))));
-        var labels = await records.LinkLabelsAsync(allValues);
+        var targets = await records.EffectiveRevisionsAsync(allValues);
+        var labels = await records.LinkLabelsAsync(allValues.Concat(targets.Values.Select(id => new Val(RefGuid: id))));
 
         return new RecordVm
         {
@@ -178,6 +181,7 @@ public sealed class RecordVmBuilder(
             Audit = await db.Audit.AsNoTracking().Where(a => a.RecordId == r.Id).OrderByDescending(a => a.Seq).Take(500).ToListAsync(),
             Emails = await db.EmailLog.AsNoTracking().Where(e => e.RecordId == r.Id).OrderByDescending(e => e.At).Take(100).ToListAsync(),
             LinkLabels = labels,
+            LinkTargets = targets,
             Tracker = BuildTracker(snap, entries),
         };
     }
